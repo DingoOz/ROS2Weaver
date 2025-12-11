@@ -1,0 +1,26 @@
+[  0%] Built target ros_weaver_autogen_timestamp_deps
+[ 11%] Automatic MOC and UIC for target ros_weaver
+[ 11%] Built target ros_weaver_autogen
+[ 22%] Building CXX object CMakeFiles/ros_weaver.dir/src/main_window.cpp.o
+[ 33%] Building CXX object CMakeFiles/ros_weaver.dir/src/canvas/package_block.cpp.o
+[ 44%] Linking CXX executable ros_weaver
+[100%] Built target ros_weaver
+-- Install configuration: ""
+-- Installing: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/lib/ros_weaver/ros_weaver
+-- Set non-toolchain portion of runtime path of "/home/dingo/Programming/ROS2Weaver/install/ros_weaver/lib/ros_weaver/ros_weaver" to ""
+-- Installing: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/config
+-- Installing: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ament_index/resource_index/package_run_dependencies/ros_weaver
+-- Installing: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ament_index/resource_index/parent_prefix_path/ros_weaver
+-- Installing: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/environment/ament_prefix_path.sh
+-- Installing: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/environment/ament_prefix_path.dsv
+-- Installing: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/environment/path.sh
+-- Installing: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/environment/path.dsv
+-- Installing: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/local_setup.bash
+-- Installing: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/local_setup.sh
+-- Installing: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/local_setup.zsh
+-- Installing: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/local_setup.dsv
+-- Installing: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/package.dsv
+-- Installing: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ament_index/resource_index/packages/ros_weaver
+-- Installing: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/cmake/ros_weaverConfig.cmake
+-- Installing: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/cmake/ros_weaverConfig-version.cmake
+-- Installing: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/package.xml

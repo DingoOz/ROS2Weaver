@@ -1,0 +1,359 @@
+#include "ros_weaver/core/project.hpp"
+#include <QDateTime>
+#include <QFileInfo>
+
+namespace ros_weaver {
+
+// PinData serialization
+QJsonObject PinData::toJson() const {
+  QJsonObject json;
+  json["name"] = name;
+  json["type"] = type;
+  json["dataType"] = dataType;
+  json["messageType"] = messageType;
+  return json;
+}
+
+PinData PinData::fromJson(const QJsonObject& json) {
+  PinData pin;
+  pin.name = json["name"].toString();
+  pin.type = json["type"].toString();
+  pin.dataType = json["dataType"].toString();
+  pin.messageType = json["messageType"].toString();
+  return pin;
+}
+
+// BlockData serialization
+QJsonObject BlockData::toJson() const {
+  QJsonObject json;
+  json["id"] = id.toString();
+  json["name"] = name;
+
+  QJsonObject posJson;
+  posJson["x"] = position.x();
+  posJson["y"] = position.y();
+  json["position"] = posJson;
+
+  QJsonArray inputsArray;
+  for (const auto& pin : inputPins) {
+    inputsArray.append(pin.toJson());
+  }
+  json["inputPins"] = inputsArray;
+
+  QJsonArray outputsArray;
+  for (const auto& pin : outputPins) {
+    outputsArray.append(pin.toJson());
+  }
+  json["outputPins"] = outputsArray;
+
+  return json;
+}
+
+BlockData BlockData::fromJson(const QJsonObject& json) {
+  BlockData block;
+  block.id = QUuid::fromString(json["id"].toString());
+  block.name = json["name"].toString();
+
+  QJsonObject posJson = json["position"].toObject();
+  block.position = QPointF(posJson["x"].toDouble(), posJson["y"].toDouble());
+
+  QJsonArray inputsArray = json["inputPins"].toArray();
+  for (const auto& pinVal : inputsArray) {
+    block.inputPins.append(PinData::fromJson(pinVal.toObject()));
+  }
+
+  QJsonArray outputsArray = json["outputPins"].toArray();
+  for (const auto& pinVal : outputsArray) {
+    block.outputPins.append(PinData::fromJson(pinVal.toObject()));
+  }
+
+  return block;
+}
+
+// ConnectionData serialization
+QJsonObject ConnectionData::toJson() const {
+  QJsonObject json;
+  json["id"] = id.toString();
+  json["sourceBlockId"] = sourceBlockId.toString();
+  json["sourcePinIndex"] = sourcePinIndex;
+  json["targetBlockId"] = targetBlockId.toString();
+  json["targetPinIndex"] = targetPinIndex;
+  return json;
+}
+
+ConnectionData ConnectionData::fromJson(const QJsonObject& json) {
+  ConnectionData conn;
+  conn.id = QUuid::fromString(json["id"].toString());
+  conn.sourceBlockId = QUuid::fromString(json["sourceBlockId"].toString());
+  conn.sourcePinIndex = json["sourcePinIndex"].toInt();
+  conn.targetBlockId = QUuid::fromString(json["targetBlockId"].toString());
+  conn.targetPinIndex = json["targetPinIndex"].toInt();
+  return conn;
+}
+
+// NodeGroupData serialization
+QJsonObject NodeGroupData::toJson() const {
+  QJsonObject json;
+  json["id"] = id.toString();
+  json["title"] = title;
+
+  QJsonObject posJson;
+  posJson["x"] = position.x();
+  posJson["y"] = position.y();
+  json["position"] = posJson;
+
+  QJsonObject sizeJson;
+  sizeJson["width"] = size.width();
+  sizeJson["height"] = size.height();
+  json["size"] = sizeJson;
+
+  QJsonObject colorJson;
+  colorJson["r"] = color.red();
+  colorJson["g"] = color.green();
+  colorJson["b"] = color.blue();
+  colorJson["a"] = color.alpha();
+  json["color"] = colorJson;
+
+  QJsonArray nodeIdsArray;
+  for (const QUuid& nodeId : containedNodeIds) {
+    nodeIdsArray.append(nodeId.toString());
+  }
+  json["containedNodeIds"] = nodeIdsArray;
+
+  return json;
+}
+
+NodeGroupData NodeGroupData::fromJson(const QJsonObject& json) {
+  NodeGroupData group;
+  group.id = QUuid::fromString(json["id"].toString());
+  group.title = json["title"].toString();
+
+  QJsonObject posJson = json["position"].toObject();
+  group.position = QPointF(posJson["x"].toDouble(), posJson["y"].toDouble());
+
+  QJsonObject sizeJson = json["size"].toObject();
+  group.size = QSizeF(sizeJson["width"].toDouble(), sizeJson["height"].toDouble());
+
+  QJsonObject colorJson = json["color"].toObject();
+  group.color = QColor(colorJson["r"].toInt(), colorJson["g"].toInt(),
+                       colorJson["b"].toInt(), colorJson["a"].toInt());
+
+  QJsonArray nodeIdsArray = json["containedNodeIds"].toArray();
+  for (const auto& nodeIdVal : nodeIdsArray) {
+    group.containedNodeIds.append(QUuid::fromString(nodeIdVal.toString()));
+  }
+
+  return group;
+}
+
+// ProjectMetadata serialization
+QJsonObject ProjectMetadata::toJson() const {
+  QJsonObject json;
+  json["name"] = name;
+  json["description"] = description;
+  json["author"] = author;
+  json["version"] = version;
+  json["rosDistro"] = rosDistro;
+  json["createdDate"] = createdDate;
+  json["modifiedDate"] = modifiedDate;
+  return json;
+}
+
+ProjectMetadata ProjectMetadata::fromJson(const QJsonObject& json) {
+  ProjectMetadata meta;
+  meta.name = json["name"].toString();
+  meta.description = json["description"].toString();
+  meta.author = json["author"].toString();
+  meta.version = json["version"].toString();
+  meta.rosDistro = json["rosDistro"].toString();
+  meta.createdDate = json["createdDate"].toString();
+  meta.modifiedDate = json["modifiedDate"].toString();
+  return meta;
+}
+
+// Project implementation
+Project::Project()
+  : hasUnsavedChanges_(false)
+{
+  metadata_.version = "1.0";
+  metadata_.createdDate = QDateTime::currentDateTime().toString(Qt::ISODate);
+  metadata_.modifiedDate = metadata_.createdDate;
+}
+
+void Project::addBlock(const BlockData& block) {
+  blocks_.append(block);
+  hasUnsavedChanges_ = true;
+}
+
+void Project::removeBlock(const QUuid& id) {
+  for (int i = 0; i < blocks_.size(); ++i) {
+    if (blocks_[i].id == id) {
+      blocks_.removeAt(i);
+      hasUnsavedChanges_ = true;
+      break;
+    }
+  }
+}
+
+void Project::addConnection(const ConnectionData& connection) {
+  connections_.append(connection);
+  hasUnsavedChanges_ = true;
+}
+
+void Project::removeConnection(const QUuid& id) {
+  for (int i = 0; i < connections_.size(); ++i) {
+    if (connections_[i].id == id) {
+      connections_.removeAt(i);
+      hasUnsavedChanges_ = true;
+      break;
+    }
+  }
+}
+
+void Project::addNodeGroup(const NodeGroupData& group) {
+  nodeGroups_.append(group);
+  hasUnsavedChanges_ = true;
+}
+
+void Project::removeNodeGroup(const QUuid& id) {
+  for (int i = 0; i < nodeGroups_.size(); ++i) {
+    if (nodeGroups_[i].id == id) {
+      nodeGroups_.removeAt(i);
+      hasUnsavedChanges_ = true;
+      break;
+    }
+  }
+}
+
+void Project::clear() {
+  blocks_.clear();
+  connections_.clear();
+  nodeGroups_.clear();
+  metadata_ = ProjectMetadata();
+  metadata_.version = "1.0";
+  metadata_.createdDate = QDateTime::currentDateTime().toString(Qt::ISODate);
+  metadata_.modifiedDate = metadata_.createdDate;
+  filePath_.clear();
+  hasUnsavedChanges_ = false;
+}
+
+QJsonObject Project::toJson() const {
+  QJsonObject json;
+
+  // File format version
+  json["formatVersion"] = "1.0";
+  json["application"] = "ROS Weaver";
+
+  // Metadata
+  json["metadata"] = metadata_.toJson();
+
+  // Blocks
+  QJsonArray blocksArray;
+  for (const auto& block : blocks_) {
+    blocksArray.append(block.toJson());
+  }
+  json["blocks"] = blocksArray;
+
+  // Connections
+  QJsonArray connectionsArray;
+  for (const auto& conn : connections_) {
+    connectionsArray.append(conn.toJson());
+  }
+  json["connections"] = connectionsArray;
+
+  // Node Groups
+  QJsonArray nodeGroupsArray;
+  for (const auto& group : nodeGroups_) {
+    nodeGroupsArray.append(group.toJson());
+  }
+  json["nodeGroups"] = nodeGroupsArray;
+
+  return json;
+}
+
+Project Project::fromJson(const QJsonObject& json) {
+  Project project;
+
+  // Metadata
+  if (json.contains("metadata")) {
+    project.metadata_ = ProjectMetadata::fromJson(json["metadata"].toObject());
+  }
+
+  // Blocks
+  QJsonArray blocksArray = json["blocks"].toArray();
+  for (const auto& blockVal : blocksArray) {
+    project.blocks_.append(BlockData::fromJson(blockVal.toObject()));
+  }
+
+  // Connections
+  QJsonArray connectionsArray = json["connections"].toArray();
+  for (const auto& connVal : connectionsArray) {
+    project.connections_.append(ConnectionData::fromJson(connVal.toObject()));
+  }
+
+  // Node Groups
+  QJsonArray nodeGroupsArray = json["nodeGroups"].toArray();
+  for (const auto& groupVal : nodeGroupsArray) {
+    project.nodeGroups_.append(NodeGroupData::fromJson(groupVal.toObject()));
+  }
+
+  project.hasUnsavedChanges_ = false;
+  return project;
+}
+
+bool Project::saveToFile(const QString& filePath) const {
+  QFile file(filePath);
+  if (!file.open(QIODevice::WriteOnly)) {
+    return false;
+  }
+
+  // Update modified date
+  ProjectMetadata& mutableMeta = const_cast<ProjectMetadata&>(metadata_);
+  mutableMeta.modifiedDate = QDateTime::currentDateTime().toString(Qt::ISODate);
+
+  QJsonDocument doc(toJson());
+  file.write(doc.toJson(QJsonDocument::Indented));
+  file.close();
+
+  return true;
+}
+
+Project Project::loadFromFile(const QString& filePath, QString* errorMsg) {
+  Project project;
+
+  QFile file(filePath);
+  if (!file.open(QIODevice::ReadOnly)) {
+    if (errorMsg) {
+      *errorMsg = QString("Could not open file: %1").arg(filePath);
+    }
+    return project;
+  }
+
+  QByteArray data = file.readAll();
+  file.close();
+
+  QJsonParseError parseError;
+  QJsonDocument doc = QJsonDocument::fromJson(data, &parseError);
+
+  if (parseError.error != QJsonParseError::NoError) {
+    if (errorMsg) {
+      *errorMsg = QString("JSON parse error: %1").arg(parseError.errorString());
+    }
+    return project;
+  }
+
+  if (!doc.isObject()) {
+    if (errorMsg) {
+      *errorMsg = "Invalid project file format";
+    }
+    return project;
+  }
+
+  project = fromJson(doc.object());
+  project.filePath_ = filePath;
+  project.hasUnsavedChanges_ = false;
+
+  return project;
+}
+
+}  // namespace ros_weaver

@@ -1,0 +1,106 @@
+[0.010s] Invoking command in '/home/dingo/Programming/ROS2Weaver/build/ros_weaver': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --build /home/dingo/Programming/ROS2Weaver/build/ros_weaver -- -j12 -l12
+[0.039s] -- Found ament_cmake: 2.5.4 (/opt/ros/jazzy/share/ament_cmake/cmake)
+[0.227s] -- Found rclcpp: 28.1.12 (/opt/ros/jazzy/share/rclcpp/cmake)
+[0.250s] -- Found rosidl_generator_c: 4.6.6 (/opt/ros/jazzy/share/rosidl_generator_c/cmake)
+[0.256s] -- Found rosidl_generator_cpp: 4.6.6 (/opt/ros/jazzy/share/rosidl_generator_cpp/cmake)
+[0.264s] -- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+[0.272s] -- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+[0.315s] -- Found rmw_implementation_cmake: 7.3.2 (/opt/ros/jazzy/share/rmw_implementation_cmake/cmake)
+[0.316s] -- Found rmw_fastrtps_cpp: 8.4.3 (/opt/ros/jazzy/share/rmw_fastrtps_cpp/cmake)
+[0.386s] -- Using RMW implementation 'rmw_fastrtps_cpp' as default
+[0.436s] -- Found std_msgs: 5.3.6 (/opt/ros/jazzy/share/std_msgs/cmake)
+[0.457s] -- Found ament_lint_auto: 0.17.3 (/opt/ros/jazzy/share/ament_lint_auto/cmake)
+[0.532s] -- Added test 'copyright' to check source files copyright and LICENSE
+[0.533s] -- Added test 'cppcheck' to perform static code analysis on C / C++ code
+[0.533s] -- Configured cppcheck include dirs: /home/dingo/Programming/ROS2Weaver/src/ros_weaver/include
+[0.534s] -- Configured cppcheck exclude dirs and/or files: 
+[0.535s] -- Added test 'cpplint' to check C / C++ code against the Google style
+[0.535s] -- Configured cpplint exclude dirs and/or files: 
+[0.535s] -- Added test 'lint_cmake' to check CMake code style
+[0.536s] -- Added test 'uncrustify' to check C / C++ code style
+[0.536s] -- Configured uncrustify additional arguments: 
+[0.536s] -- Added test 'xmllint' to check XML markup files
+[0.537s] -- Configuring done (0.5s)
+[0.566s] -- Generating done (0.0s)
+[0.568s] -- Build files have been written to: /home/dingo/Programming/ROS2Weaver/build/ros_weaver
+[0.601s] [  0%] Built target ros_weaver_autogen_timestamp_deps
+[0.670s] [  7%] Automatic MOC and UIC for target ros_weaver
+[0.929s] [  7%] Built target ros_weaver_autogen
+[0.974s] [ 15%] Building CXX object CMakeFiles/ros_weaver.dir/src/core/ros_package_index.cpp.o
+[0.974s] [ 30%] Building CXX object CMakeFiles/ros_weaver.dir/ros_weaver_autogen/mocs_compilation.cpp.o
+[0.974s] [ 30%] Building CXX object CMakeFiles/ros_weaver.dir/src/main.cpp.o
+[0.975s] [ 46%] Building CXX object CMakeFiles/ros_weaver.dir/src/core/code_generator.cpp.o
+[0.976s] [ 46%] Building CXX object CMakeFiles/ros_weaver.dir/src/main_window.cpp.o
+[0.976s] [ 53%] Building CXX object CMakeFiles/ros_weaver.dir/src/widgets/param_dashboard.cpp.o
+[0.976s] [ 61%] Building CXX object CMakeFiles/ros_weaver.dir/src/canvas/weaver_canvas.cpp.o
+[0.976s] [ 69%] Building CXX object CMakeFiles/ros_weaver.dir/src/canvas/package_block.cpp.o
+[0.976s] [ 76%] Building CXX object CMakeFiles/ros_weaver.dir/src/core/project.cpp.o
+[0.976s] [ 84%] Building CXX object CMakeFiles/ros_weaver.dir/src/canvas/connection_line.cpp.o
+[1.987s] /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/ros_package_index.cpp: In member function ‘void ros_weaver::RosPackageIndex::onSearchReplyFinished()’:
+[1.987s] /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/ros_package_index.cpp:118:5: warning: missing initializer for member ‘ros_weaver::RosPackageInfo::localPath’ [-Wmissing-field-initializers]
+[1.987s]   118 |     };
+[1.987s]       |     ^
+[1.987s] /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/ros_package_index.cpp:118:5: warning: missing initializer for member ‘ros_weaver::RosPackageInfo::localPath’ [-Wmissing-field-initializers]
+[1.988s] /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/ros_package_index.cpp:118:5: warning: missing initializer for member ‘ros_weaver::RosPackageInfo::localPath’ [-Wmissing-field-initializers]
+[1.988s] /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/ros_package_index.cpp:118:5: warning: missing initializer for member ‘ros_weaver::RosPackageInfo::localPath’ [-Wmissing-field-initializers]
+[1.988s] /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/ros_package_index.cpp:118:5: warning: missing initializer for member ‘ros_weaver::RosPackageInfo::localPath’ [-Wmissing-field-initializers]
+[1.988s] /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/ros_package_index.cpp:118:5: warning: missing initializer for member ‘ros_weaver::RosPackageInfo::localPath’ [-Wmissing-field-initializers]
+[1.988s] /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/ros_package_index.cpp:118:5: warning: missing initializer for member ‘ros_weaver::RosPackageInfo::localPath’ [-Wmissing-field-initializers]
+[1.989s] /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/ros_package_index.cpp:118:5: warning: missing initializer for member ‘ros_weaver::RosPackageInfo::localPath’ [-Wmissing-field-initializers]
+[1.989s] /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/ros_package_index.cpp:118:5: warning: missing initializer for member ‘ros_weaver::RosPackageInfo::localPath’ [-Wmissing-field-initializers]
+[1.989s] /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/ros_package_index.cpp:118:5: warning: missing initializer for member ‘ros_weaver::RosPackageInfo::localPath’ [-Wmissing-field-initializers]
+[1.989s] /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/ros_package_index.cpp:118:5: warning: missing initializer for member ‘ros_weaver::RosPackageInfo::localPath’ [-Wmissing-field-initializers]
+[1.989s] /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/ros_package_index.cpp:118:5: warning: missing initializer for member ‘ros_weaver::RosPackageInfo::localPath’ [-Wmissing-field-initializers]
+[1.989s] /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/ros_package_index.cpp:118:5: warning: missing initializer for member ‘ros_weaver::RosPackageInfo::localPath’ [-Wmissing-field-initializers]
+[1.990s] /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/ros_package_index.cpp:118:5: warning: missing initializer for member ‘ros_weaver::RosPackageInfo::localPath’ [-Wmissing-field-initializers]
+[1.990s] /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/ros_package_index.cpp:118:5: warning: missing initializer for member ‘ros_weaver::RosPackageInfo::localPath’ [-Wmissing-field-initializers]
+[2.473s] In file included from /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/main.cpp:3:
+[2.473s] /home/dingo/Programming/ROS2Weaver/src/ros_weaver/include/ros_weaver/main_window.hpp:84:3: error: ‘QTextEdit’ does not name a type; did you mean ‘QTextList’?
+[2.474s]    84 |   QTextEdit* outputText_;
+[2.474s]       |   ^~~~~~~~~
+[2.474s]       |   QTextList
+[2.520s] In file included from /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/main_window.cpp:1:
+[2.521s] /home/dingo/Programming/ROS2Weaver/src/ros_weaver/include/ros_weaver/main_window.hpp:84:3: error: ‘QTextEdit’ does not name a type; did you mean ‘QTextList’?
+[2.521s]    84 |   QTextEdit* outputText_;
+[2.521s]       |   ^~~~~~~~~
+[2.521s]       |   QTextList
+[2.675s] gmake[2]: *** [CMakeFiles/ros_weaver.dir/build.make:97: CMakeFiles/ros_weaver.dir/src/main.cpp.o] Error 1
+[2.675s] gmake[2]: *** Waiting for unfinished jobs....
+[2.851s] In file included from /home/dingo/Programming/ROS2Weaver/build/ros_weaver/ros_weaver_autogen/OQCFGOJ2WH/moc_main_window.cpp:10,
+[2.851s]                  from /home/dingo/Programming/ROS2Weaver/build/ros_weaver/ros_weaver_autogen/mocs_compilation.cpp:7:
+[2.851s] /home/dingo/Programming/ROS2Weaver/build/ros_weaver/ros_weaver_autogen/OQCFGOJ2WH/../../../../src/ros_weaver/include/ros_weaver/main_window.hpp:84:3: error: ‘QTextEdit’ does not name a type; did you mean ‘QTextList’?
+[2.851s]    84 |   QTextEdit* outputText_;
+[2.851s]       |   ^~~~~~~~~
+[2.851s]       |   QTextList
+[2.859s] /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/code_generator.cpp: In member function ‘QString ros_weaver::CodeGenerator::generateNodeCpp(const ros_weaver::BlockData&, const QList<ros_weaver::ConnectionData>&, const QList<ros_weaver::ParamDefinition>&)’:
+[2.860s] /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/code_generator.cpp:281:70: warning: unused parameter ‘connections’ [-Wunused-parameter]
+[2.860s]   281 |                                         const QList<ConnectionData>& connections,
+[2.860s]       |                                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~
+[2.876s] /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/main_window.cpp: In constructor ‘ros_weaver::MainWindow::MainWindow(QWidget*)’:
+[2.876s] /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/main_window.cpp:38:5: error: class ‘ros_weaver::MainWindow’ does not have any field named ‘outputText_’
+[2.876s]    38 |   , outputText_(nullptr)
+[2.876s]       |     ^~~~~~~~~~~
+[2.898s] /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/main_window.cpp: In member function ‘void ros_weaver::MainWindow::setupDockWidgets()’:
+[2.899s] /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/main_window.cpp:275:3: error: ‘outputText_’ was not declared in this scope
+[2.899s]   275 |   outputText_ = new QTextEdit();
+[2.899s]       |   ^~~~~~~~~~~
+[2.920s] /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/main_window.cpp: In member function ‘void ros_weaver::MainWindow::onGenerateCode()’:
+[2.920s] /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/main_window.cpp:723:3: error: ‘outputText_’ was not declared in this scope
+[2.920s]   723 |   outputText_->clear();
+[2.920s]       |   ^~~~~~~~~~~
+[2.926s] /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/main_window.cpp: In member function ‘void ros_weaver::MainWindow::onGenerationProgress(int, const QString&)’:
+[2.926s] /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/main_window.cpp:732:3: error: ‘outputText_’ was not declared in this scope
+[2.926s]   732 |   outputText_->append(message);
+[2.926s]       |   ^~~~~~~~~~~
+[2.932s] /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/main_window.cpp: In member function ‘void ros_weaver::MainWindow::onGenerationFinished(bool)’:
+[2.932s] /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/main_window.cpp:739:5: error: ‘outputText_’ was not declared in this scope
+[2.932s]   739 |     outputText_->append(tr("\nCode generation completed successfully!"));
+[2.933s]       |     ^~~~~~~~~~~
+[2.939s] /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/main_window.cpp:750:5: error: ‘outputText_’ was not declared in this scope
+[2.939s]   750 |     outputText_->append(tr("\nCode generation failed: %1").arg(codeGenerator_->lastError()));
+[2.939s]       |     ^~~~~~~~~~~
+[3.099s] gmake[2]: *** [CMakeFiles/ros_weaver.dir/build.make:83: CMakeFiles/ros_weaver.dir/ros_weaver_autogen/mocs_compilation.cpp.o] Error 1
+[3.247s] gmake[2]: *** [CMakeFiles/ros_weaver.dir/build.make:111: CMakeFiles/ros_weaver.dir/src/main_window.cpp.o] Error 1
+[3.356s] gmake[1]: *** [CMakeFiles/Makefile2:140: CMakeFiles/ros_weaver.dir/all] Error 2
+[3.356s] gmake: *** [Makefile:146: all] Error 2
+[3.358s] Invoked command in '/home/dingo/Programming/ROS2Weaver/build/ros_weaver' returned '2': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --build /home/dingo/Programming/ROS2Weaver/build/ros_weaver -- -j12 -l12

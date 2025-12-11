@@ -1,0 +1,67 @@
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/ros_package_index.cpp: In member function ‘void ros_weaver::RosPackageIndex::onSearchReplyFinished()’:
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/ros_package_index.cpp:118:5: warning: missing initializer for member ‘ros_weaver::RosPackageInfo::localPath’ [-Wmissing-field-initializers]
+  118 |     };
+      |     ^
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/ros_package_index.cpp:118:5: warning: missing initializer for member ‘ros_weaver::RosPackageInfo::localPath’ [-Wmissing-field-initializers]
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/ros_package_index.cpp:118:5: warning: missing initializer for member ‘ros_weaver::RosPackageInfo::localPath’ [-Wmissing-field-initializers]
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/ros_package_index.cpp:118:5: warning: missing initializer for member ‘ros_weaver::RosPackageInfo::localPath’ [-Wmissing-field-initializers]
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/ros_package_index.cpp:118:5: warning: missing initializer for member ‘ros_weaver::RosPackageInfo::localPath’ [-Wmissing-field-initializers]
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/ros_package_index.cpp:118:5: warning: missing initializer for member ‘ros_weaver::RosPackageInfo::localPath’ [-Wmissing-field-initializers]
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/ros_package_index.cpp:118:5: warning: missing initializer for member ‘ros_weaver::RosPackageInfo::localPath’ [-Wmissing-field-initializers]
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/ros_package_index.cpp:118:5: warning: missing initializer for member ‘ros_weaver::RosPackageInfo::localPath’ [-Wmissing-field-initializers]
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/ros_package_index.cpp:118:5: warning: missing initializer for member ‘ros_weaver::RosPackageInfo::localPath’ [-Wmissing-field-initializers]
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/ros_package_index.cpp:118:5: warning: missing initializer for member ‘ros_weaver::RosPackageInfo::localPath’ [-Wmissing-field-initializers]
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/ros_package_index.cpp:118:5: warning: missing initializer for member ‘ros_weaver::RosPackageInfo::localPath’ [-Wmissing-field-initializers]
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/ros_package_index.cpp:118:5: warning: missing initializer for member ‘ros_weaver::RosPackageInfo::localPath’ [-Wmissing-field-initializers]
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/ros_package_index.cpp:118:5: warning: missing initializer for member ‘ros_weaver::RosPackageInfo::localPath’ [-Wmissing-field-initializers]
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/ros_package_index.cpp:118:5: warning: missing initializer for member ‘ros_weaver::RosPackageInfo::localPath’ [-Wmissing-field-initializers]
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/ros_package_index.cpp:118:5: warning: missing initializer for member ‘ros_weaver::RosPackageInfo::localPath’ [-Wmissing-field-initializers]
+In file included from /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/main.cpp:3:
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/include/ros_weaver/main_window.hpp:84:3: error: ‘QTextEdit’ does not name a type; did you mean ‘QTextList’?
+   84 |   QTextEdit* outputText_;
+      |   ^~~~~~~~~
+      |   QTextList
+In file included from /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/main_window.cpp:1:
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/include/ros_weaver/main_window.hpp:84:3: error: ‘QTextEdit’ does not name a type; did you mean ‘QTextList’?
+   84 |   QTextEdit* outputText_;
+      |   ^~~~~~~~~
+      |   QTextList
+gmake[2]: *** [CMakeFiles/ros_weaver.dir/build.make:97: CMakeFiles/ros_weaver.dir/src/main.cpp.o] Error 1
+gmake[2]: *** Waiting for unfinished jobs....
+In file included from /home/dingo/Programming/ROS2Weaver/build/ros_weaver/ros_weaver_autogen/OQCFGOJ2WH/moc_main_window.cpp:10,
+                 from /home/dingo/Programming/ROS2Weaver/build/ros_weaver/ros_weaver_autogen/mocs_compilation.cpp:7:
+/home/dingo/Programming/ROS2Weaver/build/ros_weaver/ros_weaver_autogen/OQCFGOJ2WH/../../../../src/ros_weaver/include/ros_weaver/main_window.hpp:84:3: error: ‘QTextEdit’ does not name a type; did you mean ‘QTextList’?
+   84 |   QTextEdit* outputText_;
+      |   ^~~~~~~~~
+      |   QTextList
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/code_generator.cpp: In member function ‘QString ros_weaver::CodeGenerator::generateNodeCpp(const ros_weaver::BlockData&, const QList<ros_weaver::ConnectionData>&, const QList<ros_weaver::ParamDefinition>&)’:
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/code_generator.cpp:281:70: warning: unused parameter ‘connections’ [-Wunused-parameter]
+  281 |                                         const QList<ConnectionData>& connections,
+      |                                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/main_window.cpp: In constructor ‘ros_weaver::MainWindow::MainWindow(QWidget*)’:
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/main_window.cpp:38:5: error: class ‘ros_weaver::MainWindow’ does not have any field named ‘outputText_’
+   38 |   , outputText_(nullptr)
+      |     ^~~~~~~~~~~
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/main_window.cpp: In member function ‘void ros_weaver::MainWindow::setupDockWidgets()’:
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/main_window.cpp:275:3: error: ‘outputText_’ was not declared in this scope
+  275 |   outputText_ = new QTextEdit();
+      |   ^~~~~~~~~~~
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/main_window.cpp: In member function ‘void ros_weaver::MainWindow::onGenerateCode()’:
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/main_window.cpp:723:3: error: ‘outputText_’ was not declared in this scope
+  723 |   outputText_->clear();
+      |   ^~~~~~~~~~~
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/main_window.cpp: In member function ‘void ros_weaver::MainWindow::onGenerationProgress(int, const QString&)’:
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/main_window.cpp:732:3: error: ‘outputText_’ was not declared in this scope
+  732 |   outputText_->append(message);
+      |   ^~~~~~~~~~~
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/main_window.cpp: In member function ‘void ros_weaver::MainWindow::onGenerationFinished(bool)’:
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/main_window.cpp:739:5: error: ‘outputText_’ was not declared in this scope
+  739 |     outputText_->append(tr("\nCode generation completed successfully!"));
+      |     ^~~~~~~~~~~
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/main_window.cpp:750:5: error: ‘outputText_’ was not declared in this scope
+  750 |     outputText_->append(tr("\nCode generation failed: %1").arg(codeGenerator_->lastError()));
+      |     ^~~~~~~~~~~
+gmake[2]: *** [CMakeFiles/ros_weaver.dir/build.make:83: CMakeFiles/ros_weaver.dir/ros_weaver_autogen/mocs_compilation.cpp.o] Error 1
+gmake[2]: *** [CMakeFiles/ros_weaver.dir/build.make:111: CMakeFiles/ros_weaver.dir/src/main_window.cpp.o] Error 1
+gmake[1]: *** [CMakeFiles/Makefile2:140: CMakeFiles/ros_weaver.dir/all] Error 2
+gmake: *** [Makefile:146: all] Error 2

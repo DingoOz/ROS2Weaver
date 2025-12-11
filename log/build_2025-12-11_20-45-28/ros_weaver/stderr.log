@@ -1,0 +1,4 @@
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/canvas/connection_line.cpp: In member function ‘virtual void ros_weaver::ConnectionLine::paint(QPainter*, const QStyleOptionGraphicsItem*, QWidget*)’:
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/canvas/connection_line.cpp:209:13: warning: unused variable ‘percent’ [-Wunused-variable]
+  209 |       qreal percent = t * pathLength;
+      |             ^~~~~~~

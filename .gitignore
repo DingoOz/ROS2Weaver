@@ -39,3 +39,40 @@
 
 # debug information files
 *.dwo
+
+# ROS2/Colcon build directories
+build/
+install/
+log/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+
+# Qt generated files
+moc_*.cpp
+ui_*.h
+qrc_*.cpp
+*.moc
+*_automoc.cpp
+*_autogen/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.cproject
+.settings/
+
+# Planning and Claude session files
+*.md
+
+# OS generated files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,29 @@
+[0.010s] Invoking command in '/home/dingo/Programming/ROS2Weaver/build/ros_weaver': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --build /home/dingo/Programming/ROS2Weaver/build/ros_weaver -- -j12 -l12
+[0.065s] [  0%] Built target ros_weaver_autogen_timestamp_deps
+[0.120s] [ 11%] Automatic MOC and UIC for target ros_weaver
+[0.156s] [ 11%] Built target ros_weaver_autogen
+[0.216s] [ 22%] Building CXX object CMakeFiles/ros_weaver.dir/src/canvas/connection_line.cpp.o
+[1.294s] [ 33%] Linking CXX executable ros_weaver
+[2.298s] [100%] Built target ros_weaver
+[2.309s] Invoked command in '/home/dingo/Programming/ROS2Weaver/build/ros_weaver' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --build /home/dingo/Programming/ROS2Weaver/build/ros_weaver -- -j12 -l12
+[2.321s] Invoking command in '/home/dingo/Programming/ROS2Weaver/build/ros_weaver': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --install /home/dingo/Programming/ROS2Weaver/build/ros_weaver
+[2.329s] -- Install configuration: ""
+[2.329s] -- Installing: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/lib/ros_weaver/ros_weaver
+[2.330s] -- Set non-toolchain portion of runtime path of "/home/dingo/Programming/ROS2Weaver/install/ros_weaver/lib/ros_weaver/ros_weaver" to ""
+[2.330s] -- Up-to-date: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/config
+[2.330s] -- Up-to-date: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ament_index/resource_index/package_run_dependencies/ros_weaver
+[2.330s] -- Up-to-date: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ament_index/resource_index/parent_prefix_path/ros_weaver
+[2.330s] -- Up-to-date: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/environment/ament_prefix_path.sh
+[2.330s] -- Up-to-date: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/environment/ament_prefix_path.dsv
+[2.330s] -- Up-to-date: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/environment/path.sh
+[2.330s] -- Up-to-date: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/environment/path.dsv
+[2.330s] -- Up-to-date: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/local_setup.bash
+[2.330s] -- Up-to-date: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/local_setup.sh
+[2.330s] -- Up-to-date: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/local_setup.zsh
+[2.330s] -- Up-to-date: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/local_setup.dsv
+[2.330s] -- Installing: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/package.dsv
+[2.331s] -- Up-to-date: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ament_index/resource_index/packages/ros_weaver
+[2.331s] -- Up-to-date: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/cmake/ros_weaverConfig.cmake
+[2.331s] -- Up-to-date: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/cmake/ros_weaverConfig-version.cmake
+[2.331s] -- Up-to-date: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/package.xml
+[2.333s] Invoked command in '/home/dingo/Programming/ROS2Weaver/build/ros_weaver' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --install /home/dingo/Programming/ROS2Weaver/build/ros_weaver

@@ -1,0 +1,89 @@
+-- The C compiler identification is GNU 13.3.0
+-- The CXX compiler identification is GNU 13.3.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Found ament_cmake: 2.5.4 (/opt/ros/jazzy/share/ament_cmake/cmake)
+-- Found Python3: /usr/bin/python3 (found version "3.12.3") found components: Interpreter 
+-- Found rclcpp: 28.1.12 (/opt/ros/jazzy/share/rclcpp/cmake)
+-- Found rosidl_generator_c: 4.6.6 (/opt/ros/jazzy/share/rosidl_generator_c/cmake)
+-- Found rosidl_generator_cpp: 4.6.6 (/opt/ros/jazzy/share/rosidl_generator_cpp/cmake)
+-- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+-- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+-- Found rmw_implementation_cmake: 7.3.2 (/opt/ros/jazzy/share/rmw_implementation_cmake/cmake)
+-- Found rmw_fastrtps_cpp: 8.4.3 (/opt/ros/jazzy/share/rmw_fastrtps_cpp/cmake)
+-- Found OpenSSL: /usr/lib/x86_64-linux-gnu/libcrypto.so (found version "3.0.13")  
+-- Found FastRTPS: /opt/ros/jazzy/include (Required is at least version "2.13") 
+-- Using RMW implementation 'rmw_fastrtps_cpp' as default
+-- Found std_msgs: 5.3.6 (/opt/ros/jazzy/share/std_msgs/cmake)
+-- Found ament_lint_auto: 0.17.3 (/opt/ros/jazzy/share/ament_lint_auto/cmake)
+-- Added test 'copyright' to check source files copyright and LICENSE
+-- Added test 'cppcheck' to perform static code analysis on C / C++ code
+-- Configured cppcheck include dirs: /home/dingo/Programming/ROS2Weaver/src/ros_weaver/include
+-- Configured cppcheck exclude dirs and/or files: 
+-- Added test 'cpplint' to check C / C++ code against the Google style
+-- Configured cpplint exclude dirs and/or files: 
+-- Added test 'lint_cmake' to check CMake code style
+-- Added test 'uncrustify' to check C / C++ code style
+-- Configured uncrustify additional arguments: 
+-- Added test 'xmllint' to check XML markup files
+-- Configuring done (1.2s)
+-- Generating done (0.0s)
+-- Build files have been written to: /home/dingo/Programming/ROS2Weaver/build/ros_weaver
+[  0%] Built target ros_weaver_autogen_timestamp_deps
+[ 11%] Automatic MOC and UIC for target ros_weaver
+[ 11%] Built target ros_weaver_autogen
+[ 22%] Building CXX object CMakeFiles/ros_weaver.dir/src/main.cpp.o
+[ 55%] Building CXX object CMakeFiles/ros_weaver.dir/ros_weaver_autogen/mocs_compilation.cpp.o
+[ 55%] Building CXX object CMakeFiles/ros_weaver.dir/src/main_window.cpp.o
+[ 55%] Building CXX object CMakeFiles/ros_weaver.dir/src/canvas/weaver_canvas.cpp.o
+[ 66%] Building CXX object CMakeFiles/ros_weaver.dir/src/canvas/package_block.cpp.o
+[ 77%] Building CXX object CMakeFiles/ros_weaver.dir/src/canvas/connection_line.cpp.o
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/main_window.cpp: In lambda function:
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/main_window.cpp:189:66: error: invalid use of incomplete type ‘class ros_weaver::PackageBlock’
+  189 |     statusBar()->showMessage(tr("Selected: %1").arg(block ? block->packageName() : tr("None")));
+      |                                                                  ^~
+In file included from /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/main_window.cpp:2:
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/include/ros_weaver/canvas/weaver_canvas.hpp:13:7: note: forward declaration of ‘class ros_weaver::PackageBlock’
+   13 | class PackageBlock;
+      |       ^~~~~~~~~~~~
+In file included from /usr/include/x86_64-linux-gnu/qt5/QtGui/qtguiglobal.h:43,
+                 from /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qtwidgetsglobal.h:43,
+                 from /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qmainwindow.h:43,
+                 from /usr/include/x86_64-linux-gnu/qt5/QtWidgets/QMainWindow:1,
+                 from /home/dingo/Programming/ROS2Weaver/src/ros_weaver/include/ros_weaver/main_window.hpp:4,
+                 from /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/main_window.cpp:1:
+/usr/include/x86_64-linux-gnu/qt5/QtCore/qmetatype.h: In instantiation of ‘struct QtPrivate::IsPointerToTypeDerivedFromQObject<ros_weaver::PackageBlock*>’:
+/usr/include/x86_64-linux-gnu/qt5/QtCore/qmetatype.h:1756:60:   required from ‘struct QMetaTypeId<ros_weaver::PackageBlock*>’
+/usr/include/x86_64-linux-gnu/qt5/QtCore/qmetatype.h:1775:38:   required from ‘struct QMetaTypeId2<ros_weaver::PackageBlock*>’
+/usr/include/x86_64-linux-gnu/qt5/QtCore/qobject_impl.h:68:41:   required from ‘struct QtPrivate::TypesAreDeclaredMetaType<QtPrivate::List<ros_weaver::PackageBlock*> >’
+/usr/include/x86_64-linux-gnu/qt5/QtCore/qobject.h:341:86:   required from ‘static typename std::enable_if<(QtPrivate::FunctionPointer<Func2>::ArgumentCount == -1), QMetaObject::Connection>::type QObject::connect(const typename QtPrivate::FunctionPointer<Func>::Object*, Func1, const QObject*, Func2, Qt::ConnectionType) [with Func1 = void (ros_weaver::WeaverCanvas::*)(ros_weaver::PackageBlock*); Func2 = ros_weaver::MainWindow::setupCentralWidget()::<lambda(ros_weaver::PackageBlock*)>; typename std::enable_if<(QtPrivate::FunctionPointer<Func2>::ArgumentCount == -1), QMetaObject::Connection>::type = QMetaObject::Connection; typename QtPrivate::FunctionPointer<Func>::Object = ros_weaver::WeaverCanvas]’
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/main_window.cpp:188:10:   required from here
+/usr/include/x86_64-linux-gnu/qt5/QtCore/qmetatype.h:1528:9: error: invalid application of ‘sizeof’ to incomplete type ‘ros_weaver::PackageBlock’
+ 1528 |         Q_STATIC_ASSERT_X(sizeof(T), "Type argument of Q_DECLARE_METATYPE(T*) must be fully defined");
+      |         ^~~~~~~~~~~~~~~~~
+gmake[2]: *** [CMakeFiles/ros_weaver.dir/build.make:111: CMakeFiles/ros_weaver.dir/src/main_window.cpp.o] Error 1
+gmake[2]: *** Waiting for unfinished jobs....
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/canvas/package_block.cpp: In member function ‘virtual void ros_weaver::PackageBlock::paint(QPainter*, const QStyleOptionGraphicsItem*, QWidget*)’:
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/canvas/package_block.cpp:65:39: error: cannot convert ‘QRectF’ to ‘const QPainterPath&’
+   65 |   headerPath = headerPath.intersected(QRectF(0, 0, BLOCK_WIDTH, HEADER_HEIGHT));
+      |                                       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |                                       |
+      |                                       QRectF
+In file included from /usr/include/x86_64-linux-gnu/qt5/QtWidgets/qgraphicsitem.h:48,
+                 from /usr/include/x86_64-linux-gnu/qt5/QtWidgets/QGraphicsItem:1,
+                 from /home/dingo/Programming/ROS2Weaver/src/ros_weaver/include/ros_weaver/canvas/package_block.hpp:4,
+                 from /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/canvas/package_block.cpp:1:
+/usr/include/x86_64-linux-gnu/qt5/QtGui/qpainterpath.h:205:68: note:   initializing argument 1 of ‘QPainterPath QPainterPath::intersected(const QPainterPath&) const’
+  205 |     Q_REQUIRED_RESULT QPainterPath intersected(const QPainterPath &r) const;
+      |                                                ~~~~~~~~~~~~~~~~~~~~^
+gmake[2]: *** [CMakeFiles/ros_weaver.dir/build.make:139: CMakeFiles/ros_weaver.dir/src/canvas/package_block.cpp.o] Error 1
+gmake[1]: *** [CMakeFiles/Makefile2:140: CMakeFiles/ros_weaver.dir/all] Error 2
+gmake: *** [Makefile:146: all] Error 2

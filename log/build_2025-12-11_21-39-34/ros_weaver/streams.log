@@ -1,0 +1,62 @@
+[0.010s] Invoking command in '/home/dingo/Programming/ROS2Weaver/build/ros_weaver': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --build /home/dingo/Programming/ROS2Weaver/build/ros_weaver -- -j12 -l12
+[0.044s] -- Found ament_cmake: 2.5.4 (/opt/ros/jazzy/share/ament_cmake/cmake)
+[0.263s] -- Found rclcpp: 28.1.12 (/opt/ros/jazzy/share/rclcpp/cmake)
+[0.296s] -- Found rosidl_generator_c: 4.6.6 (/opt/ros/jazzy/share/rosidl_generator_c/cmake)
+[0.302s] -- Found rosidl_generator_cpp: 4.6.6 (/opt/ros/jazzy/share/rosidl_generator_cpp/cmake)
+[0.310s] -- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+[0.320s] -- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+[0.379s] -- Found rmw_implementation_cmake: 7.3.2 (/opt/ros/jazzy/share/rmw_implementation_cmake/cmake)
+[0.381s] -- Found rmw_fastrtps_cpp: 8.4.3 (/opt/ros/jazzy/share/rmw_fastrtps_cpp/cmake)
+[0.437s] -- Using RMW implementation 'rmw_fastrtps_cpp' as default
+[0.492s] -- Found std_msgs: 5.3.6 (/opt/ros/jazzy/share/std_msgs/cmake)
+[0.522s] -- Found ament_lint_auto: 0.17.3 (/opt/ros/jazzy/share/ament_lint_auto/cmake)
+[0.609s] -- Added test 'copyright' to check source files copyright and LICENSE
+[0.610s] -- Added test 'cppcheck' to perform static code analysis on C / C++ code
+[0.611s] -- Configured cppcheck include dirs: /home/dingo/Programming/ROS2Weaver/src/ros_weaver/include
+[0.611s] -- Configured cppcheck exclude dirs and/or files: 
+[0.612s] -- Added test 'cpplint' to check C / C++ code against the Google style
+[0.612s] -- Configured cpplint exclude dirs and/or files: 
+[0.612s] -- Added test 'lint_cmake' to check CMake code style
+[0.614s] -- Added test 'uncrustify' to check C / C++ code style
+[0.614s] -- Configured uncrustify additional arguments: 
+[0.614s] -- Added test 'xmllint' to check XML markup files
+[0.615s] -- Configuring done (0.6s)
+[0.648s] -- Generating done (0.0s)
+[0.652s] -- Build files have been written to: /home/dingo/Programming/ROS2Weaver/build/ros_weaver
+[0.693s] [  0%] Built target ros_weaver_autogen_timestamp_deps
+[0.788s] [  7%] Automatic MOC and UIC for target ros_weaver
+[1.002s] [  7%] Built target ros_weaver_autogen
+[1.042s] [ 14%] Building CXX object CMakeFiles/ros_weaver.dir/ros_weaver_autogen/mocs_compilation.cpp.o
+[1.044s] [ 21%] Building CXX object CMakeFiles/ros_weaver.dir/src/canvas/weaver_canvas.cpp.o
+[1.044s] [ 28%] Building CXX object CMakeFiles/ros_weaver.dir/src/main_window.cpp.o
+[1.046s] [ 42%] Building CXX object CMakeFiles/ros_weaver.dir/src/canvas/node_group.cpp.o
+[1.047s] [ 42%] Building CXX object CMakeFiles/ros_weaver.dir/src/core/project.cpp.o
+[1.047s] [ 50%] Building CXX object CMakeFiles/ros_weaver.dir/src/core/code_generator.cpp.o
+[2.639s] /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/code_generator.cpp: In member function ‘QString ros_weaver::CodeGenerator::generateNodeCpp(const ros_weaver::BlockData&, const QList<ros_weaver::ConnectionData>&, const QList<ros_weaver::ParamDefinition>&)’:
+[2.639s] /home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/code_generator.cpp:281:70: warning: unused parameter ‘connections’ [-Wunused-parameter]
+[2.639s]   281 |                                         const QList<ConnectionData>& connections,
+[2.639s]       |                                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~
+[3.068s] [ 57%] Linking CXX executable ros_weaver
+[3.977s] [100%] Built target ros_weaver
+[3.992s] Invoked command in '/home/dingo/Programming/ROS2Weaver/build/ros_weaver' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --build /home/dingo/Programming/ROS2Weaver/build/ros_weaver -- -j12 -l12
+[4.003s] Invoking command in '/home/dingo/Programming/ROS2Weaver/build/ros_weaver': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --install /home/dingo/Programming/ROS2Weaver/build/ros_weaver
+[4.009s] -- Install configuration: ""
+[4.009s] -- Installing: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/lib/ros_weaver/ros_weaver
+[4.010s] -- Set non-toolchain portion of runtime path of "/home/dingo/Programming/ROS2Weaver/install/ros_weaver/lib/ros_weaver/ros_weaver" to ""
+[4.010s] -- Up-to-date: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/config
+[4.010s] -- Up-to-date: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ament_index/resource_index/package_run_dependencies/ros_weaver
+[4.010s] -- Up-to-date: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ament_index/resource_index/parent_prefix_path/ros_weaver
+[4.010s] -- Up-to-date: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/environment/ament_prefix_path.sh
+[4.010s] -- Up-to-date: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/environment/ament_prefix_path.dsv
+[4.010s] -- Up-to-date: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/environment/path.sh
+[4.011s] -- Up-to-date: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/environment/path.dsv
+[4.011s] -- Up-to-date: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/local_setup.bash
+[4.011s] -- Up-to-date: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/local_setup.sh
+[4.011s] -- Up-to-date: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/local_setup.zsh
+[4.011s] -- Up-to-date: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/local_setup.dsv
+[4.011s] -- Installing: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/package.dsv
+[4.011s] -- Up-to-date: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ament_index/resource_index/packages/ros_weaver
+[4.011s] -- Up-to-date: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/cmake/ros_weaverConfig.cmake
+[4.011s] -- Up-to-date: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/cmake/ros_weaverConfig-version.cmake
+[4.011s] -- Up-to-date: /home/dingo/Programming/ROS2Weaver/install/ros_weaver/share/ros_weaver/package.xml
+[4.012s] Invoked command in '/home/dingo/Programming/ROS2Weaver/build/ros_weaver' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --install /home/dingo/Programming/ROS2Weaver/build/ros_weaver

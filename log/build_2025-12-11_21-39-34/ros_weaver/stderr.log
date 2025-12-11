@@ -1,0 +1,4 @@
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/code_generator.cpp: In member function ‘QString ros_weaver::CodeGenerator::generateNodeCpp(const ros_weaver::BlockData&, const QList<ros_weaver::ConnectionData>&, const QList<ros_weaver::ParamDefinition>&)’:
+/home/dingo/Programming/ROS2Weaver/src/ros_weaver/src/core/code_generator.cpp:281:70: warning: unused parameter ‘connections’ [-Wunused-parameter]
+  281 |                                         const QList<ConnectionData>& connections,
+      |                                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~
