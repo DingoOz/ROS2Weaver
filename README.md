@@ -113,4 +113,4 @@ src/ros_weaver/
 
 ## License
 
-Apache-2.0
+GPL-3.0
