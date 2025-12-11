@@ -1,2 +1,0 @@
-Invoking command in '/home/dingo/Programming/ROS2Weaver/build/ros_weaver': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --build /home/dingo/Programming/ROS2Weaver/build/ros_weaver -- -j12 -l12
-Invoked command in '/home/dingo/Programming/ROS2Weaver/build/ros_weaver' returned '2': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy DEBUGINFOD_URLS=https://debuginfod.ubuntu.com /usr/bin/cmake --build /home/dingo/Programming/ROS2Weaver/build/ros_weaver -- -j12 -l12

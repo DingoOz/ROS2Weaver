@@ -1,7 +1,0 @@
-[  0%] Built target ros_weaver_autogen_timestamp_deps
-[ 11%] Automatic MOC and UIC for target ros_weaver
-[ 11%] Built target ros_weaver_autogen
-[ 22%] Building CXX object CMakeFiles/ros_weaver.dir/src/main_window.cpp.o
-[ 44%] Building CXX object CMakeFiles/ros_weaver.dir/src/canvas/weaver_canvas.cpp.o
-[ 44%] Building CXX object CMakeFiles/ros_weaver.dir/src/canvas/package_block.cpp.o
-[ 55%] Building CXX object CMakeFiles/ros_weaver.dir/src/canvas/connection_line.cpp.o

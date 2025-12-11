@@ -1,1 +1,0 @@
-rclcpp;std_msgs;rcl_interfaces;yaml-cpp;libqt5-widgets;libqt5-gui;libqt5-core;ament_lint_auto;ament_lint_common;ament_cmake_gtest
