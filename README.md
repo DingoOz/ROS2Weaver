@@ -2,6 +2,8 @@
 
 A visual tool for assembling, extending, and iterating on ROS2 packages and nodes.
 
+![ROS Weaver Screenshot](Screenshot.png)
+
 ## Quickstart
 
 ```bash
