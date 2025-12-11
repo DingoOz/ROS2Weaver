@@ -2,6 +2,21 @@
 
 A visual tool for assembling, extending, and iterating on ROS2 packages and nodes.
 
+## Quickstart
+
+```bash
+# Install dependencies (Ubuntu)
+sudo apt install -y qtbase5-dev qtbase5-dev-tools libqt5widgets5 libyaml-cpp-dev
+
+# Source ROS2 and build
+source /opt/ros/jazzy/setup.bash  # or your ROS2 distro
+colcon build --packages-select ros_weaver
+source install/setup.bash
+
+# Run
+ros2 run ros_weaver ros_weaver
+```
+
 ## Overview
 
 ROS Weaver provides a graphical interface for ROS2 development, allowing users to:
