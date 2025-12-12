@@ -54,6 +54,7 @@ set(SOURCES
   src/widgets/param_dashboard.cpp
   src/widgets/output_panel.cpp
   src/widgets/topic_inspector.cpp
+  src/widgets/ros_status_widget.cpp
   src/wizards/package_wizard.cpp
 )
 
@@ -72,6 +73,7 @@ set(HEADERS
   include/ros_weaver/widgets/param_dashboard.hpp
   include/ros_weaver/widgets/output_panel.hpp
   include/ros_weaver/widgets/topic_inspector.hpp
+  include/ros_weaver/widgets/ros_status_widget.hpp
   include/ros_weaver/wizards/package_wizard.hpp
 )
 

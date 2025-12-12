@@ -27,6 +27,7 @@ class OutputPanel;
 class TopicMonitor;
 class TopicInspectorPopup;
 class ConnectionLine;
+class RosStatusWidget;
 
 class MainWindow : public QMainWindow {
   Q_OBJECT
@@ -70,6 +71,10 @@ private slots:
   void onConnectionDoubleClicked(ConnectionLine* connection);
   void onTopicActivity(const QString& topicName, double rate);
   void onEchoTopicRequested(const QString& topicName);
+
+  // Settings
+  void onOpenSettings();
+  void onRosStatusTitleBarUpdate(const QString& suffix);
 
 private:
   void setupMenuBar();
@@ -118,6 +123,10 @@ private:
   // Current project state
   QString currentProjectPath_;
   QString lastGeneratedPackagePath_;  // Path to last generated package
+
+  // ROS2 status display
+  RosStatusWidget* rosStatusWidget_;
+  QString baseWindowTitle_;
 };
 
 }  // namespace ros_weaver

@@ -10,6 +10,7 @@
 #include "ros_weaver/widgets/param_dashboard.hpp"
 #include "ros_weaver/widgets/output_panel.hpp"
 #include "ros_weaver/widgets/topic_inspector.hpp"
+#include "ros_weaver/widgets/ros_status_widget.hpp"
 #include "ros_weaver/wizards/package_wizard.hpp"
 
 #include <QApplication>
@@ -28,6 +29,12 @@
 #include <QRegularExpression>
 #include <QDir>
 #include <QFile>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QCheckBox>
+#include <QRadioButton>
+#include <QGroupBox>
+#include <QFormLayout>
 
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <yaml-cpp/yaml.h>
@@ -53,8 +60,10 @@ MainWindow::MainWindow(QWidget* parent)
   , topicInspector_(nullptr)
   , liveMonitoringAction_(nullptr)
   , liveMonitoringEnabled_(false)
+  , rosStatusWidget_(nullptr)
+  , baseWindowTitle_("ROS Weaver - Visual ROS2 Package Editor")
 {
-  setWindowTitle("ROS Weaver - Visual ROS2 Package Editor");
+  setWindowTitle(baseWindowTitle_);
   setMinimumSize(1200, 800);
 
   // Initialize core components
@@ -152,6 +161,13 @@ void MainWindow::setupMenuBar() {
   QAction* deleteAction = editMenu->addAction(tr("&Delete"));
   deleteAction->setShortcut(QKeySequence::Delete);
   connect(deleteAction, &QAction::triggered, canvas_, &WeaverCanvas::deleteSelectedItems);
+
+  editMenu->addSeparator();
+
+  QAction* settingsAction = editMenu->addAction(tr("&Settings..."));
+  settingsAction->setShortcut(tr("Ctrl+,"));
+  settingsAction->setToolTip(tr("Open application settings"));
+  connect(settingsAction, &QAction::triggered, this, &MainWindow::onOpenSettings);
 
   // View menu
   QMenu* viewMenu = menuBar()->addMenu(tr("&View"));
@@ -395,6 +411,19 @@ void MainWindow::onBlockSelected(PackageBlock* block) {
 }
 
 void MainWindow::setupStatusBar() {
+  // Create ROS2 status widget
+  rosStatusWidget_ = new RosStatusWidget(this);
+  connect(rosStatusWidget_, &RosStatusWidget::titleBarUpdateRequested,
+          this, &MainWindow::onRosStatusTitleBarUpdate);
+
+  // Add a stretch to push status widget to the right
+  QWidget* spacer = new QWidget();
+  spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+  statusBar()->addWidget(spacer);
+
+  // Add ROS status widget to the right side of status bar
+  statusBar()->addPermanentWidget(rosStatusWidget_);
+
   statusBar()->showMessage(tr("Ready"));
 }
 
@@ -403,7 +432,8 @@ void MainWindow::onNewProject() {
   paramDashboard_->setCurrentBlock(nullptr);
   canvas_->clearCanvas();
   currentProjectPath_.clear();
-  setWindowTitle("ROS Weaver - Visual ROS2 Package Editor");
+  baseWindowTitle_ = "ROS Weaver - Visual ROS2 Package Editor";
+  setWindowTitle(baseWindowTitle_ + rosStatusWidget_->titleBarSuffix());
   statusBar()->showMessage(tr("New project created"));
 }
 
@@ -418,7 +448,8 @@ void MainWindow::onOpenProject() {
   if (!fileName.isEmpty()) {
     if (loadProject(fileName)) {
       currentProjectPath_ = fileName;
-      setWindowTitle(QString("ROS Weaver - %1").arg(QFileInfo(fileName).fileName()));
+      baseWindowTitle_ = QString("ROS Weaver - %1").arg(QFileInfo(fileName).fileName());
+      setWindowTitle(baseWindowTitle_ + rosStatusWidget_->titleBarSuffix());
       statusBar()->showMessage(tr("Opened: %1").arg(fileName));
     }
   }
@@ -451,7 +482,8 @@ void MainWindow::onSaveProjectAs() {
 
     if (saveProject(fileName)) {
       currentProjectPath_ = fileName;
-      setWindowTitle(QString("ROS Weaver - %1").arg(QFileInfo(fileName).fileName()));
+      baseWindowTitle_ = QString("ROS Weaver - %1").arg(QFileInfo(fileName).fileName());
+      setWindowTitle(baseWindowTitle_ + rosStatusWidget_->titleBarSuffix());
       statusBar()->showMessage(tr("Saved: %1").arg(fileName));
     }
   }
@@ -534,7 +566,8 @@ void MainWindow::onLoadTurtleBotExample() {
   // Import the project
   canvas_->importFromProject(project);
   currentProjectPath_.clear();
-  setWindowTitle("ROS Weaver - TurtleBot3 Navigation (Example)");
+  baseWindowTitle_ = "ROS Weaver - TurtleBot3 Navigation (Example)";
+  setWindowTitle(baseWindowTitle_ + rosStatusWidget_->titleBarSuffix());
 
   // Determine YAML directory
   QString yamlDir;
@@ -1021,6 +1054,83 @@ void MainWindow::onEchoTopicRequested(const QString& topicName) {
   // Show output dock if hidden
   if (outputDock_ && !outputDock_->isVisible()) {
     outputDock_->show();
+  }
+}
+
+void MainWindow::onRosStatusTitleBarUpdate(const QString& suffix) {
+  setWindowTitle(baseWindowTitle_ + suffix);
+}
+
+void MainWindow::onOpenSettings() {
+  QDialog dialog(this);
+  dialog.setWindowTitle(tr("Settings"));
+  dialog.setMinimumWidth(400);
+
+  QVBoxLayout* mainLayout = new QVBoxLayout(&dialog);
+
+  // ROS2 Status Display group
+  QGroupBox* ros2Group = new QGroupBox(tr("ROS2 Status Display"), &dialog);
+  QVBoxLayout* ros2Layout = new QVBoxLayout(ros2Group);
+
+  // Show ROS2 connection status checkbox
+  QCheckBox* showStatusCheck = new QCheckBox(tr("Show ROS2 connection status"), ros2Group);
+  showStatusCheck->setChecked(rosStatusWidget_->isRos2StatusVisible());
+  ros2Layout->addWidget(showStatusCheck);
+
+  // Show ROS_DOMAIN_ID checkbox
+  QCheckBox* showDomainCheck = new QCheckBox(tr("Show ROS_DOMAIN_ID"), ros2Group);
+  showDomainCheck->setChecked(rosStatusWidget_->isDomainIdVisible());
+  ros2Layout->addWidget(showDomainCheck);
+
+  // Highlight non-default Domain ID checkbox
+  QCheckBox* highlightDomainCheck = new QCheckBox(tr("Highlight non-default Domain ID"), ros2Group);
+  highlightDomainCheck->setChecked(rosStatusWidget_->isHighlightNonDefaultDomain());
+  ros2Layout->addWidget(highlightDomainCheck);
+
+  ros2Layout->addSpacing(10);
+
+  // Display location radio buttons
+  QLabel* locationLabel = new QLabel(tr("Display location:"), ros2Group);
+  ros2Layout->addWidget(locationLabel);
+
+  QRadioButton* statusBarOnlyRadio = new QRadioButton(tr("Status bar only (default)"), ros2Group);
+  QRadioButton* titleBarOnlyRadio = new QRadioButton(tr("Title bar only"), ros2Group);
+  QRadioButton* bothRadio = new QRadioButton(tr("Both status bar and title bar"), ros2Group);
+
+  StatusDisplayLocation currentLocation = rosStatusWidget_->displayLocation();
+  statusBarOnlyRadio->setChecked(currentLocation == StatusDisplayLocation::StatusBarOnly);
+  titleBarOnlyRadio->setChecked(currentLocation == StatusDisplayLocation::TitleBarOnly);
+  bothRadio->setChecked(currentLocation == StatusDisplayLocation::Both);
+
+  ros2Layout->addWidget(statusBarOnlyRadio);
+  ros2Layout->addWidget(titleBarOnlyRadio);
+  ros2Layout->addWidget(bothRadio);
+
+  mainLayout->addWidget(ros2Group);
+
+  // Add stretch to push buttons to bottom
+  mainLayout->addStretch();
+
+  // Dialog buttons
+  QDialogButtonBox* buttonBox = new QDialogButtonBox(
+    QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  connect(buttonBox, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  connect(buttonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  mainLayout->addWidget(buttonBox);
+
+  if (dialog.exec() == QDialog::Accepted) {
+    // Apply settings
+    rosStatusWidget_->setShowRos2Status(showStatusCheck->isChecked());
+    rosStatusWidget_->setShowDomainId(showDomainCheck->isChecked());
+    rosStatusWidget_->setHighlightNonDefaultDomain(highlightDomainCheck->isChecked());
+
+    if (statusBarOnlyRadio->isChecked()) {
+      rosStatusWidget_->setDisplayLocation(StatusDisplayLocation::StatusBarOnly);
+    } else if (titleBarOnlyRadio->isChecked()) {
+      rosStatusWidget_->setDisplayLocation(StatusDisplayLocation::TitleBarOnly);
+    } else if (bothRadio->isChecked()) {
+      rosStatusWidget_->setDisplayLocation(StatusDisplayLocation::Both);
+    }
   }
 }
 
