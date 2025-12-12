@@ -291,6 +291,16 @@ void WeaverCanvas::removeConnection(ConnectionLine* connection) {
   delete connection;
 }
 
+QList<ConnectionLine*> WeaverCanvas::connections() const {
+  QList<ConnectionLine*> result;
+  for (QGraphicsItem* item : scene_->items()) {
+    if (ConnectionLine* conn = dynamic_cast<ConnectionLine*>(item)) {
+      result.append(conn);
+    }
+  }
+  return result;
+}
+
 void WeaverCanvas::clearCanvas() {
   // Clear all tracked pointers before scene_->clear() deletes the objects
   pinHighlightedConnections_.clear();

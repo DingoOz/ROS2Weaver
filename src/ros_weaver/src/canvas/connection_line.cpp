@@ -2,7 +2,9 @@
 #include "ros_weaver/canvas/package_block.hpp"
 
 #include <QGraphicsSceneHoverEvent>
+#include <QGraphicsSceneMouseEvent>
 #include <QPainterPathStroker>
+#include <QFontMetrics>
 #include <cmath>
 
 namespace ros_weaver {
@@ -21,7 +23,15 @@ ConnectionLine::ConnectionLine(PackageBlock* sourceBlock, int sourcePin,
   , isPinHighlighted_(false)
   , connectionColor_(QColor(100, 200, 100))
   , pulseAnimation_(nullptr)
+  , dataFlowAnimation_(nullptr)
+  , activityGlowAnimation_(nullptr)
   , pulsePhase_(0.0)
+  , dataFlowPhase_(0.0)
+  , activityGlow_(0.0)
+  , activityState_(TopicActivityState::Unknown)
+  , messageRate_(0.0)
+  , showRateLabel_(true)
+  , liveMonitoringEnabled_(false)
 {
   setFlag(QGraphicsItem::ItemIsSelectable, true);
   setAcceptHoverEvents(true);
@@ -31,10 +41,18 @@ ConnectionLine::ConnectionLine(PackageBlock* sourceBlock, int sourcePin,
 }
 
 ConnectionLine::~ConnectionLine() {
-  // Stop animation before destruction
+  // Stop animations before destruction
   if (pulseAnimation_) {
     pulseAnimation_->stop();
     delete pulseAnimation_;
+  }
+  if (dataFlowAnimation_) {
+    dataFlowAnimation_->stop();
+    delete dataFlowAnimation_;
+  }
+  if (activityGlowAnimation_) {
+    activityGlowAnimation_->stop();
+    delete activityGlowAnimation_;
   }
 
   // Remove this connection from source and target blocks
@@ -274,6 +292,267 @@ void ConnectionLine::paint(QPainter* painter, const QStyleOptionGraphicsItem* op
     painter->setBrush(color);
     painter->setPen(Qt::NoPen);
     painter->drawPath(arrowPath);
+  }
+
+  // Draw live monitoring elements if enabled
+  if (liveMonitoringEnabled_) {
+    drawActivityIndicator(painter);
+    if (showRateLabel_ && messageRate_ > 0) {
+      drawRateLabel(painter);
+    }
+  }
+}
+
+void ConnectionLine::mousePressEvent(QGraphicsSceneMouseEvent* event) {
+  if (event->button() == Qt::LeftButton) {
+    emit clicked(this);
+  }
+  QGraphicsObject::mousePressEvent(event);
+}
+
+void ConnectionLine::mouseDoubleClickEvent(QGraphicsSceneMouseEvent* event) {
+  if (event->button() == Qt::LeftButton) {
+    emit doubleClicked(this);
+  }
+  QGraphicsObject::mouseDoubleClickEvent(event);
+}
+
+// Live topic monitoring methods
+
+void ConnectionLine::setTopicName(const QString& topicName) {
+  topicName_ = topicName;
+}
+
+void ConnectionLine::setMessageType(const QString& messageType) {
+  messageType_ = messageType;
+}
+
+void ConnectionLine::setActivityState(TopicActivityState state) {
+  if (activityState_ != state) {
+    activityState_ = state;
+
+    // Update connection color based on state
+    if (liveMonitoringEnabled_) {
+      switch (state) {
+        case TopicActivityState::Active:
+          startDataFlowAnimation();
+          break;
+        case TopicActivityState::HighRate:
+          startDataFlowAnimation();
+          break;
+        case TopicActivityState::Inactive:
+        case TopicActivityState::Unknown:
+          stopDataFlowAnimation();
+          break;
+      }
+    }
+    update();
+  }
+}
+
+void ConnectionLine::setMessageRate(double rateHz) {
+  if (messageRate_ != rateHz) {
+    messageRate_ = rateHz;
+
+    // Adjust animation speed based on rate
+    if (dataFlowAnimation_ && dataFlowAnimation_->state() == QAbstractAnimation::Running) {
+      // Faster rate = faster animation (shorter duration)
+      int duration = 2000;  // Base duration 2 seconds
+      if (rateHz > 0) {
+        duration = static_cast<int>(std::max(200.0, 2000.0 / std::sqrt(rateHz)));
+      }
+      dataFlowAnimation_->setDuration(duration);
+    }
+
+    update();
+  }
+}
+
+void ConnectionLine::setShowRateLabel(bool show) {
+  if (showRateLabel_ != show) {
+    showRateLabel_ = show;
+    update();
+  }
+}
+
+void ConnectionLine::setLiveMonitoringEnabled(bool enabled) {
+  if (liveMonitoringEnabled_ != enabled) {
+    liveMonitoringEnabled_ = enabled;
+
+    if (enabled && (activityState_ == TopicActivityState::Active ||
+                    activityState_ == TopicActivityState::HighRate)) {
+      startDataFlowAnimation();
+    } else {
+      stopDataFlowAnimation();
+    }
+    update();
+  }
+}
+
+void ConnectionLine::setDataFlowPhase(qreal phase) {
+  if (dataFlowPhase_ != phase) {
+    dataFlowPhase_ = phase;
+    update();
+  }
+}
+
+void ConnectionLine::setActivityGlow(qreal glow) {
+  if (activityGlow_ != glow) {
+    activityGlow_ = glow;
+    update();
+  }
+}
+
+void ConnectionLine::pulseActivity() {
+  // Create a quick glow animation for message receipt
+  if (!activityGlowAnimation_) {
+    activityGlowAnimation_ = new QPropertyAnimation(this, "activityGlow");
+  }
+
+  activityGlowAnimation_->stop();
+  activityGlowAnimation_->setDuration(300);
+  activityGlowAnimation_->setStartValue(1.0);
+  activityGlowAnimation_->setEndValue(0.0);
+  activityGlowAnimation_->setEasingCurve(QEasingCurve::OutQuad);
+  activityGlowAnimation_->start();
+}
+
+void ConnectionLine::startDataFlowAnimation() {
+  if (!dataFlowAnimation_) {
+    dataFlowAnimation_ = new QPropertyAnimation(this, "dataFlowPhase");
+    dataFlowAnimation_->setLoopCount(-1);  // Infinite loop
+  }
+
+  // Duration based on message rate
+  int duration = 2000;  // Default 2 seconds
+  if (messageRate_ > 0) {
+    duration = static_cast<int>(std::max(200.0, 2000.0 / std::sqrt(messageRate_)));
+  }
+
+  dataFlowAnimation_->setDuration(duration);
+  dataFlowAnimation_->setStartValue(0.0);
+  dataFlowAnimation_->setEndValue(1.0);
+  dataFlowAnimation_->start();
+}
+
+void ConnectionLine::stopDataFlowAnimation() {
+  if (dataFlowAnimation_) {
+    dataFlowAnimation_->stop();
+  }
+  dataFlowPhase_ = 0.0;
+  update();
+}
+
+QColor ConnectionLine::getActivityColor() const {
+  switch (activityState_) {
+    case TopicActivityState::HighRate:
+      return QColor(50, 255, 50);   // Bright green
+    case TopicActivityState::Active:
+      return QColor(100, 200, 100); // Green
+    case TopicActivityState::Inactive:
+      return QColor(150, 150, 150); // Gray
+    case TopicActivityState::Unknown:
+    default:
+      return connectionColor_;
+  }
+}
+
+void ConnectionLine::drawRateLabel(QPainter* painter) {
+  if (path_.isEmpty()) return;
+
+  // Position label at center of path
+  QPointF midPoint = path_.pointAtPercent(0.5);
+
+  // Format rate string
+  QString rateStr;
+  if (messageRate_ >= 1000) {
+    rateStr = QString("%1 kHz").arg(messageRate_ / 1000.0, 0, 'f', 1);
+  } else if (messageRate_ >= 1) {
+    rateStr = QString("%1 Hz").arg(messageRate_, 0, 'f', 1);
+  } else if (messageRate_ > 0) {
+    rateStr = QString("%1 Hz").arg(messageRate_, 0, 'f', 2);
+  } else {
+    return;  // Don't draw if rate is 0
+  }
+
+  // Set up font
+  QFont font("Sans", 8);
+  font.setBold(true);
+  painter->setFont(font);
+
+  QFontMetrics fm(font);
+  QRect textRect = fm.boundingRect(rateStr);
+  textRect.moveCenter(midPoint.toPoint());
+
+  // Draw background
+  QRect bgRect = textRect.adjusted(-4, -2, 4, 2);
+  QColor bgColor(30, 30, 30, 200);
+  painter->setBrush(bgColor);
+  painter->setPen(Qt::NoPen);
+  painter->drawRoundedRect(bgRect, 3, 3);
+
+  // Draw text
+  QColor textColor = getActivityColor();
+  if (activityState_ == TopicActivityState::Unknown ||
+      activityState_ == TopicActivityState::Inactive) {
+    textColor = QColor(200, 200, 200);
+  }
+  painter->setPen(textColor);
+  painter->drawText(textRect, Qt::AlignCenter, rateStr);
+}
+
+void ConnectionLine::drawActivityIndicator(QPainter* painter) {
+  if (path_.isEmpty() || !liveMonitoringEnabled_) return;
+
+  QColor activityColor = getActivityColor();
+
+  // Draw marching ants / data flow particles for active connections
+  if ((activityState_ == TopicActivityState::Active ||
+       activityState_ == TopicActivityState::HighRate) &&
+      dataFlowAnimation_ && dataFlowAnimation_->state() == QAbstractAnimation::Running) {
+
+    // Draw flowing particles along the path
+    int numParticles = (activityState_ == TopicActivityState::HighRate) ? 5 : 3;
+    qreal spacing = 1.0 / numParticles;
+
+    for (int i = 0; i < numParticles; ++i) {
+      qreal t = std::fmod(dataFlowPhase_ + i * spacing, 1.0);
+      QPointF particlePos = path_.pointAtPercent(t);
+
+      // Fade at ends
+      qreal alpha = 1.0;
+      if (t < 0.1) alpha = t / 0.1;
+      else if (t > 0.9) alpha = (1.0 - t) / 0.1;
+
+      QColor particleColor = activityColor.lighter(150);
+      particleColor.setAlpha(static_cast<int>(255 * alpha));
+
+      // Draw particle with glow
+      qreal particleSize = (activityState_ == TopicActivityState::HighRate) ? 6 : 4;
+
+      // Outer glow
+      QColor glowColor = particleColor;
+      glowColor.setAlpha(static_cast<int>(100 * alpha));
+      painter->setBrush(glowColor);
+      painter->setPen(Qt::NoPen);
+      painter->drawEllipse(particlePos, particleSize + 3, particleSize + 3);
+
+      // Inner particle
+      painter->setBrush(particleColor);
+      painter->drawEllipse(particlePos, particleSize, particleSize);
+    }
+  }
+
+  // Draw activity pulse glow when message received
+  if (activityGlow_ > 0) {
+    QColor pulseColor = activityColor;
+    pulseColor.setAlpha(static_cast<int>(150 * activityGlow_));
+
+    QPen glowPen(pulseColor);
+    glowPen.setWidthF(LINE_WIDTH + 8 * activityGlow_);
+    glowPen.setCapStyle(Qt::RoundCap);
+    painter->setPen(glowPen);
+    painter->drawPath(path_);
   }
 }
 

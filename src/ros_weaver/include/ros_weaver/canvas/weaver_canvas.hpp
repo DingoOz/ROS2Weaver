@@ -51,6 +51,9 @@ public:
   void removeNodeGroup(NodeGroup* group);
   QList<NodeGroup*> nodeGroups() const { return nodeGroups_; }
 
+  // Get all connections on the canvas
+  QList<ConnectionLine*> connections() const;
+
   // Zoom controls
   void zoomIn();
   void zoomOut();

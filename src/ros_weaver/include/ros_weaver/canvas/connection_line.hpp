@@ -7,14 +7,27 @@
 #include <QUuid>
 #include <QTimer>
 #include <QPropertyAnimation>
+#include <QFont>
 
 namespace ros_weaver {
 
 class PackageBlock;
 
+/**
+ * @brief Activity state for live topic visualization
+ */
+enum class TopicActivityState {
+  Unknown,    // Not monitoring
+  Inactive,   // Monitoring but no messages
+  Active,     // Receiving messages
+  HighRate    // Receiving at high rate (> 50 Hz)
+};
+
 class ConnectionLine : public QGraphicsObject {
   Q_OBJECT
   Q_PROPERTY(qreal pulsePhase READ pulsePhase WRITE setPulsePhase)
+  Q_PROPERTY(qreal dataFlowPhase READ dataFlowPhase WRITE setDataFlowPhase)
+  Q_PROPERTY(qreal activityGlow READ activityGlow WRITE setActivityGlow)
 
 public:
   ConnectionLine(PackageBlock* sourceBlock, int sourcePin,
@@ -55,13 +68,54 @@ public:
   void setPinHighlighted(bool highlighted);
   bool isPinHighlighted() const { return isPinHighlighted_; }
 
+  // Live topic monitoring
+  void setTopicName(const QString& topicName);
+  QString topicName() const { return topicName_; }
+
+  void setMessageType(const QString& messageType);
+  QString messageType() const { return messageType_; }
+
+  void setActivityState(TopicActivityState state);
+  TopicActivityState activityState() const { return activityState_; }
+
+  void setMessageRate(double rateHz);
+  double messageRate() const { return messageRate_; }
+
+  void setShowRateLabel(bool show);
+  bool showRateLabel() const { return showRateLabel_; }
+
+  void setLiveMonitoringEnabled(bool enabled);
+  bool isLiveMonitoringEnabled() const { return liveMonitoringEnabled_; }
+
+  // Data flow animation property
+  qreal dataFlowPhase() const { return dataFlowPhase_; }
+  void setDataFlowPhase(qreal phase);
+
+  // Activity glow property
+  qreal activityGlow() const { return activityGlow_; }
+  void setActivityGlow(qreal glow);
+
+  // Trigger activity pulse (called when message received)
+  void pulseActivity();
+
+signals:
+  void clicked(ConnectionLine* connection);
+  void doubleClicked(ConnectionLine* connection);
+
 protected:
   void hoverEnterEvent(QGraphicsSceneHoverEvent* event) override;
   void hoverLeaveEvent(QGraphicsSceneHoverEvent* event) override;
+  void mousePressEvent(QGraphicsSceneMouseEvent* event) override;
+  void mouseDoubleClickEvent(QGraphicsSceneMouseEvent* event) override;
 
 private:
   void startPulseAnimation();
   void stopPulseAnimation();
+  void startDataFlowAnimation();
+  void stopDataFlowAnimation();
+  void drawRateLabel(QPainter* painter);
+  void drawActivityIndicator(QPainter* painter);
+  QColor getActivityColor() const;
   QPainterPath calculatePath() const;
 
   QUuid id_;
@@ -78,13 +132,30 @@ private:
 
   // Animation
   QPropertyAnimation* pulseAnimation_;
+  QPropertyAnimation* dataFlowAnimation_;
+  QPropertyAnimation* activityGlowAnimation_;
   qreal pulsePhase_;
+  qreal dataFlowPhase_;
+  qreal activityGlow_;
+
+  // Live topic monitoring
+  QString topicName_;
+  QString messageType_;
+  TopicActivityState activityState_;
+  double messageRate_;
+  bool showRateLabel_;
+  bool liveMonitoringEnabled_;
 
   static constexpr qreal LINE_WIDTH = 2.0;
   static constexpr qreal HIGHLIGHT_WIDTH = 4.0;
   static constexpr qreal HOVER_WIDTH = 3.0;
   static constexpr qreal CURVE_OFFSET = 50.0;
   static constexpr qreal HIT_TOLERANCE = 10.0;
+
+public:
+  // Rate thresholds for visual feedback
+  static constexpr double HIGH_RATE_THRESHOLD = 50.0;  // Hz
+  static constexpr double LOW_RATE_THRESHOLD = 1.0;    // Hz
 };
 
 }  // namespace ros_weaver

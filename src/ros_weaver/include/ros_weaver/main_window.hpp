@@ -11,6 +11,7 @@
 #include <QLineEdit>
 #include <QProgressBar>
 #include <QTextEdit>
+#include <QAction>
 
 namespace ros_weaver {
 
@@ -23,6 +24,9 @@ class PackageBlock;
 class ExternalEditor;
 class PackageWizard;
 class OutputPanel;
+class TopicMonitor;
+class TopicInspectorPopup;
+class ConnectionLine;
 
 class MainWindow : public QMainWindow {
   Q_OBJECT
@@ -59,6 +63,13 @@ private slots:
   // VS Code integration
   void onOpenProjectInVSCode();
   void onOpenGeneratedPackageInVSCode();
+
+  // Live topic monitoring
+  void onToggleLiveMonitoring(bool enabled);
+  void onConnectionClicked(ConnectionLine* connection);
+  void onConnectionDoubleClicked(ConnectionLine* connection);
+  void onTopicActivity(const QString& topicName, double rate);
+  void onEchoTopicRequested(const QString& topicName);
 
 private:
   void setupMenuBar();
@@ -97,6 +108,12 @@ private:
   RosPackageIndex* packageIndex_;
   CodeGenerator* codeGenerator_;
   ExternalEditor* externalEditor_;
+
+  // Live topic monitoring
+  TopicMonitor* topicMonitor_;
+  TopicInspectorPopup* topicInspector_;
+  QAction* liveMonitoringAction_;
+  bool liveMonitoringEnabled_;
 
   // Current project state
   QString currentProjectPath_;
