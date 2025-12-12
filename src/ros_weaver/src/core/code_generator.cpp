@@ -81,7 +81,22 @@ bool CodeGenerator::generatePackage(const Project& project, const GeneratorOptio
   int nodeIndex = 0;
   for (const BlockData& block : project.blocks()) {
     QString nodeCode;
-    QList<ParamDefinition> params;  // TODO: Get from param dashboard
+
+    // Convert BlockParamData to ParamDefinition
+    QList<ParamDefinition> params;
+    for (const BlockParamData& bpd : block.parameters) {
+      ParamDefinition pd;
+      pd.name = bpd.name;
+      pd.type = bpd.type;
+      pd.defaultValue = bpd.defaultValue;
+      pd.currentValue = bpd.currentValue;
+      pd.description = bpd.description;
+      pd.minValue = bpd.minValue;
+      pd.maxValue = bpd.maxValue;
+      pd.enumValues = bpd.enumValues;
+      pd.group = bpd.group;
+      params.append(pd);
+    }
 
     if (options.useCppStyle) {
       nodeCode = generateNodeCpp(block, project.connections(), params);
@@ -644,15 +659,75 @@ QString CodeGenerator::generateLaunchFile(const Project& project, const Generato
   stream << "    nodes = []\n";
   stream << "\n";
 
+  // Build a map of block ID to BlockData for quick lookup
+  QMap<QUuid, const BlockData*> blockMap;
+  for (const BlockData& block : project.blocks()) {
+    blockMap[block.id] = &block;
+  }
+
   // Generate node entries
   for (const BlockData& block : project.blocks()) {
     QString nodeName = toSnakeCase(block.name);
+
+    // Build remappings for this node based on connections
+    QList<QPair<QString, QString>> remappings;
+
+    for (const ConnectionData& conn : project.connections()) {
+      // Check if this block is the target (subscriber) of a connection
+      if (conn.targetBlockId == block.id) {
+        const BlockData* sourceBlock = blockMap.value(conn.sourceBlockId);
+        if (sourceBlock && conn.sourcePinIndex < sourceBlock->outputPins.size() &&
+            conn.targetPinIndex < block.inputPins.size()) {
+          QString sourceTopic = sourceBlock->outputPins[conn.sourcePinIndex].name;
+          QString targetTopic = block.inputPins[conn.targetPinIndex].name;
+
+          // If topic names differ, we need a remapping
+          if (sourceTopic != targetTopic) {
+            remappings.append(qMakePair(targetTopic, sourceTopic));
+          }
+        }
+      }
+
+      // Check if this block is the source (publisher) of a connection
+      if (conn.sourceBlockId == block.id) {
+        const BlockData* targetBlock = blockMap.value(conn.targetBlockId);
+        if (targetBlock && conn.sourcePinIndex < block.outputPins.size() &&
+            conn.targetPinIndex < targetBlock->inputPins.size()) {
+          QString sourceTopic = block.outputPins[conn.sourcePinIndex].name;
+          QString targetTopic = targetBlock->inputPins[conn.targetPinIndex].name;
+
+          // If topic names differ, remap publisher to match what subscriber expects
+          // This is typically handled by remapping subscriber, so only add if not already handled
+          if (sourceTopic != targetTopic) {
+            // Check if we should remap publisher or subscriber
+            // Convention: remap subscriber to match publisher
+            // But if multiple subscribers, may need to remap publisher
+            // For simplicity, we prefer remapping subscriber side
+          }
+        }
+      }
+    }
+
     stream << "    # " << block.name << " node\n";
     stream << "    " << nodeName << "_node = Node(\n";
     stream << "        package='" << options.packageName << "',\n";
     stream << "        executable='" << nodeName << "_node',\n";
     stream << "        name='" << nodeName << "',\n";
     stream << "        parameters=[params_file, {'use_sim_time': LaunchConfiguration('use_sim_time')}],\n";
+
+    // Add remappings if any
+    if (!remappings.isEmpty()) {
+      stream << "        remappings=[\n";
+      for (int i = 0; i < remappings.size(); ++i) {
+        stream << "            ('" << remappings[i].first << "', '" << remappings[i].second << "')";
+        if (i < remappings.size() - 1) {
+          stream << ",";
+        }
+        stream << "\n";
+      }
+      stream << "        ],\n";
+    }
+
     stream << "        output='screen'\n";
     stream << "    )\n";
     stream << "    nodes.append(" << nodeName << "_node)\n";
@@ -680,6 +755,30 @@ QString CodeGenerator::generateParamsYaml(const Project& project) {
     stream << nodeName << ":\n";
     stream << "  ros__parameters:\n";
     stream << "    use_sim_time: false\n";
+
+    // Group parameters by their group field
+    QMap<QString, QList<const BlockParamData*>> groupedParams;
+    for (const BlockParamData& param : block.parameters) {
+      QString group = param.group.isEmpty() ? "" : param.group;
+      groupedParams[group].append(&param);
+    }
+
+    // Output ungrouped parameters first
+    if (groupedParams.contains("")) {
+      for (const BlockParamData* param : groupedParams[""]) {
+        writeParamYaml(stream, *param, 4);
+      }
+      groupedParams.remove("");
+    }
+
+    // Output grouped parameters
+    for (auto it = groupedParams.begin(); it != groupedParams.end(); ++it) {
+      stream << "    # " << it.key() << " parameters\n";
+      for (const BlockParamData* param : it.value()) {
+        writeParamYaml(stream, *param, 4);
+      }
+    }
+
     stream << "\n";
   }
 
@@ -783,6 +882,62 @@ QString CodeGenerator::getMessageType(const QString& fullType) {
   QString result = fullType;
   result.replace("/", "::");
   return result;
+}
+
+void CodeGenerator::writeParamYaml(QTextStream& stream, const BlockParamData& param, int indentSpaces) {
+  QString indent(indentSpaces, ' ');
+  QString value = formatYamlValue(param.currentValue.isValid() ? param.currentValue : param.defaultValue, param.type);
+
+  // Add description as comment if available
+  if (!param.description.isEmpty()) {
+    stream << indent << "# " << param.description << "\n";
+  }
+
+  stream << indent << param.name << ": " << value << "\n";
+}
+
+QString CodeGenerator::formatYamlValue(const QVariant& value, const QString& type) {
+  if (!value.isValid()) {
+    return "null";
+  }
+
+  if (type == "string") {
+    QString strVal = value.toString();
+    // Quote strings that contain special YAML characters or are empty
+    if (strVal.isEmpty() || strVal.contains(':') || strVal.contains('#') ||
+        strVal.contains('\n') || strVal.startsWith(' ') || strVal.endsWith(' ')) {
+      return "\"" + strVal.replace("\"", "\\\"") + "\"";
+    }
+    return strVal;
+  } else if (type == "bool") {
+    return value.toBool() ? "true" : "false";
+  } else if (type == "int") {
+    return QString::number(value.toInt());
+  } else if (type == "double") {
+    return QString::number(value.toDouble(), 'g', 10);
+  } else if (type == "array") {
+    QStringList list = value.toStringList();
+    if (list.isEmpty()) {
+      return "[]";
+    }
+    QString result = "[";
+    for (int i = 0; i < list.size(); ++i) {
+      if (i > 0) result += ", ";
+      // Try to detect if items are numeric
+      bool isNumber = false;
+      list[i].toDouble(&isNumber);
+      if (isNumber) {
+        result += list[i];
+      } else {
+        result += "\"" + list[i] + "\"";
+      }
+    }
+    result += "]";
+    return result;
+  }
+
+  // Default: return as string
+  return value.toString();
 }
 
 }  // namespace ros_weaver

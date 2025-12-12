@@ -6,10 +6,13 @@
 #include <QDir>
 #include <QMap>
 
+class QTextStream;
+
 namespace ros_weaver {
 
 class Project;
 struct BlockData;
+struct BlockParamData;
 struct ConnectionData;
 struct ParamDefinition;
 
@@ -66,6 +69,10 @@ private:
   QString toSnakeCase(const QString& name);
   QString getMessageInclude(const QString& messageType);
   QString getMessageType(const QString& fullType);
+
+  // YAML helpers
+  void writeParamYaml(QTextStream& stream, const BlockParamData& param, int indentSpaces);
+  QString formatYamlValue(const QVariant& value, const QString& type);
 
   QString lastError_;
 };

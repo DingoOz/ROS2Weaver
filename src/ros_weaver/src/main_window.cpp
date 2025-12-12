@@ -700,7 +700,7 @@ void MainWindow::onGenerateCodeWizard() {
           this, [this](bool success, const QString& path) {
     if (success) {
       lastGeneratedPackagePath_ = path;
-      outputText_->append(tr("\nPackage generated via wizard: %1").arg(path));
+      outputPanel_->appendBuildOutput(tr("\nPackage generated via wizard: %1").arg(path));
     }
   });
 
