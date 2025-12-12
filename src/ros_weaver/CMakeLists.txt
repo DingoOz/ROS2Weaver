@@ -51,10 +51,13 @@ set(SOURCES
   src/core/code_generator.cpp
   src/core/external_editor.cpp
   src/core/topic_monitor.cpp
+  src/core/system_discovery.cpp
+  src/core/canvas_mapper.cpp
   src/widgets/param_dashboard.cpp
   src/widgets/output_panel.cpp
   src/widgets/topic_inspector.cpp
   src/widgets/ros_status_widget.cpp
+  src/widgets/system_mapping_panel.cpp
   src/wizards/package_wizard.cpp
 )
 
@@ -70,10 +73,13 @@ set(HEADERS
   include/ros_weaver/core/code_generator.hpp
   include/ros_weaver/core/external_editor.hpp
   include/ros_weaver/core/topic_monitor.hpp
+  include/ros_weaver/core/system_discovery.hpp
+  include/ros_weaver/core/canvas_mapper.hpp
   include/ros_weaver/widgets/param_dashboard.hpp
   include/ros_weaver/widgets/output_panel.hpp
   include/ros_weaver/widgets/topic_inspector.hpp
   include/ros_weaver/widgets/ros_status_widget.hpp
+  include/ros_weaver/widgets/system_mapping_panel.hpp
   include/ros_weaver/wizards/package_wizard.hpp
 )
 

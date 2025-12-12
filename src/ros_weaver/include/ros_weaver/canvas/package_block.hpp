@@ -10,10 +10,19 @@
 #include <QUuid>
 #include <QVariant>
 #include "ros_weaver/core/project.hpp"
+#include "ros_weaver/core/canvas_mapper.hpp"
 
 namespace ros_weaver {
 
 class ConnectionLine;
+
+// Runtime status for a block
+enum class BlockRuntimeStatus {
+  Unknown,      // Not yet scanned
+  Running,      // Matched with high/medium confidence
+  PartialMatch, // Matched with low confidence
+  NotFound      // Not found in running system
+};
 
 // Represents a connection pin on a package block
 struct Pin {
@@ -102,6 +111,28 @@ public:
   void setPreferredYamlSource(const QString& source);
   QString preferredYamlSource() const { return preferredYamlSource_; }
 
+  // Runtime status (from system discovery)
+  void setRuntimeStatus(BlockRuntimeStatus status);
+  BlockRuntimeStatus runtimeStatus() const { return runtimeStatus_; }
+
+  // Matched ROS2 node name (from system discovery)
+  void setMatchedNodeName(const QString& nodeName);
+  QString matchedNodeName() const { return matchedNodeName_; }
+
+  // Match confidence (from system discovery)
+  void setMatchConfidence(MatchConfidence confidence);
+  MatchConfidence matchConfidence() const { return matchConfidence_; }
+
+  // Update mapping result from system discovery
+  void updateMappingResult(const BlockMappingResult& result);
+
+  // Clear runtime status (reset to unknown)
+  void clearRuntimeStatus();
+
+  // Show/hide runtime status overlay
+  void setShowRuntimeStatus(bool show);
+  bool showRuntimeStatus() const { return showRuntimeStatus_; }
+
 signals:
   void pinHovered(PackageBlock* block, int pinIndex, bool isOutput);
   void pinUnhovered(PackageBlock* block);
@@ -142,6 +173,12 @@ private:
 
   // Preferred YAML source (empty = auto, "block" = block params, path = YAML file)
   QString preferredYamlSource_;
+
+  // Runtime status from system discovery
+  BlockRuntimeStatus runtimeStatus_;
+  QString matchedNodeName_;
+  MatchConfidence matchConfidence_;
+  bool showRuntimeStatus_;
 
   // Visual dimensions
   static constexpr qreal BLOCK_WIDTH = 180.0;

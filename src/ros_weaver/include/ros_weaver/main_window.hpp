@@ -13,6 +13,9 @@
 #include <QTextEdit>
 #include <QAction>
 
+#include "ros_weaver/core/system_discovery.hpp"
+#include "ros_weaver/core/canvas_mapper.hpp"
+
 namespace ros_weaver {
 
 class WeaverCanvas;
@@ -28,6 +31,9 @@ class TopicMonitor;
 class TopicInspectorPopup;
 class ConnectionLine;
 class RosStatusWidget;
+class SystemDiscovery;
+class CanvasMapper;
+class SystemMappingPanel;
 
 class MainWindow : public QMainWindow {
   Q_OBJECT
@@ -75,6 +81,13 @@ private slots:
   // Settings
   void onOpenSettings();
   void onRosStatusTitleBarUpdate(const QString& suffix);
+
+  // System discovery
+  void onScanSystem();
+  void onToggleAutoScan(bool enabled);
+  void onScanCompleted(const SystemGraph& graph);
+  void onMappingCompleted(const MappingResults& results);
+  void onMappingBlockSelected(const QUuid& blockId);
 
 private:
   void setupMenuBar();
@@ -127,6 +140,14 @@ private:
   // ROS2 status display
   RosStatusWidget* rosStatusWidget_;
   QString baseWindowTitle_;
+
+  // System discovery
+  SystemDiscovery* systemDiscovery_;
+  CanvasMapper* canvasMapper_;
+  SystemMappingPanel* systemMappingPanel_;
+  QDockWidget* systemMappingDock_;
+  QAction* scanSystemAction_;
+  QAction* autoScanAction_;
 };
 
 }  // namespace ros_weaver

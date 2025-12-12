@@ -18,6 +18,9 @@ PackageBlock::PackageBlock(const QString& packageName, QGraphicsItem* parent)
   , hoveredPinIndex_(-1)
   , hoveredPinIsOutput_(false)
   , isDragging_(false)
+  , runtimeStatus_(BlockRuntimeStatus::Unknown)
+  , matchConfidence_(MatchConfidence::None)
+  , showRuntimeStatus_(true)
 {
   setFlag(QGraphicsItem::ItemIsMovable, true);
   setFlag(QGraphicsItem::ItemIsSelectable, true);
@@ -80,10 +83,47 @@ void PackageBlock::paint(QPainter* painter, const QStyleOptionGraphicsItem* opti
   painter->setPen(Qt::NoPen);
   painter->drawPath(headerPath);
 
-  // Draw package name
+  // Draw runtime status indicator
+  if (showRuntimeStatus_ && runtimeStatus_ != BlockRuntimeStatus::Unknown) {
+    QColor statusColor;
+    switch (runtimeStatus_) {
+      case BlockRuntimeStatus::Running:
+        statusColor = QColor(76, 175, 80);   // Green
+        break;
+      case BlockRuntimeStatus::PartialMatch:
+        statusColor = QColor(255, 152, 0);   // Orange
+        break;
+      case BlockRuntimeStatus::NotFound:
+        statusColor = QColor(158, 158, 158); // Gray
+        break;
+      default:
+        statusColor = QColor(158, 158, 158);
+        break;
+    }
+
+    // Draw status dot in header
+    qreal dotRadius = 5.0;
+    qreal dotX = BLOCK_WIDTH - 15;
+    qreal dotY = HEADER_HEIGHT / 2;
+
+    painter->setBrush(statusColor);
+    painter->setPen(QPen(statusColor.darker(120), 1));
+    painter->drawEllipse(QPointF(dotX, dotY), dotRadius, dotRadius);
+
+    // Add pulsing glow for running status
+    if (runtimeStatus_ == BlockRuntimeStatus::Running) {
+      painter->setBrush(Qt::NoBrush);
+      painter->setPen(QPen(statusColor.lighter(130), 1));
+      painter->drawEllipse(QPointF(dotX, dotY), dotRadius + 2, dotRadius + 2);
+    }
+  }
+
+  // Draw package name (adjust width if status indicator is shown)
+  qreal nameWidth = showRuntimeStatus_ && runtimeStatus_ != BlockRuntimeStatus::Unknown
+                    ? BLOCK_WIDTH - 40 : BLOCK_WIDTH - 20;
   painter->setPen(Qt::white);
   painter->setFont(QFont("Sans", 10, QFont::Bold));
-  painter->drawText(QRectF(10, 0, BLOCK_WIDTH - 20, HEADER_HEIGHT),
+  painter->drawText(QRectF(10, 0, nameWidth, HEADER_HEIGHT),
                     Qt::AlignVCenter | Qt::AlignLeft, packageName_);
 
   // Draw pins
@@ -387,6 +427,55 @@ void PackageBlock::setParameters(const QList<BlockParamData>& params) {
 
 void PackageBlock::setPreferredYamlSource(const QString& source) {
   preferredYamlSource_ = source;
+}
+
+void PackageBlock::setRuntimeStatus(BlockRuntimeStatus status) {
+  if (runtimeStatus_ != status) {
+    runtimeStatus_ = status;
+    update();
+  }
+}
+
+void PackageBlock::setMatchedNodeName(const QString& nodeName) {
+  matchedNodeName_ = nodeName;
+}
+
+void PackageBlock::setMatchConfidence(MatchConfidence confidence) {
+  matchConfidence_ = confidence;
+}
+
+void PackageBlock::updateMappingResult(const BlockMappingResult& result) {
+  matchedNodeName_ = result.ros2NodeName;
+  matchConfidence_ = result.confidence;
+
+  switch (result.confidence) {
+    case MatchConfidence::High:
+    case MatchConfidence::Medium:
+      runtimeStatus_ = BlockRuntimeStatus::Running;
+      break;
+    case MatchConfidence::Low:
+      runtimeStatus_ = BlockRuntimeStatus::PartialMatch;
+      break;
+    case MatchConfidence::None:
+      runtimeStatus_ = BlockRuntimeStatus::NotFound;
+      break;
+  }
+
+  update();
+}
+
+void PackageBlock::clearRuntimeStatus() {
+  runtimeStatus_ = BlockRuntimeStatus::Unknown;
+  matchedNodeName_.clear();
+  matchConfidence_ = MatchConfidence::None;
+  update();
+}
+
+void PackageBlock::setShowRuntimeStatus(bool show) {
+  if (showRuntimeStatus_ != show) {
+    showRuntimeStatus_ = show;
+    update();
+  }
 }
 
 }  // namespace ros_weaver

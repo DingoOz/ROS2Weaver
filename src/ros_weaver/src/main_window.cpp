@@ -11,6 +11,9 @@
 #include "ros_weaver/widgets/output_panel.hpp"
 #include "ros_weaver/widgets/topic_inspector.hpp"
 #include "ros_weaver/widgets/ros_status_widget.hpp"
+#include "ros_weaver/widgets/system_mapping_panel.hpp"
+#include "ros_weaver/core/system_discovery.hpp"
+#include "ros_weaver/core/canvas_mapper.hpp"
 #include "ros_weaver/wizards/package_wizard.hpp"
 
 #include <QApplication>
@@ -62,6 +65,12 @@ MainWindow::MainWindow(QWidget* parent)
   , liveMonitoringEnabled_(false)
   , rosStatusWidget_(nullptr)
   , baseWindowTitle_("ROS Weaver - Visual ROS2 Package Editor")
+  , systemDiscovery_(nullptr)
+  , canvasMapper_(nullptr)
+  , systemMappingPanel_(nullptr)
+  , systemMappingDock_(nullptr)
+  , scanSystemAction_(nullptr)
+  , autoScanAction_(nullptr)
 {
   setWindowTitle(baseWindowTitle_);
   setMinimumSize(1200, 800);
@@ -70,6 +79,16 @@ MainWindow::MainWindow(QWidget* parent)
   packageIndex_ = new RosPackageIndex(this);
   codeGenerator_ = new CodeGenerator(this);
   externalEditor_ = new ExternalEditor(this);
+
+  // Initialize system discovery components
+  systemDiscovery_ = new SystemDiscovery(this);
+  canvasMapper_ = new CanvasMapper(this);
+
+  // Connect system discovery signals
+  connect(systemDiscovery_, &SystemDiscovery::scanCompleted,
+          this, &MainWindow::onScanCompleted);
+  connect(canvasMapper_, &CanvasMapper::mappingCompleted,
+          this, &MainWindow::onMappingCompleted);
 
   // Connect signals
   connect(packageIndex_, &RosPackageIndex::searchResultsReady,
@@ -250,6 +269,28 @@ void MainWindow::setupMenuBar() {
   QAction* launchAction = ros2Menu->addAction(tr("&Launch..."));
   launchAction->setShortcut(tr("Ctrl+L"));
 
+  ros2Menu->addSeparator();
+
+  // System discovery actions
+  scanSystemAction_ = ros2Menu->addAction(tr("Scan &Running System"));
+  scanSystemAction_->setShortcut(tr("Ctrl+Shift+R"));
+  scanSystemAction_->setToolTip(tr("Scan for running ROS2 nodes and topics"));
+  connect(scanSystemAction_, &QAction::triggered, this, &MainWindow::onScanSystem);
+
+  autoScanAction_ = ros2Menu->addAction(tr("&Auto-Scan"));
+  autoScanAction_->setCheckable(true);
+  autoScanAction_->setToolTip(tr("Automatically scan system at regular intervals"));
+  connect(autoScanAction_, &QAction::toggled, this, &MainWindow::onToggleAutoScan);
+
+  QAction* showMappingPanelAction = ros2Menu->addAction(tr("Show System &Mapping Panel"));
+  showMappingPanelAction->setShortcut(tr("Ctrl+Shift+M"));
+  connect(showMappingPanelAction, &QAction::triggered, this, [this]() {
+    if (systemMappingDock_) {
+      systemMappingDock_->show();
+      systemMappingDock_->raise();
+    }
+  });
+
   // Help menu
   QMenu* helpMenu = menuBar()->addMenu(tr("&Help"));
 
@@ -270,6 +311,12 @@ void MainWindow::setupToolBar() {
   mainToolBar->addSeparator();
   mainToolBar->addAction(tr("Build"));
   mainToolBar->addAction(tr("Launch"));
+  mainToolBar->addSeparator();
+
+  // Add scan system button to toolbar
+  QAction* scanToolbarAction = mainToolBar->addAction(tr("Scan System"));
+  scanToolbarAction->setToolTip(tr("Scan running ROS2 system (Ctrl+Shift+R)"));
+  connect(scanToolbarAction, &QAction::triggered, this, &MainWindow::onScanSystem);
 }
 
 void MainWindow::setupDockWidgets() {
@@ -366,6 +413,24 @@ void MainWindow::setupDockWidgets() {
   outputPanel_ = new OutputPanel();
   outputDock_->setWidget(outputPanel_);
   addDockWidget(Qt::BottomDockWidgetArea, outputDock_);
+
+  // System Mapping Dock (right side, tabbed with Properties)
+  systemMappingDock_ = new QDockWidget(tr("System Mapping"), this);
+  systemMappingDock_->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+
+  systemMappingPanel_ = new SystemMappingPanel();
+  systemMappingPanel_->setSystemDiscovery(systemDiscovery_);
+  systemMappingPanel_->setCanvasMapper(canvasMapper_);
+
+  connect(systemMappingPanel_, &SystemMappingPanel::blockSelected,
+          this, &MainWindow::onMappingBlockSelected);
+  connect(systemMappingPanel_, &SystemMappingPanel::scanRequested,
+          this, &MainWindow::onScanSystem);
+
+  systemMappingDock_->setWidget(systemMappingPanel_);
+  addDockWidget(Qt::RightDockWidgetArea, systemMappingDock_);
+  tabifyDockWidget(propertiesDock_, systemMappingDock_);
+  propertiesDock_->raise();  // Make Properties the default visible tab
 
   // Connect panel visibility toggles from View > Panels menu
   QAction* showPackageBrowserAction = findChild<QAction*>("showPackageBrowserAction");
@@ -1130,6 +1195,89 @@ void MainWindow::onOpenSettings() {
       rosStatusWidget_->setDisplayLocation(StatusDisplayLocation::TitleBarOnly);
     } else if (bothRadio->isChecked()) {
       rosStatusWidget_->setDisplayLocation(StatusDisplayLocation::Both);
+    }
+  }
+}
+
+// System discovery slots
+
+void MainWindow::onScanSystem() {
+  if (!systemDiscovery_) return;
+
+  statusBar()->showMessage(tr("Scanning ROS2 system..."));
+  systemDiscovery_->scan();
+}
+
+void MainWindow::onToggleAutoScan(bool enabled) {
+  if (systemDiscovery_) {
+    systemDiscovery_->setAutoScanEnabled(enabled);
+  }
+  if (autoScanAction_) {
+    autoScanAction_->setChecked(enabled);
+  }
+}
+
+void MainWindow::onScanCompleted(const SystemGraph& graph) {
+  statusBar()->showMessage(
+    tr("Scan complete: %1 nodes, %2 topics found")
+      .arg(graph.nodes.size())
+      .arg(graph.topics.size()),
+    5000
+  );
+
+  // Trigger mapping with current canvas
+  if (canvasMapper_ && canvas_) {
+    Project project;
+    canvas_->exportToProject(project);
+    canvasMapper_->mapCanvasToSystem(project, graph);
+  }
+}
+
+void MainWindow::onMappingCompleted(const MappingResults& results) {
+  // Update canvas blocks with mapping results
+  if (!canvas_) return;
+
+  // Get all package blocks from the canvas
+  QList<PackageBlock*> blocks;
+  for (QGraphicsItem* item : canvas_->scene()->items()) {
+    PackageBlock* block = dynamic_cast<PackageBlock*>(item);
+    if (block) {
+      blocks.append(block);
+    }
+  }
+
+  // Apply mapping results to each block
+  for (const BlockMappingResult& mapping : results.blockMappings) {
+    for (PackageBlock* block : blocks) {
+      if (block->id() == mapping.canvasBlockId) {
+        block->updateMappingResult(mapping);
+        break;
+      }
+    }
+  }
+
+  // Update the mapping panel (it connects directly via signal)
+  // Show summary in status bar
+  const auto& s = results.summary;
+  statusBar()->showMessage(
+    tr("Mapping: %1/%2 nodes matched, %3/%4 topics active")
+      .arg(s.matchedBlocks).arg(s.totalCanvasBlocks)
+      .arg(s.activeTopics).arg(s.totalCanvasTopics),
+    5000
+  );
+}
+
+void MainWindow::onMappingBlockSelected(const QUuid& blockId) {
+  if (!canvas_) return;
+
+  // Find and select the block on the canvas
+  for (QGraphicsItem* item : canvas_->scene()->items()) {
+    PackageBlock* block = dynamic_cast<PackageBlock*>(item);
+    if (block && block->id() == blockId) {
+      canvas_->scene()->clearSelection();
+      block->setSelected(true);
+      canvas_->centerOn(block);
+      break;
     }
   }
 }
