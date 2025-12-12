@@ -799,6 +799,66 @@ void MainWindow::onLaunchTurtlesim() {
     return;
   }
 
+  // Ask if user wants to clear canvas or add to existing
+  QMessageBox::StandardButton reply = QMessageBox::question(this,
+    tr("Add to Canvas"),
+    tr("Do you want to clear the canvas and add turtlesim nodes?\n\n"
+       "Click 'Yes' to clear and add nodes.\n"
+       "Click 'No' to just launch without modifying the canvas."),
+    QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel);
+
+  if (reply == QMessageBox::Cancel) {
+    return;
+  }
+
+  // Add nodes to canvas if user selected Yes
+  if (reply == QMessageBox::Yes && canvas_) {
+    canvas_->clearCanvas();
+    paramDashboard_->setCurrentBlock(nullptr);
+
+    // Create turtle_teleop_key block (publisher)
+    QList<QPair<QString, QString>> teleopInputs;  // No inputs
+    QList<QPair<QString, QString>> teleopOutputs;
+    teleopOutputs.append(qMakePair(QString("cmd_vel"), QString("geometry_msgs/msg/Twist")));
+
+    PackageBlock* teleopBlock = canvas_->addCustomBlock(
+      "turtle_teleop_key",
+      QPointF(-200, 0),
+      teleopInputs,
+      teleopOutputs
+    );
+
+    // Create turtlesim_node block (subscriber/publisher)
+    QList<QPair<QString, QString>> turtleInputs;
+    turtleInputs.append(qMakePair(QString("cmd_vel"), QString("geometry_msgs/msg/Twist")));
+
+    QList<QPair<QString, QString>> turtleOutputs;
+    turtleOutputs.append(qMakePair(QString("pose"), QString("turtlesim/msg/Pose")));
+    turtleOutputs.append(qMakePair(QString("color_sensor"), QString("turtlesim/msg/Color")));
+
+    PackageBlock* turtleBlock = canvas_->addCustomBlock(
+      "turtlesim_node",
+      QPointF(200, 0),
+      turtleInputs,
+      turtleOutputs
+    );
+
+    // Create connection between teleop and turtlesim
+    if (teleopBlock && turtleBlock) {
+      ConnectionLine* conn = canvas_->createConnection(teleopBlock, 0, turtleBlock, 0);
+      if (conn) {
+        conn->setTopicName("/turtle1/cmd_vel");
+      }
+    }
+
+    // Update window title
+    baseWindowTitle_ = "ROS Weaver - Turtlesim (Running)";
+    setWindowTitle(baseWindowTitle_ + rosStatusWidget_->titleBarSuffix());
+
+    // Fit view to show all blocks
+    canvas_->fitToContents();
+  }
+
   outputPanel_->clearBuildOutput();
   outputPanel_->appendBuildOutput(tr("Launching Turtlesim nodes...\n\n"));
 
@@ -833,6 +893,7 @@ void MainWindow::onLaunchTurtlesim() {
     outputPanel_->appendBuildOutput(tr("  - Down arrow: Move backward\n"));
     outputPanel_->appendBuildOutput(tr("  - Left/Right arrows: Rotate\n\n"));
     outputPanel_->appendBuildOutput(tr("Use Topic Viewer (Ctrl+Shift+T) to see /turtle1/cmd_vel and /turtle1/pose topics.\n"));
+    outputPanel_->appendBuildOutput(tr("\nNodes displayed on canvas show the running system topology."));
 
     statusBar()->showMessage(tr("Turtlesim launched - use 'ros2 run turtlesim turtle_teleop_key' in a terminal to control"), 10000);
   });
