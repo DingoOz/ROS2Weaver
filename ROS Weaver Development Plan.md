@@ -214,6 +214,62 @@ Integrate ROS2 logging capabilities into ROS Weaver to capture and display logs 
 - **ROS2 Version Compatibility**: Target Humble/Iron; use conditionals in CMake.
 - **Dependencies Conflicts**: Mirror BranchForge's resolutions.
 
+## Feature: GitHub Actions CI/CD (Planned)
+
+### Overview
+
+Implement continuous integration and deployment pipelines using GitHub Actions to automate building, testing, and releasing ROS Weaver.
+
+### CI Pipeline (Continuous Integration)
+
+1. **Build Workflow**: Triggered on push/PR to main branch
+   - Build on Ubuntu 22.04 with ROS2 Humble
+   - Build on Ubuntu 24.04 with ROS2 Jazzy
+   - Cache colcon workspace and dependencies for faster builds
+   - Upload build artifacts
+
+2. **Test Workflow**: Run automated tests
+   - Unit tests with `colcon test`
+   - Code coverage reports (optional)
+   - Linting with `ament_lint` tools
+
+3. **Static Analysis**: Code quality checks
+   - `cppcheck` for C++ analysis
+   - `clang-tidy` for additional checks
+   - Qt-specific checks where applicable
+
+### CD Pipeline (Continuous Deployment)
+
+1. **Release Workflow**: Triggered on version tags (e.g., v1.0.0)
+   - Build release binaries for supported platforms
+   - Generate Debian packages (.deb)
+   - Create GitHub Release with changelog
+   - Upload packages as release assets
+
+2. **Documentation Deployment** (optional)
+   - Build and deploy documentation to GitHub Pages
+   - Auto-generate API docs with Doxygen
+
+### Workflow Files
+
+```yaml
+# .github/workflows/build.yml - Main CI workflow
+# .github/workflows/release.yml - Release automation
+# .github/workflows/docs.yml - Documentation (optional)
+```
+
+### Matrix Build Strategy
+
+- **ROS2 Distributions**: Humble, Iron, Jazzy
+- **Ubuntu Versions**: 22.04, 24.04
+- **Build Types**: Debug, Release
+
+### Caching Strategy
+
+- Cache apt packages
+- Cache colcon build directory
+- Cache rosdep dependencies
+
 ## Feature: Node Grouping
 
 ### Overview
