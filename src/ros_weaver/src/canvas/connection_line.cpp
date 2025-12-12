@@ -208,8 +208,16 @@ void ConnectionLine::paint(QPainter* painter, const QStyleOptionGraphicsItem* op
     penWidth = HOVER_WIDTH;
   } else if (isActiveDataFlow) {
     // Throbbing width effect for active data flow
+    // Scale throb intensity with message rate for visual feedback
+    qreal rateIntensity = 0.5;  // Base intensity for low rates
+    if (messageRate_ > 0) {
+      // Scale from 0.5 at 1Hz to 1.0 at 10kHz
+      rateIntensity = std::min(1.0, 0.5 + 0.125 * std::log10(messageRate_));
+    }
     qreal throb = 0.5 + 0.5 * std::sin(dataFlowPhase_ * 2 * M_PI);
-    penWidth = LINE_WIDTH + 1.5 * throb;  // Pulse between 2.0 and 3.5
+    // Higher rates = thicker line (2.0-3.0 base + 0-2 rate bonus)
+    qreal rateBonus = rateIntensity * 2.0;
+    penWidth = LINE_WIDTH + rateBonus + (1.5 * rateIntensity) * throb;
     color = getActivityColor();
   }
 
@@ -242,11 +250,17 @@ void ConnectionLine::paint(QPainter* painter, const QStyleOptionGraphicsItem* op
   if (isActiveDataFlow) {
     qreal throb = 0.5 + 0.5 * std::sin(dataFlowPhase_ * 2 * M_PI);
 
-    // Outer glow that pulses
+    // Scale glow intensity with rate
+    qreal rateIntensity = 0.5;
+    if (messageRate_ > 0) {
+      rateIntensity = std::min(1.0, 0.5 + 0.125 * std::log10(messageRate_));
+    }
+
+    // Outer glow that pulses - brighter and larger for higher rates
     QColor glowColor = color.lighter(130);
-    glowColor.setAlpha(static_cast<int>(80 * throb));
+    glowColor.setAlpha(static_cast<int>((60 + 80 * rateIntensity) * throb));
     QPen glowPen(glowColor);
-    glowPen.setWidthF(penWidth + 6 * throb);
+    glowPen.setWidthF(penWidth + (4 + 8 * rateIntensity) * throb);
     glowPen.setCapStyle(Qt::RoundCap);
     painter->setPen(glowPen);
     painter->drawPath(path_);
@@ -381,10 +395,10 @@ void ConnectionLine::setMessageRate(double rateHz) {
 
     // Adjust animation speed based on rate
     if (dataFlowAnimation_ && dataFlowAnimation_->state() == QAbstractAnimation::Running) {
-      // Faster rate = faster animation (shorter duration)
-      int duration = 2000;  // Base duration 2 seconds
+      int duration = 2500;
       if (rateHz > 0) {
-        duration = static_cast<int>(std::max(200.0, 2000.0 / std::sqrt(rateHz)));
+        // Match the formula in startDataFlowAnimation
+        duration = static_cast<int>(std::max(500.0, 2500.0 / (1.0 + std::log10(rateHz))));
       }
       dataFlowAnimation_->setDuration(duration);
     }
@@ -448,10 +462,14 @@ void ConnectionLine::startDataFlowAnimation() {
     dataFlowAnimation_->setLoopCount(-1);  // Infinite loop
   }
 
-  // Duration based on message rate
-  int duration = 2000;  // Default 2 seconds
+  // Duration based on message rate - faster rate = faster animation
+  // The animation speed directly conveys the data rate visually
+  // At 1Hz: ~2500ms, At 10Hz: ~1250ms, At 100Hz: ~833ms, At 1kHz: ~625ms, At 10kHz: ~500ms
+  int duration = 2500;  // Default for very low rates
   if (messageRate_ > 0) {
-    duration = static_cast<int>(std::max(200.0, 2000.0 / std::sqrt(messageRate_)));
+    // Logarithmic scaling so animation speed increases with rate
+    // but remains smooth even at very high rates (min 500ms)
+    duration = static_cast<int>(std::max(500.0, 2500.0 / (1.0 + std::log10(messageRate_))));
   }
 
   dataFlowAnimation_->setDuration(duration);
@@ -549,9 +567,19 @@ void ConnectionLine::drawActivityIndicator(QPainter* painter) {
        activityState_ == TopicActivityState::HighRate) &&
       dataFlowAnimation_ && dataFlowAnimation_->state() == QAbstractAnimation::Running) {
 
-    // Draw flowing particles along the path
-    int numParticles = (activityState_ == TopicActivityState::HighRate) ? 5 : 3;
+    // Scale particle count with rate to visually convey data throughput
+    // 1Hz: 2 particles, 10Hz: 3, 100Hz: 5, 1kHz: 7, 10kHz: 9
+    int numParticles = 2;
+    if (messageRate_ > 0) {
+      numParticles = std::min(10, std::max(2, static_cast<int>(2 + 2 * std::log10(messageRate_))));
+    }
     qreal spacing = 1.0 / numParticles;
+
+    // Scale particle size with rate
+    qreal rateIntensity = 0.5;
+    if (messageRate_ > 0) {
+      rateIntensity = std::min(1.0, 0.5 + 0.125 * std::log10(messageRate_));
+    }
 
     for (int i = 0; i < numParticles; ++i) {
       qreal t = std::fmod(dataFlowPhase_ + i * spacing, 1.0);
@@ -565,15 +593,15 @@ void ConnectionLine::drawActivityIndicator(QPainter* painter) {
       QColor particleColor = activityColor.lighter(150);
       particleColor.setAlpha(static_cast<int>(255 * alpha));
 
-      // Draw particle with glow
-      qreal particleSize = (activityState_ == TopicActivityState::HighRate) ? 6 : 4;
+      // Particle size scales with rate (3-6 pixels)
+      qreal particleSize = 3 + 3 * rateIntensity;
 
-      // Outer glow
+      // Outer glow - larger for higher rates
       QColor glowColor = particleColor;
-      glowColor.setAlpha(static_cast<int>(100 * alpha));
+      glowColor.setAlpha(static_cast<int>((80 + 60 * rateIntensity) * alpha));
       painter->setBrush(glowColor);
       painter->setPen(Qt::NoPen);
-      painter->drawEllipse(particlePos, particleSize + 3, particleSize + 3);
+      painter->drawEllipse(particlePos, particleSize + 2 + 2 * rateIntensity, particleSize + 2 + 2 * rateIntensity);
 
       // Inner particle
       painter->setBrush(particleColor);
