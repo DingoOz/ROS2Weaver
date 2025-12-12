@@ -126,6 +126,7 @@ public:
 
   void initializePage() override;
   bool validatePage() override;
+  bool isComplete() const override;
 
   QString packageName() const;
   QString packageVersion() const;
@@ -137,9 +138,11 @@ public:
 
 private slots:
   void onPackageNameChanged(const QString& text);
+  void updateNextButtonTooltip();
 
 private:
   void setupUi();
+  QString getIncompleteReason() const;
 
   QLineEdit* nameEdit_;
   QLineEdit* versionEdit_;
@@ -160,6 +163,7 @@ public:
 
   void initializePage() override;
   bool validatePage() override;
+  bool isComplete() const override;
 
   QString outputPath() const;
   bool createSubdirectory() const;
@@ -168,9 +172,11 @@ public:
 private slots:
   void onBrowse();
   void updatePreview();
+  void updateNextButtonTooltip();
 
 private:
   void setupUi();
+  QString getIncompleteReason() const;
 
   QLineEdit* pathEdit_;
   QPushButton* browseButton_;
@@ -191,6 +197,7 @@ public:
 
   void initializePage() override;
   bool validatePage() override;
+  bool isComplete() const override;
 
   QList<QUuid> selectedNodeIds() const;
 
@@ -198,9 +205,11 @@ private slots:
   void onSelectAll();
   void onDeselectAll();
   void updateSelectionCount();
+  void updateNextButtonTooltip();
 
 private:
   void setupUi();
+  QString getIncompleteReason() const;
 
   const Project& project_;
   QListWidget* nodeList_;
@@ -316,11 +325,13 @@ private slots:
   void onGenerate();
   void onGenerationProgress(int percent, const QString& message);
   void onGenerationFinished(bool success);
+  void updateFinishButtonTooltip();
 
 private:
   void setupUi();
   void updateSummary();
   bool performGeneration();
+  QString getIncompleteReason() const;
 
   const Project& project_;
   QTextEdit* summaryText_;

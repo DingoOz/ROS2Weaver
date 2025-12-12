@@ -14,6 +14,7 @@
 #include <QFileInfo>
 #include <QHeaderView>
 #include <QFont>
+#include <QAbstractButton>
 
 namespace ros_weaver {
 
@@ -125,6 +126,7 @@ void PackageInfoPage::setupUi() {
   layout->addRow(tr("Package Name*:"), nameLayout);
 
   connect(nameEdit_, &QLineEdit::textChanged, this, &PackageInfoPage::onPackageNameChanged);
+  connect(this, &QWizardPage::completeChanged, this, &PackageInfoPage::updateNextButtonTooltip);
 
   // Version
   versionEdit_ = new QLineEdit("0.1.0");
@@ -182,6 +184,44 @@ void PackageInfoPage::setupUi() {
 void PackageInfoPage::initializePage() {
   // Set focus to name field
   nameEdit_->setFocus();
+  updateNextButtonTooltip();
+}
+
+void PackageInfoPage::updateNextButtonTooltip() {
+  if (wizard()) {
+    QAbstractButton* nextButton = wizard()->button(QWizard::NextButton);
+    if (nextButton) {
+      if (isComplete()) {
+        nextButton->setToolTip(QString());
+      } else {
+        nextButton->setToolTip(getIncompleteReason());
+      }
+    }
+  }
+}
+
+QString PackageInfoPage::getIncompleteReason() const {
+  if (nameEdit_->text().isEmpty()) {
+    return tr("Enter a package name to continue");
+  }
+  QRegularExpression validName("^[a-z][a-z0-9_]*$");
+  if (!validName.match(nameEdit_->text()).hasMatch()) {
+    return tr("Package name must start with lowercase letter and contain only lowercase letters, numbers, and underscores");
+  }
+  if (maintainerEdit_->text().isEmpty()) {
+    return tr("Enter a maintainer name to continue");
+  }
+  if (emailEdit_->text().isEmpty()) {
+    return tr("Enter a maintainer email to continue");
+  }
+  if (!emailEdit_->text().contains('@')) {
+    return tr("Enter a valid email address to continue");
+  }
+  return QString();
+}
+
+bool PackageInfoPage::isComplete() const {
+  return getIncompleteReason().isEmpty();
 }
 
 void PackageInfoPage::onPackageNameChanged(const QString& text) {
@@ -249,6 +289,8 @@ void OutputConfigPage::setupUi() {
 
   connect(browseButton_, &QPushButton::clicked, this, &OutputConfigPage::onBrowse);
   connect(pathEdit_, &QLineEdit::textChanged, this, &OutputConfigPage::updatePreview);
+  connect(pathEdit_, &QLineEdit::textChanged, this, &OutputConfigPage::updateNextButtonTooltip);
+  connect(this, &QWizardPage::completeChanged, this, &OutputConfigPage::updateNextButtonTooltip);
 
   // Create subdirectory option
   subdirCheck_ = new QCheckBox(tr("Create subdirectory with package name"));
@@ -293,6 +335,31 @@ void OutputConfigPage::initializePage() {
     pathEdit_->setText(defaultPath);
   }
   updatePreview();
+  updateNextButtonTooltip();
+}
+
+void OutputConfigPage::updateNextButtonTooltip() {
+  if (wizard()) {
+    QAbstractButton* nextButton = wizard()->button(QWizard::NextButton);
+    if (nextButton) {
+      if (isComplete()) {
+        nextButton->setToolTip(QString());
+      } else {
+        nextButton->setToolTip(getIncompleteReason());
+      }
+    }
+  }
+}
+
+QString OutputConfigPage::getIncompleteReason() const {
+  if (pathEdit_->text().isEmpty()) {
+    return tr("Select an output directory to continue");
+  }
+  return QString();
+}
+
+bool OutputConfigPage::isComplete() const {
+  return !pathEdit_->text().isEmpty();
 }
 
 void OutputConfigPage::onBrowse() {
@@ -421,6 +488,7 @@ void NodeSelectionPage::setupUi() {
   layout->addWidget(nodeList_);
 
   connect(nodeList_, &QListWidget::itemChanged, this, &NodeSelectionPage::updateSelectionCount);
+  connect(this, &QWizardPage::completeChanged, this, &NodeSelectionPage::updateNextButtonTooltip);
 }
 
 void NodeSelectionPage::initializePage() {
@@ -445,6 +513,31 @@ void NodeSelectionPage::initializePage() {
   }
 
   updateSelectionCount();
+  updateNextButtonTooltip();
+}
+
+void NodeSelectionPage::updateNextButtonTooltip() {
+  if (wizard()) {
+    QAbstractButton* nextButton = wizard()->button(QWizard::NextButton);
+    if (nextButton) {
+      if (isComplete()) {
+        nextButton->setToolTip(QString());
+      } else {
+        nextButton->setToolTip(getIncompleteReason());
+      }
+    }
+  }
+}
+
+QString NodeSelectionPage::getIncompleteReason() const {
+  if (selectedNodeIds().isEmpty()) {
+    return tr("Select at least one node to continue");
+  }
+  return QString();
+}
+
+bool NodeSelectionPage::isComplete() const {
+  return !selectedNodeIds().isEmpty();
 }
 
 void NodeSelectionPage::onSelectAll() {
@@ -842,6 +935,7 @@ void ReviewGeneratePage::setupUi() {
   layout->addLayout(buttonLayout);
 
   connect(generateButton_, &QPushButton::clicked, this, &ReviewGeneratePage::onGenerate);
+  connect(this, &QWizardPage::completeChanged, this, &ReviewGeneratePage::updateFinishButtonTooltip);
 
   // Create code generator
   codeGenerator_ = new CodeGenerator(this);
@@ -857,8 +951,33 @@ void ReviewGeneratePage::initializePage() {
   generateButton_->setEnabled(true);
   progressBar_->setVisible(false);
   statusLabel_->clear();
+  statusLabel_->setStyleSheet("");
 
   updateSummary();
+  updateFinishButtonTooltip();
+}
+
+void ReviewGeneratePage::updateFinishButtonTooltip() {
+  if (wizard()) {
+    QAbstractButton* finishButton = wizard()->button(QWizard::FinishButton);
+    if (finishButton) {
+      if (isComplete()) {
+        finishButton->setToolTip(QString());
+      } else {
+        finishButton->setToolTip(getIncompleteReason());
+      }
+    }
+  }
+}
+
+QString ReviewGeneratePage::getIncompleteReason() const {
+  if (!generationComplete_) {
+    return tr("Click 'Generate Package' to generate the ROS2 package before finishing");
+  }
+  if (!generationSuccess_) {
+    return tr("Package generation failed - fix the errors and try again");
+  }
+  return QString();
 }
 
 void ReviewGeneratePage::updateSummary() {
