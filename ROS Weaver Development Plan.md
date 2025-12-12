@@ -779,3 +779,327 @@ topic_viewer:
 - Message injection: Publish test messages from viewer for debugging
 - Custom message renderers: Plugin system for specialized visualizations
 
+## Feature: Live System Discovery and Canvas Mapping
+
+### Overview
+
+Scan the running ROS2 system to discover active topics and nodes, then map them to the visual representation on the canvas. This bridges the gap between the design-time canvas (what you've drawn) and the runtime system (what's actually running), providing immediate visual feedback on system state.
+
+### Core Concept
+
+```
+┌─────────────────┐         ┌─────────────────┐         ┌─────────────────┐
+│  Canvas View    │ ◄─────► │  Mapping Engine │ ◄─────► │  ROS2 System    │
+│  (Design-time)  │         │                 │         │  (Runtime)      │
+│                 │         │  • Match names  │         │                 │
+│  PackageBlocks  │         │  • Match topics │         │  ros2 topic list│
+│  Connections    │         │  • Match types  │         │  ros2 node list │
+└─────────────────┘         └─────────────────┘         └─────────────────┘
+```
+
+### Features
+
+#### 1. System Scan Trigger
+
+**Manual Scan:**
+- Toolbar button: "Scan ROS2 System" (radar/refresh icon)
+- Menu: Tools → "Scan Running System"
+- Keyboard shortcut: Ctrl+Shift+R
+- Right-click canvas → "Scan for Active Topics"
+
+**Auto-Scan Options:**
+- Scan on project open (optional)
+- Periodic background scan (configurable: 5-60 seconds, or disabled)
+- Scan on canvas focus (when switching back to ROS Weaver)
+
+#### 2. Discovery Operations
+
+**Topic Discovery:**
+```cpp
+// Equivalent to: ros2 topic list -t
+// Returns: topic name, message type, publisher count, subscriber count
+```
+
+**Node Discovery:**
+```cpp
+// Equivalent to: ros2 node list
+// Plus: ros2 node info <node> for each node
+// Returns: node name, namespace, publishers, subscribers, services
+```
+
+**Full System Graph:**
+```cpp
+// Build complete pub/sub graph:
+// - Which nodes publish to which topics
+// - Which nodes subscribe to which topics
+// - Message types for each topic
+```
+
+#### 3. Canvas Mapping Algorithm
+
+**Matching Strategy (Priority Order):**
+
+1. **Exact Node Name Match**
+   - Canvas block name matches ROS2 node name exactly
+   - E.g., Canvas "slam_toolbox" ↔ ROS2 node "/slam_toolbox"
+
+2. **Fuzzy Node Name Match**
+   - Ignore namespace prefix: "/robot1/slam_toolbox" matches "slam_toolbox"
+   - Ignore suffixes: "slam_toolbox_node" matches "slam_toolbox"
+   - Case-insensitive comparison
+
+3. **Topic-Based Inference**
+   - If canvas block publishes topic X and ROS2 node publishes topic X → likely match
+   - Weight by number of matching topics
+   - Consider message types for stronger matching
+
+4. **Package Name Match**
+   - Canvas block name matches ROS2 package name
+   - Useful when node names differ from package names
+
+**Mapping Confidence Levels:**
+- **High** (green): Exact name match + matching topics
+- **Medium** (yellow): Fuzzy name match or topic-only match
+- **Low** (orange): Partial topic overlap, uncertain
+- **None** (gray): No match found in running system
+
+#### 4. Visual Feedback on Canvas
+
+**Node Status Indicators:**
+```
+┌─────────────────────────────┐
+│ ● slam_toolbox         [▶] │  ← Green dot = running, [▶] = live indicator
+├─────────────────────────────┤
+│ ○ scan      ────────►       │  ← Filled pin = active topic
+│ ○ odom      ────────►       │
+│       ◄──────── map ●       │  ← Hollow pin = not seen in system
+└─────────────────────────────┘
+```
+
+**Status Indicators:**
+- **Node badge**: Green dot (running), Gray dot (not found), Yellow dot (partial match)
+- **Pin indicators**: Filled circle (topic active), Hollow circle (topic not found)
+- **Connection styling**: Solid line (both ends active), Dashed line (one/both ends inactive)
+- **Glow effect**: Optional pulsing glow on nodes with active data flow
+
+**Overlay Mode:**
+- Toggle button to show/hide runtime status overlay
+- When enabled, dims unmatched nodes and highlights matched ones
+- Status legend in corner of canvas
+
+#### 5. Mapping Results Panel
+
+**Dockable Results View:**
+```
+┌─ System Mapping ──────────────────────────────────────┐
+│ Last scan: 12:34:56 | 7/9 nodes matched | ⟳ Rescan   │
+├───────────────────────────────────────────────────────┤
+│ Canvas Block      │ ROS2 Node          │ Status      │
+├───────────────────────────────────────────────────────┤
+│ ● slam_toolbox    │ /slam_toolbox      │ ✓ Matched   │
+│ ● nav2_controller │ /controller_server │ ~ Fuzzy     │
+│ ● lidar_sensor    │ (not found)        │ ✗ Missing   │
+├───────────────────────────────────────────────────────┤
+│ Topics: 12/15 matched | 3 extra in system            │
+└───────────────────────────────────────────────────────┘
+```
+
+**Details on Selection:**
+- Click row to highlight corresponding canvas node
+- Expand row to see topic-level matching details
+- Show which topics matched, which are missing
+
+#### 6. Unmatched Discovery
+
+**Extra Nodes in System:**
+- List ROS2 nodes not represented on canvas
+- Option to "Add to Canvas" - creates new block with discovered topics
+
+**Extra Topics in System:**
+- List topics published/subscribed but not on canvas connections
+- Option to "Add Connection" - creates pin and connection
+
+**Missing from System:**
+- List canvas elements not found in running system
+- Helpful for debugging: "Why isn't my node running?"
+
+#### 7. Namespace Handling
+
+**Namespace Resolution:**
+```
+Canvas: "slam_toolbox"
+
+Could match any of:
+  /slam_toolbox
+  /robot1/slam_toolbox
+  /ns1/ns2/slam_toolbox
+
+User preference:
+  ○ Match any namespace (default)
+  ○ Require exact match
+  ○ Specify expected namespace: [/robot1/    ]
+```
+
+**Multi-Robot Support:**
+- Detect namespace patterns (e.g., /robot1/*, /robot2/*)
+- Option to filter by namespace prefix
+- Canvas "instance" concept for multi-robot scenarios
+
+### Technical Implementation
+
+#### ROS2 Graph API
+
+```cpp
+class SystemDiscovery : public rclcpp::Node {
+public:
+  struct TopicInfo {
+    std::string name;
+    std::string type;
+    std::vector<std::string> publishers;   // Node names
+    std::vector<std::string> subscribers;  // Node names
+  };
+
+  struct NodeInfo {
+    std::string name;
+    std::string namespace_;
+    std::vector<std::string> publishers;   // Topic names
+    std::vector<std::string> subscribers;  // Topic names
+    std::vector<std::string> services;
+  };
+
+  // Discovery methods
+  std::vector<TopicInfo> discoverTopics();
+  std::vector<NodeInfo> discoverNodes();
+  SystemGraph buildGraph();  // Full pub/sub graph
+
+private:
+  // Use rclcpp::Node::get_topic_names_and_types()
+  // Use rclcpp::Node::get_node_names()
+  // Use rcl_get_publisher_names_and_types_by_node() etc.
+};
+```
+
+#### Mapping Engine
+
+```cpp
+class CanvasMapper {
+public:
+  struct MappingResult {
+    QUuid canvasBlockId;
+    QString canvasName;
+    QString ros2NodeName;      // Empty if not matched
+    MatchConfidence confidence;
+    QList<TopicMapping> topicMappings;
+  };
+
+  struct TopicMapping {
+    QString canvasPinName;
+    QString ros2TopicName;
+    bool typeMatches;
+    bool isActive;  // Has recent messages
+  };
+
+  QList<MappingResult> mapCanvasToSystem(
+    const Project& project,
+    const SystemGraph& systemGraph
+  );
+
+private:
+  MatchConfidence calculateConfidence(
+    const BlockData& block,
+    const NodeInfo& node
+  );
+};
+```
+
+#### Update Flow
+
+```
+User clicks "Scan"
+       │
+       ▼
+┌─────────────────────┐
+│ SystemDiscovery     │ (ROS2 thread)
+│ • get_topic_names() │
+│ • get_node_names()  │
+│ • build graph       │
+└─────────┬───────────┘
+          │ Signal: discoveryComplete(SystemGraph)
+          ▼
+┌─────────────────────┐
+│ CanvasMapper        │ (Worker thread)
+│ • Match blocks      │
+│ • Score confidence  │
+│ • Map topics        │
+└─────────┬───────────┘
+          │ Signal: mappingComplete(Results)
+          ▼
+┌─────────────────────┐
+│ Canvas UI Update    │ (Qt thread)
+│ • Update badges     │
+│ • Style connections │
+│ • Update panel      │
+└─────────────────────┘
+```
+
+### UI/UX Details
+
+#### Toolbar Integration
+
+```
+[New] [Open] [Save] | [Undo] [Redo] | [🔍 Scan System ▼] [📡 Live] | ...
+                                           │
+                                           ▼
+                                    ┌──────────────┐
+                                    │ Scan Now     │
+                                    │ Auto-Scan: ✓ │
+                                    │ ──────────── │
+                                    │ Scan Options │
+                                    │ Clear Status │
+                                    └──────────────┘
+```
+
+#### Status Bar Integration
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│ Ready | Nodes: 7/9 matched | Topics: 12/15 active | Last: 12:34:56│
+└────────────────────────────────────────────────────────────────────┘
+```
+
+#### Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| Ctrl+Shift+R | Scan ROS2 system |
+| Ctrl+Shift+L | Toggle live mode (auto-scan) |
+| Ctrl+Shift+M | Open mapping results panel |
+
+### Configuration Options
+
+```yaml
+system_discovery:
+  auto_scan_on_open: false
+  auto_scan_interval_sec: 0  # 0 = disabled
+  match_ignore_namespace: true
+  match_case_sensitive: false
+  match_fuzzy_threshold: 0.7  # For fuzzy string matching
+  show_status_overlay: true
+  highlight_active_connections: true
+  dim_unmatched_nodes: false
+```
+
+### Integration with Other Features
+
+**Topic Viewer Integration:**
+- Scan results feed into topic viewer's topic list
+- Clicking topic in viewer highlights mapped connections on canvas
+
+**Data Flow Visualization:**
+- Scan provides the "active" state for animated connections
+- Only animate connections where both topics are discovered as active
+
+**Code Generation:**
+- Warn if generating code for nodes not found in system
+- Option to only generate for matched/running nodes
+
