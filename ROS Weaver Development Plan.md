@@ -251,7 +251,15 @@ Node Grouping provides Unreal Engine-style "Comment Box" functionality for organ
    - "Group Color" submenu with preset colors
    - "Fit to Contents" to auto-resize around contained nodes
 
-8. **Deletion**: Groups can be deleted via:
+8. **Enhanced Color Picker** (Planned): Replace the basic color submenu with a full color picker dialog:
+   - **Quick Pick Grid**: Display current preset colors (Blue, Green, Red, Orange, Purple) as clickable swatches for fast selection
+   - **Color Wheel**: Visual HSV/HSL color wheel for intuitive color selection
+   - **HEX Code Input**: Text field to enter/paste specific hex color codes (e.g., #FF5733)
+   - **RGB Sliders**: Optional RGB slider controls for precise color adjustment
+   - **Preview**: Live preview showing how the selected color will look on the group
+   - **Recent Colors**: Track recently used custom colors for quick reuse
+
+9. **Deletion**: Groups can be deleted via:
    - Select + Delete/Backspace key
    - Right-click → "Delete Group"
    - Deleting a group does NOT delete contained nodes
