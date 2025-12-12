@@ -12,6 +12,7 @@
 #include "ros_weaver/widgets/topic_inspector.hpp"
 #include "ros_weaver/widgets/ros_status_widget.hpp"
 #include "ros_weaver/widgets/system_mapping_panel.hpp"
+#include "ros_weaver/widgets/topic_viewer_panel.hpp"
 #include "ros_weaver/core/system_discovery.hpp"
 #include "ros_weaver/core/canvas_mapper.hpp"
 #include "ros_weaver/wizards/package_wizard.hpp"
@@ -73,6 +74,8 @@ MainWindow::MainWindow(QWidget* parent)
   , scanSystemAction_(nullptr)
   , autoScanAction_(nullptr)
   , scanProgressBar_(nullptr)
+  , topicViewerPanel_(nullptr)
+  , topicViewerDock_(nullptr)
 {
   setWindowTitle(baseWindowTitle_);
   setMinimumSize(1200, 800);
@@ -141,6 +144,16 @@ void MainWindow::setupMenuBar() {
   QMenu* examplesMenu = fileMenu->addMenu(tr("&Examples"));
   QAction* turtleBotAction = examplesMenu->addAction(tr("&TurtleBot3 Navigation"));
   connect(turtleBotAction, &QAction::triggered, this, &MainWindow::onLoadTurtleBotExample);
+
+  QAction* turtlesimAction = examplesMenu->addAction(tr("Turtle&sim Teleop"));
+  turtlesimAction->setToolTip(tr("Load the turtlesim teleop example - control a turtle with keyboard"));
+  connect(turtlesimAction, &QAction::triggered, this, &MainWindow::onLoadTurtlesimExample);
+
+  examplesMenu->addSeparator();
+
+  QAction* launchTurtlesimAction = examplesMenu->addAction(tr("&Launch Turtlesim Nodes"));
+  launchTurtlesimAction->setToolTip(tr("Launch the turtlesim_node and turtle_teleop_key nodes"));
+  connect(launchTurtlesimAction, &QAction::triggered, this, &MainWindow::onLaunchTurtlesim);
 
   fileMenu->addSeparator();
 
@@ -299,6 +312,15 @@ void MainWindow::setupMenuBar() {
     }
   });
 
+  QAction* showTopicViewerAction = ros2Menu->addAction(tr("Show &Topic Viewer"));
+  showTopicViewerAction->setShortcut(tr("Ctrl+Shift+T"));
+  connect(showTopicViewerAction, &QAction::triggered, this, [this]() {
+    if (topicViewerPanel_) {
+      topicViewerPanel_->show();
+      topicViewerPanel_->raise();
+    }
+  });
+
   // Help menu
   QMenu* helpMenu = menuBar()->addMenu(tr("&Help"));
 
@@ -438,6 +460,23 @@ void MainWindow::setupDockWidgets() {
   systemMappingDock_->setWidget(systemMappingPanel_);
   addDockWidget(Qt::RightDockWidgetArea, systemMappingDock_);
   tabifyDockWidget(propertiesDock_, systemMappingDock_);
+
+  // Topic Viewer Dock (right side, tabbed with Properties and System Mapping)
+  topicViewerPanel_ = new TopicViewerPanel(this);
+  topicViewerPanel_->setCanvas(canvas_);
+
+  // Connect topic viewer signals
+  connect(topicViewerPanel_, &TopicViewerPanel::topicSelected,
+          this, &MainWindow::onTopicViewerTopicSelected);
+  connect(topicViewerPanel_, &TopicViewerPanel::showTopicOnCanvas,
+          this, &MainWindow::onShowTopicOnCanvas);
+  connect(topicViewerPanel_, &TopicViewerPanel::echoTopicRequested,
+          this, &MainWindow::onEchoTopicRequested);
+
+  // TopicViewerPanel is its own dock widget
+  addDockWidget(Qt::RightDockWidgetArea, topicViewerPanel_);
+  tabifyDockWidget(systemMappingDock_, topicViewerPanel_);
+
   propertiesDock_->raise();  // Make Properties the default visible tab
 
   // Connect panel visibility toggles from View > Panels menu
@@ -674,6 +713,129 @@ void MainWindow::onLoadTurtleBotExample() {
   outputPanel_->appendBuildOutput(tr("  - slam_toolbox_params.yaml (SLAM Toolbox parameters)\n"));
   outputPanel_->appendBuildOutput(tr("\nYAML files location: %1\n").arg(yamlDir));
   outputPanel_->appendBuildOutput(tr("\nSelect a node to see its parameters. Use the Source dropdown to switch between block parameters and YAML files."));
+}
+
+void MainWindow::onLoadTurtlesimExample() {
+  // Try to load from installed package share directory first
+  QString examplePath;
+
+  try {
+    std::string packageShare = ament_index_cpp::get_package_share_directory("ros_weaver");
+    examplePath = QString::fromStdString(packageShare) +
+                  "/examples/turtlesim_teleop/turtlesim_teleop.rwp";
+  } catch (const std::exception&) {
+    // Fallback to source directory (for development)
+    examplePath = QDir::currentPath() +
+                  "/src/ros_weaver/examples/turtlesim_teleop/turtlesim_teleop.rwp";
+  }
+
+  // Check if file exists
+  if (!QFile::exists(examplePath)) {
+    // Try another fallback path for development
+    QDir sourceDir(QDir::currentPath());
+    if (sourceDir.exists("examples/turtlesim_teleop/turtlesim_teleop.rwp")) {
+      examplePath = sourceDir.absoluteFilePath("examples/turtlesim_teleop/turtlesim_teleop.rwp");
+    } else {
+      QMessageBox::warning(this, tr("Example Not Found"),
+        tr("Could not find the Turtlesim Teleop example.\n"
+           "Please ensure the package is properly installed.\n\n"
+           "Looked in:\n%1").arg(examplePath));
+      return;
+    }
+  }
+
+  // Load the project file
+  QString errorMsg;
+  Project project = Project::loadFromFile(examplePath, &errorMsg);
+
+  if (!errorMsg.isEmpty()) {
+    QMessageBox::warning(this, tr("Load Error"),
+      tr("Failed to load Turtlesim example:\n%1").arg(errorMsg));
+    return;
+  }
+
+  // Clear param dashboard before import (which clears the canvas)
+  paramDashboard_->setCurrentBlock(nullptr);
+  paramDashboard_->clearYamlFiles();
+
+  // Import the project
+  canvas_->importFromProject(project);
+  currentProjectPath_.clear();
+  baseWindowTitle_ = "ROS Weaver - Turtlesim Teleop (Example)";
+  setWindowTitle(baseWindowTitle_ + rosStatusWidget_->titleBarSuffix());
+
+  statusBar()->showMessage(tr("Loaded Turtlesim Teleop example"));
+
+  // Append to output with launch instructions
+  outputPanel_->clearBuildOutput();
+  outputPanel_->appendBuildOutput(tr("Loaded Turtlesim Teleop example project.\n\n"));
+  outputPanel_->appendBuildOutput(tr("This example demonstrates:\n"));
+  outputPanel_->appendBuildOutput(tr("  - turtlesim_node: A 2D turtle simulator window\n"));
+  outputPanel_->appendBuildOutput(tr("  - turtle_teleop_key: Keyboard control for the turtle\n"));
+  outputPanel_->appendBuildOutput(tr("  - Mimic system: Optional second turtle that mimics the first\n\n"));
+  outputPanel_->appendBuildOutput(tr("To run this example:\n"));
+  outputPanel_->appendBuildOutput(tr("  1. Go to File > Examples > Launch Turtlesim Nodes\n"));
+  outputPanel_->appendBuildOutput(tr("  2. Or manually run in separate terminals:\n"));
+  outputPanel_->appendBuildOutput(tr("     ros2 run turtlesim turtlesim_node\n"));
+  outputPanel_->appendBuildOutput(tr("     ros2 run turtlesim turtle_teleop_key\n\n"));
+  outputPanel_->appendBuildOutput(tr("Control the turtle with arrow keys in the teleop terminal.\n"));
+  outputPanel_->appendBuildOutput(tr("Use the Topic Viewer (Ctrl+Shift+T) to see live data flow!"));
+}
+
+void MainWindow::onLaunchTurtlesim() {
+  // Check if turtlesim is available
+  QProcess checkProcess;
+  checkProcess.start("ros2", QStringList() << "pkg" << "list");
+  checkProcess.waitForFinished(5000);
+  QString packages = checkProcess.readAllStandardOutput();
+
+  if (!packages.contains("turtlesim")) {
+    QMessageBox::warning(this, tr("Turtlesim Not Found"),
+      tr("The turtlesim package is not installed.\n\n"
+         "Install it with:\n"
+         "  sudo apt install ros-jazzy-turtlesim\n\n"
+         "Or for your ROS2 distribution:\n"
+         "  sudo apt install ros-${ROS_DISTRO}-turtlesim"));
+    return;
+  }
+
+  outputPanel_->clearBuildOutput();
+  outputPanel_->appendBuildOutput(tr("Launching Turtlesim nodes...\n\n"));
+
+  // Launch turtlesim_node
+  QProcess* turtlesimProc = new QProcess(this);
+  turtlesimProc->setProcessChannelMode(QProcess::MergedChannels);
+
+  connect(turtlesimProc, &QProcess::readyReadStandardOutput, [this, turtlesimProc]() {
+    outputPanel_->appendBuildOutput(QString::fromUtf8(turtlesimProc->readAllStandardOutput()));
+  });
+
+  connect(turtlesimProc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+          [this, turtlesimProc](int exitCode, QProcess::ExitStatus) {
+    outputPanel_->appendBuildOutput(tr("\nTurtlesim node exited with code %1\n").arg(exitCode));
+    turtlesimProc->deleteLater();
+  });
+
+  // Use bash to source ROS setup and run the node
+  turtlesimProc->start("bash", QStringList() << "-c"
+    << "source /opt/ros/jazzy/setup.bash && ros2 run turtlesim turtlesim_node");
+
+  outputPanel_->appendBuildOutput(tr("Started: ros2 run turtlesim turtlesim_node\n"));
+  outputPanel_->appendBuildOutput(tr("A turtle window should appear.\n\n"));
+
+  // Give turtlesim_node time to start before launching teleop
+  QTimer::singleShot(1500, this, [this]() {
+    // Launch turtle_teleop_key in the terminal tab
+    outputPanel_->appendBuildOutput(tr("To control the turtle, run in a terminal:\n"));
+    outputPanel_->appendBuildOutput(tr("  ros2 run turtlesim turtle_teleop_key\n\n"));
+    outputPanel_->appendBuildOutput(tr("Then use arrow keys to move the turtle!\n"));
+    outputPanel_->appendBuildOutput(tr("  - Up arrow: Move forward\n"));
+    outputPanel_->appendBuildOutput(tr("  - Down arrow: Move backward\n"));
+    outputPanel_->appendBuildOutput(tr("  - Left/Right arrows: Rotate\n\n"));
+    outputPanel_->appendBuildOutput(tr("Use Topic Viewer (Ctrl+Shift+T) to see /turtle1/cmd_vel and /turtle1/pose topics.\n"));
+
+    statusBar()->showMessage(tr("Turtlesim launched - use 'ros2 run turtlesim turtle_teleop_key' in a terminal to control"), 10000);
+  });
 }
 
 void MainWindow::loadProjectYamlFiles(const QString& projectDir) {
@@ -1370,6 +1532,50 @@ void MainWindow::onMappingBlockSelected(const QUuid& blockId) {
       break;
     }
   }
+}
+
+// Topic viewer slots
+
+void MainWindow::onTopicViewerTopicSelected(const QString& topicName) {
+  if (!canvas_) return;
+
+  // Highlight connections that use this topic
+  for (QGraphicsItem* item : canvas_->scene()->items()) {
+    ConnectionLine* connection = dynamic_cast<ConnectionLine*>(item);
+    if (connection) {
+      bool matches = connection->topicName() == topicName;
+      connection->setHighlighted(matches);
+    }
+  }
+
+  statusBar()->showMessage(tr("Selected topic: %1").arg(topicName), 3000);
+}
+
+void MainWindow::onShowTopicOnCanvas(const QString& topicName) {
+  if (!canvas_) return;
+
+  // Find and center on a connection that uses this topic
+  for (QGraphicsItem* item : canvas_->scene()->items()) {
+    ConnectionLine* connection = dynamic_cast<ConnectionLine*>(item);
+    if (connection && connection->topicName() == topicName) {
+      canvas_->scene()->clearSelection();
+      connection->setSelected(true);
+      canvas_->centerOn(connection);
+
+      // Also highlight the connected blocks
+      if (connection->sourceBlock()) {
+        connection->sourceBlock()->setSelected(true);
+      }
+      if (connection->targetBlock()) {
+        connection->targetBlock()->setSelected(true);
+      }
+
+      statusBar()->showMessage(tr("Showing topic: %1").arg(topicName), 3000);
+      return;
+    }
+  }
+
+  statusBar()->showMessage(tr("Topic not found on canvas: %1").arg(topicName), 3000);
 }
 
 }  // namespace ros_weaver

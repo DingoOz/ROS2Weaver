@@ -1,0 +1,145 @@
+{
+  "formatVersion": "1.0",
+  "application": "ROS Weaver",
+  "metadata": {
+    "name": "Turtlesim Teleop",
+    "description": "Simple turtlesim example with keyboard teleop control. Launch this example to control a turtle using arrow keys.",
+    "author": "ROS Weaver",
+    "version": "1.0",
+    "rosDistro": "jazzy",
+    "createdDate": "2025-01-01T00:00:00",
+    "modifiedDate": "2025-01-01T00:00:00"
+  },
+  "blocks": [
+    {
+      "id": "{aaaa1111-1111-1111-1111-111111111111}",
+      "name": "turtlesim_node",
+      "position": { "x": 200, "y": 0 },
+      "inputPins": [
+        { "name": "cmd_vel", "type": "input", "dataType": "topic", "messageType": "geometry_msgs/msg/Twist" }
+      ],
+      "outputPins": [
+        { "name": "pose", "type": "output", "dataType": "topic", "messageType": "turtlesim/msg/Pose" },
+        { "name": "color_sensor", "type": "output", "dataType": "topic", "messageType": "turtlesim/msg/Color" }
+      ],
+      "parameters": [
+        { "name": "background_r", "type": "int", "defaultValue": 69, "currentValue": 69, "description": "Background color red component (0-255)", "minValue": 0, "maxValue": 255, "group": "background" },
+        { "name": "background_g", "type": "int", "defaultValue": 86, "currentValue": 86, "description": "Background color green component (0-255)", "minValue": 0, "maxValue": 255, "group": "background" },
+        { "name": "background_b", "type": "int", "defaultValue": 255, "currentValue": 255, "description": "Background color blue component (0-255)", "minValue": 0, "maxValue": 255, "group": "background" },
+        { "name": "use_sim_time", "type": "bool", "defaultValue": false, "currentValue": false, "description": "Use simulation time", "group": "timing" }
+      ],
+      "launchCommand": "ros2 run turtlesim turtlesim_node",
+      "packageName": "turtlesim"
+    },
+    {
+      "id": "{bbbb2222-2222-2222-2222-222222222222}",
+      "name": "turtle_teleop_key",
+      "position": { "x": -200, "y": 0 },
+      "inputPins": [],
+      "outputPins": [
+        { "name": "cmd_vel", "type": "output", "dataType": "topic", "messageType": "geometry_msgs/msg/Twist" }
+      ],
+      "parameters": [
+        { "name": "scale_linear", "type": "double", "defaultValue": 2.0, "currentValue": 2.0, "description": "Linear velocity scale", "minValue": 0.1, "maxValue": 10.0, "group": "velocity" },
+        { "name": "scale_angular", "type": "double", "defaultValue": 2.0, "currentValue": 2.0, "description": "Angular velocity scale", "minValue": 0.1, "maxValue": 10.0, "group": "velocity" }
+      ],
+      "launchCommand": "ros2 run turtlesim turtle_teleop_key",
+      "packageName": "turtlesim"
+    },
+    {
+      "id": "{cccc3333-3333-3333-3333-333333333333}",
+      "name": "pose_subscriber",
+      "position": { "x": 450, "y": -100 },
+      "inputPins": [
+        { "name": "pose", "type": "input", "dataType": "topic", "messageType": "turtlesim/msg/Pose" }
+      ],
+      "outputPins": [],
+      "parameters": [
+        { "name": "print_interval", "type": "double", "defaultValue": 1.0, "currentValue": 1.0, "description": "Print pose every N seconds", "minValue": 0.1, "maxValue": 10.0, "group": "output" }
+      ],
+      "packageName": "custom_node"
+    },
+    {
+      "id": "{dddd4444-4444-4444-4444-444444444444}",
+      "name": "mimic_node",
+      "position": { "x": -200, "y": 200 },
+      "inputPins": [
+        { "name": "input_pose", "type": "input", "dataType": "topic", "messageType": "turtlesim/msg/Pose" }
+      ],
+      "outputPins": [
+        { "name": "cmd_vel", "type": "output", "dataType": "topic", "messageType": "geometry_msgs/msg/Twist" }
+      ],
+      "parameters": [
+        { "name": "enabled", "type": "bool", "defaultValue": false, "currentValue": false, "description": "Enable mimic behavior", "group": "control" }
+      ],
+      "packageName": "custom_node"
+    },
+    {
+      "id": "{eeee5555-5555-5555-5555-555555555555}",
+      "name": "turtle2",
+      "position": { "x": 200, "y": 200 },
+      "inputPins": [
+        { "name": "cmd_vel", "type": "input", "dataType": "topic", "messageType": "geometry_msgs/msg/Twist" }
+      ],
+      "outputPins": [
+        { "name": "pose", "type": "output", "dataType": "topic", "messageType": "turtlesim/msg/Pose" }
+      ],
+      "parameters": [
+        { "name": "spawn_x", "type": "double", "defaultValue": 2.0, "currentValue": 2.0, "description": "Spawn X position", "minValue": 0.0, "maxValue": 11.0, "group": "spawn" },
+        { "name": "spawn_y", "type": "double", "defaultValue": 2.0, "currentValue": 2.0, "description": "Spawn Y position", "minValue": 0.0, "maxValue": 11.0, "group": "spawn" },
+        { "name": "spawn_theta", "type": "double", "defaultValue": 0.0, "currentValue": 0.0, "description": "Spawn angle (radians)", "minValue": -3.14, "maxValue": 3.14, "group": "spawn" }
+      ],
+      "packageName": "turtlesim"
+    }
+  ],
+  "connections": [
+    {
+      "id": "{conn1111-1111-1111-1111-111111111111}",
+      "sourceBlockId": "{bbbb2222-2222-2222-2222-222222222222}",
+      "sourcePin": "cmd_vel",
+      "targetBlockId": "{aaaa1111-1111-1111-1111-111111111111}",
+      "targetPin": "cmd_vel",
+      "topicName": "/turtle1/cmd_vel"
+    },
+    {
+      "id": "{conn2222-2222-2222-2222-222222222222}",
+      "sourceBlockId": "{aaaa1111-1111-1111-1111-111111111111}",
+      "sourcePin": "pose",
+      "targetBlockId": "{cccc3333-3333-3333-3333-333333333333}",
+      "targetPin": "pose",
+      "topicName": "/turtle1/pose"
+    },
+    {
+      "id": "{conn3333-3333-3333-3333-333333333333}",
+      "sourceBlockId": "{aaaa1111-1111-1111-1111-111111111111}",
+      "sourcePin": "pose",
+      "targetBlockId": "{dddd4444-4444-4444-4444-444444444444}",
+      "targetPin": "input_pose",
+      "topicName": "/turtle1/pose"
+    },
+    {
+      "id": "{conn4444-4444-4444-4444-444444444444}",
+      "sourceBlockId": "{dddd4444-4444-4444-4444-444444444444}",
+      "sourcePin": "cmd_vel",
+      "targetBlockId": "{eeee5555-5555-5555-5555-555555555555}",
+      "targetPin": "cmd_vel",
+      "topicName": "/turtle2/cmd_vel"
+    }
+  ],
+  "groups": [
+    {
+      "id": "{grp11111-1111-1111-1111-111111111111}",
+      "title": "Main Turtle Control",
+      "position": { "x": -280, "y": -120 },
+      "size": { "width": 600, "height": 280 },
+      "color": "#4A90D9"
+    },
+    {
+      "id": "{grp22222-2222-2222-2222-222222222222}",
+      "title": "Mimic System (Optional)",
+      "position": { "x": -280, "y": 120 },
+      "size": { "width": 600, "height": 200 },
+      "color": "#50C878"
+    }
+  ]
+}

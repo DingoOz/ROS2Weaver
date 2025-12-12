@@ -34,6 +34,7 @@ class RosStatusWidget;
 class SystemDiscovery;
 class CanvasMapper;
 class SystemMappingPanel;
+class TopicViewerPanel;
 
 class MainWindow : public QMainWindow {
   Q_OBJECT
@@ -54,6 +55,8 @@ private slots:
 
   // Example projects
   void onLoadTurtleBotExample();
+  void onLoadTurtlesimExample();
+  void onLaunchTurtlesim();
 
   // Package search
   void onSearchPackages();
@@ -91,6 +94,10 @@ private slots:
   void onScanTimedOut();
   void onMappingCompleted(const MappingResults& results);
   void onMappingBlockSelected(const QUuid& blockId);
+
+  // Topic viewer
+  void onTopicViewerTopicSelected(const QString& topicName);
+  void onShowTopicOnCanvas(const QString& topicName);
 
 private:
   void setupMenuBar();
@@ -152,6 +159,10 @@ private:
   QAction* scanSystemAction_;
   QAction* autoScanAction_;
   QProgressBar* scanProgressBar_;
+
+  // Topic viewer
+  TopicViewerPanel* topicViewerPanel_;
+  QDockWidget* topicViewerDock_;
 };
 
 }  // namespace ros_weaver
