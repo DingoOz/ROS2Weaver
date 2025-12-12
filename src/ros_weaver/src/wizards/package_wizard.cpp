@@ -15,8 +15,155 @@
 #include <QHeaderView>
 #include <QFont>
 #include <QAbstractButton>
+#include <QTimer>
 
 namespace ros_weaver {
+
+// =============================================================================
+// WizardProgressWidget
+// =============================================================================
+
+WizardProgressWidget::WizardProgressWidget(QWidget* parent)
+  : QFrame(parent)
+  , currentStep_(0)
+{
+  setFrameStyle(QFrame::StyledPanel | QFrame::Sunken);
+  setAutoFillBackground(true);
+
+  // Set a subtle background
+  QPalette pal = palette();
+  pal.setColor(QPalette::Window, pal.color(QPalette::Window).darker(105));
+  setPalette(pal);
+
+  QVBoxLayout* mainLayout = new QVBoxLayout(this);
+  mainLayout->setContentsMargins(12, 8, 12, 8);
+  mainLayout->setSpacing(6);
+
+  // Top row: step indicators (circles)
+  indicatorContainer_ = new QWidget();
+  QHBoxLayout* indicatorLayout = new QHBoxLayout(indicatorContainer_);
+  indicatorLayout->setContentsMargins(0, 0, 0, 0);
+  indicatorLayout->setSpacing(0);
+  mainLayout->addWidget(indicatorContainer_);
+
+  // Progress bar
+  progressBar_ = new QProgressBar();
+  progressBar_->setTextVisible(false);
+  progressBar_->setFixedHeight(6);
+  progressBar_->setStyleSheet(
+    "QProgressBar { border: none; background-color: #404040; border-radius: 3px; }"
+    "QProgressBar::chunk { background-color: #3daee9; border-radius: 3px; }"
+  );
+  mainLayout->addWidget(progressBar_);
+
+  // Bottom row: step number and title
+  QHBoxLayout* labelLayout = new QHBoxLayout();
+  labelLayout->setContentsMargins(0, 0, 0, 0);
+
+  stepLabel_ = new QLabel();
+  stepLabel_->setStyleSheet("font-weight: bold; color: #3daee9;");
+  labelLayout->addWidget(stepLabel_);
+
+  titleLabel_ = new QLabel();
+  titleLabel_->setStyleSheet("color: #888888;");
+  labelLayout->addWidget(titleLabel_);
+
+  labelLayout->addStretch();
+  mainLayout->addLayout(labelLayout);
+}
+
+void WizardProgressWidget::setSteps(const QStringList& stepNames) {
+  stepNames_ = stepNames;
+
+  // Clear old indicators
+  qDeleteAll(stepIndicators_);
+  stepIndicators_.clear();
+
+  QHBoxLayout* layout = qobject_cast<QHBoxLayout*>(indicatorContainer_->layout());
+  if (!layout) return;
+
+  // Clear layout
+  QLayoutItem* item;
+  while ((item = layout->takeAt(0)) != nullptr) {
+    delete item;
+  }
+
+  // Add stretch at start
+  layout->addStretch();
+
+  // Create step indicators
+  for (int i = 0; i < stepNames_.size(); ++i) {
+    if (i > 0) {
+      // Add connector line between circles
+      QFrame* line = new QFrame();
+      line->setFrameShape(QFrame::HLine);
+      line->setFixedWidth(30);
+      line->setFixedHeight(2);
+      line->setStyleSheet("background-color: #404040;");
+      layout->addWidget(line);
+    }
+
+    QLabel* indicator = new QLabel(QString::number(i + 1));
+    indicator->setAlignment(Qt::AlignCenter);
+    indicator->setFixedSize(28, 28);
+    indicator->setToolTip(stepNames_[i]);
+    stepIndicators_.append(indicator);
+    layout->addWidget(indicator);
+  }
+
+  // Add stretch at end
+  layout->addStretch();
+
+  progressBar_->setMaximum(stepNames_.size() > 0 ? stepNames_.size() - 1 : 1);
+  updateDisplay();
+}
+
+void WizardProgressWidget::setCurrentStep(int step) {
+  currentStep_ = step;
+  updateDisplay();
+}
+
+void WizardProgressWidget::updateDisplay() {
+  if (stepNames_.isEmpty()) return;
+
+  // Update progress bar
+  progressBar_->setValue(currentStep_);
+
+  // Update step label
+  stepLabel_->setText(tr("Step %1 of %2:").arg(currentStep_ + 1).arg(stepNames_.size()));
+
+  // Update title
+  if (currentStep_ >= 0 && currentStep_ < stepNames_.size()) {
+    titleLabel_->setText(stepNames_[currentStep_]);
+  }
+
+  // Update step indicators
+  for (int i = 0; i < stepIndicators_.size(); ++i) {
+    QLabel* indicator = stepIndicators_[i];
+    if (i < currentStep_) {
+      // Completed step - green checkmark
+      indicator->setText(QString::fromUtf8("\u2713")); // ✓
+      indicator->setStyleSheet(
+        "QLabel { background-color: #27ae60; color: white; font-weight: bold; "
+        "border-radius: 14px; font-size: 14px; }"
+      );
+    } else if (i == currentStep_) {
+      // Current step - blue highlight
+      indicator->setText(QString::number(i + 1));
+      indicator->setStyleSheet(
+        "QLabel { background-color: #3daee9; color: white; font-weight: bold; "
+        "border-radius: 14px; font-size: 12px; }"
+      );
+    } else {
+      // Future step - gray
+      indicator->setText(QString::number(i + 1));
+      indicator->setStyleSheet(
+        "QLabel { background-color: #404040; color: #888888; font-weight: bold; "
+        "border-radius: 14px; font-size: 12px; }"
+      );
+    }
+  }
+}
 
 // =============================================================================
 // PackageWizard
@@ -25,10 +172,11 @@ namespace ros_weaver {
 PackageWizard::PackageWizard(const Project& project, QWidget* parent)
   : QWizard(parent)
   , project_(project)
+  , progressWidget_(nullptr)
 {
   setWindowTitle(tr("ROS2 Package Generation Wizard"));
   setWizardStyle(QWizard::ModernStyle);
-  setMinimumSize(700, 550);
+  setMinimumSize(700, 600);
 
   // Create pages
   packageInfoPage_ = new PackageInfoPage(this);
@@ -54,7 +202,69 @@ PackageWizard::PackageWizard(const Project& project, QWidget* parent)
     emit generationComplete(success, generatedPackagePath_);
   });
 
+  // Set up progress widget
+  setupProgressWidget();
+
+  // Connect page change signal
+  connect(this, &QWizard::currentIdChanged, this, &PackageWizard::onCurrentPageChanged);
+
   setOption(QWizard::NoBackButtonOnStartPage, true);
+}
+
+void PackageWizard::setupProgressWidget() {
+  // Create progress widget
+  progressWidget_ = new WizardProgressWidget(this);
+
+  // Set step names
+  QStringList stepNames = {
+    tr("Package Info"),
+    tr("Output"),
+    tr("Nodes"),
+    tr("Language"),
+    tr("Files"),
+    tr("Parameters"),
+    tr("Generate")
+  };
+  progressWidget_->setSteps(stepNames);
+  progressWidget_->setCurrentStep(0);
+
+  // QWizard has a complex internal layout. The most reliable way to add
+  // a progress widget at the top is to find the main layout and insert there.
+  // QWizard in ModernStyle uses a QVBoxLayout internally.
+
+  // We need to delay insertion until after the wizard's layout is fully set up
+  QTimer::singleShot(0, this, [this]() {
+    // Find the wizard's main layout
+    if (QVBoxLayout* vboxLayout = qobject_cast<QVBoxLayout*>(layout())) {
+      // Insert at the top (position 0)
+      vboxLayout->insertWidget(0, progressWidget_);
+    } else if (QGridLayout* gridLayout = qobject_cast<QGridLayout*>(layout())) {
+      // Some wizard styles use grid layout - insert at top spanning all columns
+      gridLayout->addWidget(progressWidget_, 0, 0, 1, gridLayout->columnCount());
+    } else {
+      // Fallback: just parent it and position manually
+      progressWidget_->setParent(this);
+      progressWidget_->move(0, 0);
+      progressWidget_->resize(width(), progressWidget_->sizeHint().height());
+      progressWidget_->show();
+      progressWidget_->raise();
+    }
+  });
+}
+
+void PackageWizard::onCurrentPageChanged(int id) {
+  // Map page ID to step index
+  int stepIndex = 0;
+  switch (id) {
+    case Page_PackageInfo:     stepIndex = 0; break;
+    case Page_OutputConfig:    stepIndex = 1; break;
+    case Page_NodeSelection:   stepIndex = 2; break;
+    case Page_LanguageStyle:   stepIndex = 3; break;
+    case Page_GeneratedFiles:  stepIndex = 4; break;
+    case Page_ParametersConfig: stepIndex = 5; break;
+    case Page_ReviewGenerate:  stepIndex = 6; break;
+  }
+  progressWidget_->setCurrentStep(stepIndex);
 }
 
 PackageWizard::~PackageWizard() = default;

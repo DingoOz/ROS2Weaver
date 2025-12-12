@@ -16,6 +16,7 @@
 #include <QSpinBox>
 #include <QProgressBar>
 #include <QPushButton>
+#include <QFrame>
 
 namespace ros_weaver {
 
@@ -73,6 +74,31 @@ class GeneratedFilesPage;
 class ParametersConfigPage;
 class ReviewGeneratePage;
 
+// Progress indicator widget for the wizard
+class WizardProgressWidget : public QFrame {
+  Q_OBJECT
+
+public:
+  explicit WizardProgressWidget(QWidget* parent = nullptr);
+
+  void setSteps(const QStringList& stepNames);
+  void setCurrentStep(int step);
+  int currentStep() const { return currentStep_; }
+  int totalSteps() const { return stepNames_.size(); }
+
+private:
+  void updateDisplay();
+
+  QStringList stepNames_;
+  int currentStep_ = 0;
+
+  QLabel* stepLabel_;
+  QLabel* titleLabel_;
+  QProgressBar* progressBar_;
+  QList<QLabel*> stepIndicators_;
+  QWidget* indicatorContainer_;
+};
+
 // Main wizard class
 class PackageWizard : public QWizard {
   Q_OBJECT
@@ -103,11 +129,17 @@ signals:
 protected:
   void accept() override;
 
+private slots:
+  void onCurrentPageChanged(int id);
+
 private:
+  void setupProgressWidget();
+
   const Project& project_;
   WizardGeneratorOptions options_;
   QString generatedPackagePath_;
 
+  WizardProgressWidget* progressWidget_;
   PackageInfoPage* packageInfoPage_;
   OutputConfigPage* outputConfigPage_;
   NodeSelectionPage* nodeSelectionPage_;
