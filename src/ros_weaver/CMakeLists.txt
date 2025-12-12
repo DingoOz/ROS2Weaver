@@ -49,6 +49,7 @@ set(SOURCES
   src/core/project.cpp
   src/core/ros_package_index.cpp
   src/core/code_generator.cpp
+  src/core/external_editor.cpp
   src/widgets/param_dashboard.cpp
 )
 
@@ -62,6 +63,7 @@ set(HEADERS
   include/ros_weaver/core/project.hpp
   include/ros_weaver/core/ros_package_index.hpp
   include/ros_weaver/core/code_generator.hpp
+  include/ros_weaver/core/external_editor.hpp
   include/ros_weaver/widgets/param_dashboard.hpp
 )
 

@@ -20,6 +20,7 @@ class ParamDashboard;
 class RosPackageIndex;
 class CodeGenerator;
 class PackageBlock;
+class ExternalEditor;
 
 class MainWindow : public QMainWindow {
   Q_OBJECT
@@ -51,6 +52,10 @@ private slots:
   // Code generation progress
   void onGenerationProgress(int percent, const QString& message);
   void onGenerationFinished(bool success);
+
+  // VS Code integration
+  void onOpenProjectInVSCode();
+  void onOpenGeneratedPackageInVSCode();
 
 private:
   void setupMenuBar();
@@ -89,9 +94,11 @@ private:
   // Core components
   RosPackageIndex* packageIndex_;
   CodeGenerator* codeGenerator_;
+  ExternalEditor* externalEditor_;
 
   // Current project state
   QString currentProjectPath_;
+  QString lastGeneratedPackagePath_;  // Path to last generated package
 };
 
 }  // namespace ros_weaver

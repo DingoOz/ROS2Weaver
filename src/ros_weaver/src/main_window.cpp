@@ -4,6 +4,7 @@
 #include "ros_weaver/core/project.hpp"
 #include "ros_weaver/core/ros_package_index.hpp"
 #include "ros_weaver/core/code_generator.hpp"
+#include "ros_weaver/core/external_editor.hpp"
 #include "ros_weaver/widgets/param_dashboard.hpp"
 
 #include <QApplication>
@@ -51,6 +52,7 @@ MainWindow::MainWindow(QWidget* parent)
   // Initialize core components
   packageIndex_ = new RosPackageIndex(this);
   codeGenerator_ = new CodeGenerator(this);
+  externalEditor_ = new ExternalEditor(this);
 
   // Connect signals
   connect(packageIndex_, &RosPackageIndex::searchResultsReady,
@@ -102,6 +104,18 @@ void MainWindow::setupMenuBar() {
   generateAction->setShortcut(tr("Ctrl+G"));
   generateAction->setToolTip(tr("Generate ROS2 package code from the current project"));
   connect(generateAction, &QAction::triggered, this, &MainWindow::onGenerateCode);
+
+  fileMenu->addSeparator();
+
+  // VS Code integration
+  QAction* openProjectVSCodeAction = fileMenu->addAction(tr("Open Project Folder in VS Code"));
+  openProjectVSCodeAction->setShortcut(tr("Ctrl+Shift+E"));
+  openProjectVSCodeAction->setToolTip(tr("Open the current project folder in Visual Studio Code"));
+  connect(openProjectVSCodeAction, &QAction::triggered, this, &MainWindow::onOpenProjectInVSCode);
+
+  QAction* openGeneratedVSCodeAction = fileMenu->addAction(tr("Open Generated Package in VS Code"));
+  openGeneratedVSCodeAction->setToolTip(tr("Open the last generated ROS2 package in Visual Studio Code"));
+  connect(openGeneratedVSCodeAction, &QAction::triggered, this, &MainWindow::onOpenGeneratedPackageInVSCode);
 
   fileMenu->addSeparator();
 
@@ -712,6 +726,9 @@ void MainWindow::onGenerateCode() {
   options.useCppStyle = true;
   options.rosDistro = "humble";
 
+  // Save the path to the generated package for VS Code integration
+  lastGeneratedPackagePath_ = outputDir + "/" + packageName;
+
   // Export current project
   Project project;
   canvas_->exportToProject(project);
@@ -743,18 +760,95 @@ void MainWindow::onGenerationFinished(bool success) {
   if (success) {
     outputText_->append(tr("\nCode generation completed successfully!"));
     outputText_->append(tr("You can now build the package with: colcon build --packages-select <package_name>"));
-    QMessageBox::information(this, tr("Code Generation Complete"),
-      tr("ROS2 package has been generated successfully!\n\n"
+
+    // Create custom dialog with VS Code option
+    QMessageBox msgBox(this);
+    msgBox.setWindowTitle(tr("Code Generation Complete"));
+    msgBox.setIcon(QMessageBox::Information);
+    msgBox.setText(tr("ROS2 package has been generated successfully!"));
+    msgBox.setInformativeText(
+      tr("Package location: %1\n\n"
          "To build:\n"
          "  cd <workspace>\n"
          "  colcon build\n\n"
          "To run:\n"
          "  source install/setup.bash\n"
-         "  ros2 launch <package_name> <package_name>_launch.py"));
+         "  ros2 launch <package_name> <package_name>_launch.py")
+      .arg(lastGeneratedPackagePath_));
+
+    QPushButton* openVSCodeBtn = msgBox.addButton(tr("Open in VS Code"), QMessageBox::ActionRole);
+    QPushButton* openFolderBtn = msgBox.addButton(tr("Open Folder"), QMessageBox::ActionRole);
+    msgBox.addButton(QMessageBox::Close);
+
+    // Only enable VS Code button if available
+    if (!ExternalEditor::isVSCodeAvailable()) {
+      openVSCodeBtn->setEnabled(false);
+      openVSCodeBtn->setToolTip(tr("VS Code not found on this system"));
+    }
+
+    msgBox.exec();
+
+    if (msgBox.clickedButton() == openVSCodeBtn) {
+      externalEditor_->openFolderInVSCode(lastGeneratedPackagePath_);
+    } else if (msgBox.clickedButton() == openFolderBtn) {
+      ExternalEditor::openWithSystemDefault(lastGeneratedPackagePath_);
+    }
   } else {
     outputText_->append(tr("\nCode generation failed: %1").arg(codeGenerator_->lastError()));
     QMessageBox::critical(this, tr("Code Generation Failed"),
       tr("Failed to generate ROS2 package:\n%1").arg(codeGenerator_->lastError()));
+  }
+}
+
+void MainWindow::onOpenProjectInVSCode() {
+  if (currentProjectPath_.isEmpty()) {
+    QMessageBox::information(this, tr("No Project Open"),
+      tr("Please save the project first before opening in VS Code."));
+    return;
+  }
+
+  QFileInfo projectInfo(currentProjectPath_);
+  QString projectDir = projectInfo.absolutePath();
+
+  if (!ExternalEditor::isVSCodeAvailable()) {
+    QMessageBox::warning(this, tr("VS Code Not Found"),
+      tr("Visual Studio Code was not found on this system.\n\n"
+         "Please install VS Code and ensure the 'code' command is available in your PATH."));
+    return;
+  }
+
+  if (!externalEditor_->openFolderInVSCode(projectDir)) {
+    QMessageBox::warning(this, tr("Failed to Open VS Code"),
+      tr("Could not open VS Code:\n%1").arg(externalEditor_->lastError()));
+  }
+}
+
+void MainWindow::onOpenGeneratedPackageInVSCode() {
+  if (lastGeneratedPackagePath_.isEmpty()) {
+    QMessageBox::information(this, tr("No Package Generated"),
+      tr("No package has been generated yet.\n\n"
+         "Use File → Generate ROS2 Package to generate a package first."));
+    return;
+  }
+
+  QFileInfo packageInfo(lastGeneratedPackagePath_);
+  if (!packageInfo.exists()) {
+    QMessageBox::warning(this, tr("Package Not Found"),
+      tr("The generated package folder no longer exists:\n%1").arg(lastGeneratedPackagePath_));
+    lastGeneratedPackagePath_.clear();
+    return;
+  }
+
+  if (!ExternalEditor::isVSCodeAvailable()) {
+    QMessageBox::warning(this, tr("VS Code Not Found"),
+      tr("Visual Studio Code was not found on this system.\n\n"
+         "Please install VS Code and ensure the 'code' command is available in your PATH."));
+    return;
+  }
+
+  if (!externalEditor_->openFolderInVSCode(lastGeneratedPackagePath_)) {
+    QMessageBox::warning(this, tr("Failed to Open VS Code"),
+      tr("Could not open VS Code:\n%1").arg(externalEditor_->lastError()));
   }
 }
 
