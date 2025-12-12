@@ -15,6 +15,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(rcl_interfaces REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 find_package(yaml-cpp REQUIRED)
 
 # Qt5 setup
@@ -83,6 +84,7 @@ ament_target_dependencies(${PROJECT_NAME}
   rclcpp
   std_msgs
   rcl_interfaces
+  ament_index_cpp
 )
 
 # Install targets
@@ -102,6 +104,12 @@ install(DIRECTORY
   config
   DESTINATION share/${PROJECT_NAME}
   OPTIONAL
+)
+
+# Install example files
+install(DIRECTORY
+  examples
+  DESTINATION share/${PROJECT_NAME}
 )
 
 if(BUILD_TESTING)

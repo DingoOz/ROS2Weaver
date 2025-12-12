@@ -12,7 +12,9 @@
 #include <QGraphicsPathItem>
 #include <QSet>
 #include <QMap>
+#include <QFileInfo>
 #include <cmath>
+#include <rclcpp/rclcpp.hpp>
 
 namespace ros_weaver {
 
@@ -62,6 +64,22 @@ void WeaverCanvas::setupScene() {
   scene_ = new QGraphicsScene(this);
   setScene(scene_);
   drawGrid();
+
+  // Connect to scene selection changes to emit blockSelected signal
+  connect(scene_, &QGraphicsScene::selectionChanged, this, [this]() {
+    QList<QGraphicsItem*> selected = scene_->selectedItems();
+    PackageBlock* selectedBlock = nullptr;
+
+    // Find the first selected PackageBlock
+    for (QGraphicsItem* item : selected) {
+      if (PackageBlock* block = dynamic_cast<PackageBlock*>(item)) {
+        selectedBlock = block;
+        break;
+      }
+    }
+
+    emit blockSelected(selectedBlock);
+  });
 }
 
 void WeaverCanvas::drawGrid() {
@@ -274,7 +292,20 @@ void WeaverCanvas::removeConnection(ConnectionLine* connection) {
 }
 
 void WeaverCanvas::clearCanvas() {
+  // Clear all tracked pointers before scene_->clear() deletes the objects
+  pinHighlightedConnections_.clear();
   nodeGroups_.clear();
+
+  // Reset connection dragging state in case we're mid-drag
+  if (tempConnectionPath_) {
+    // Note: tempConnectionPath_ will be deleted by scene_->clear()
+    tempConnectionPath_ = nullptr;
+  }
+  isDraggingConnection_ = false;
+  connectionSourceBlock_ = nullptr;
+  connectionSourcePin_ = -1;
+  disconnectingLine_ = nullptr;
+
   scene_->clear();
   drawGrid();
   emit canvasCleared();
@@ -862,6 +893,43 @@ void WeaverCanvas::contextMenuEvent(QContextMenuEvent* event) {
     menu.addAction(tr("Expand/Collapse"), [block]() {
       block->setExpanded(!block->isExpanded());
     });
+
+    // Parameter source submenu
+    QMenu* paramSourceMenu = menu.addMenu(tr("Parameter Source"));
+
+    // Auto-detect option
+    QAction* autoAction = paramSourceMenu->addAction(tr("Auto-detect"));
+    autoAction->setCheckable(true);
+    autoAction->setChecked(block->preferredYamlSource().isEmpty());
+    connect(autoAction, &QAction::triggered, this, [this, block]() {
+      block->setPreferredYamlSource(QString());
+      emit blockYamlSourceChanged(block, QString());
+    });
+
+    // Block Parameters option
+    QAction* blockParamsAction = paramSourceMenu->addAction(tr("Block Parameters"));
+    blockParamsAction->setCheckable(true);
+    blockParamsAction->setChecked(block->preferredYamlSource() == "block");
+    connect(blockParamsAction, &QAction::triggered, this, [this, block]() {
+      block->setPreferredYamlSource("block");
+      emit blockYamlSourceChanged(block, "block");
+    });
+
+    // Add available YAML files
+    if (!availableYamlFiles_.isEmpty()) {
+      paramSourceMenu->addSeparator();
+      for (const QString& yamlFile : availableYamlFiles_) {
+        QFileInfo fileInfo(yamlFile);
+        QAction* yamlAction = paramSourceMenu->addAction(fileInfo.fileName());
+        yamlAction->setCheckable(true);
+        yamlAction->setChecked(block->preferredYamlSource() == yamlFile);
+        connect(yamlAction, &QAction::triggered, this, [this, block, yamlFile]() {
+          block->setPreferredYamlSource(yamlFile);
+          emit blockYamlSourceChanged(block, yamlFile);
+        });
+      }
+    }
+
     menu.addSeparator();
 
     // Check if there are multiple items selected
@@ -1107,6 +1175,12 @@ void WeaverCanvas::exportToProject(Project& project) const {
         blockData.outputPins.append(pinData);
       }
 
+      // Export parameters
+      blockData.parameters = block->parameters();
+
+      // Export preferred YAML source
+      blockData.preferredYamlSource = block->preferredYamlSource();
+
       project.addBlock(blockData);
       blockIdMap[block] = blockData.id;
     }
@@ -1175,6 +1249,20 @@ void WeaverCanvas::importFromProject(const Project& project) {
     PackageBlock* block = addCustomBlock(blockData.name, blockData.position,
                                           inputPins, outputPins);
 
+    // Load parameters if present
+    if (!blockData.parameters.isEmpty()) {
+      RCLCPP_INFO(rclcpp::get_logger("ros_weaver"),
+                  "importFromProject: Setting %d parameters for block '%s'",
+                  static_cast<int>(blockData.parameters.size()),
+                  blockData.name.toStdString().c_str());
+      block->setParameters(blockData.parameters);
+    }
+
+    // Load preferred YAML source
+    if (!blockData.preferredYamlSource.isEmpty()) {
+      block->setPreferredYamlSource(blockData.preferredYamlSource);
+    }
+
     blockMap[blockData.id] = block;
   }
 
@@ -1210,6 +1298,10 @@ void WeaverCanvas::importFromProject(const Project& project) {
 
   // Fit view to show all imported content
   fitToContents();
+}
+
+void WeaverCanvas::setAvailableYamlFiles(const QStringList& yamlFiles) {
+  availableYamlFiles_ = yamlFiles;
 }
 
 }  // namespace ros_weaver

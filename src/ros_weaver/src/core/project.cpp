@@ -23,6 +23,89 @@ PinData PinData::fromJson(const QJsonObject& json) {
   return pin;
 }
 
+// BlockParamData serialization
+QJsonObject BlockParamData::toJson() const {
+  QJsonObject json;
+  json["name"] = name;
+  json["type"] = type;
+  json["description"] = description;
+  json["group"] = group;
+
+  // Handle QVariant serialization based on type
+  if (type == "string") {
+    json["defaultValue"] = defaultValue.toString();
+    json["currentValue"] = currentValue.toString();
+  } else if (type == "int") {
+    json["defaultValue"] = defaultValue.toInt();
+    json["currentValue"] = currentValue.toInt();
+    if (minValue.isValid()) json["minValue"] = minValue.toInt();
+    if (maxValue.isValid()) json["maxValue"] = maxValue.toInt();
+  } else if (type == "double") {
+    json["defaultValue"] = defaultValue.toDouble();
+    json["currentValue"] = currentValue.toDouble();
+    if (minValue.isValid()) json["minValue"] = minValue.toDouble();
+    if (maxValue.isValid()) json["maxValue"] = maxValue.toDouble();
+  } else if (type == "bool") {
+    json["defaultValue"] = defaultValue.toBool();
+    json["currentValue"] = currentValue.toBool();
+  } else if (type == "array") {
+    QJsonArray defaultArr, currentArr;
+    for (const QString& s : defaultValue.toStringList()) defaultArr.append(s);
+    for (const QString& s : currentValue.toStringList()) currentArr.append(s);
+    json["defaultValue"] = defaultArr;
+    json["currentValue"] = currentArr;
+  }
+
+  if (!enumValues.isEmpty()) {
+    QJsonArray enumArr;
+    for (const QString& s : enumValues) enumArr.append(s);
+    json["enumValues"] = enumArr;
+  }
+
+  return json;
+}
+
+BlockParamData BlockParamData::fromJson(const QJsonObject& json) {
+  BlockParamData param;
+  param.name = json["name"].toString();
+  param.type = json["type"].toString();
+  param.description = json["description"].toString();
+  param.group = json["group"].toString();
+
+  // Handle QVariant deserialization based on type
+  if (param.type == "string") {
+    param.defaultValue = json["defaultValue"].toString();
+    param.currentValue = json["currentValue"].toString();
+  } else if (param.type == "int") {
+    param.defaultValue = json["defaultValue"].toInt();
+    param.currentValue = json["currentValue"].toInt();
+    if (json.contains("minValue")) param.minValue = json["minValue"].toInt();
+    if (json.contains("maxValue")) param.maxValue = json["maxValue"].toInt();
+  } else if (param.type == "double") {
+    param.defaultValue = json["defaultValue"].toDouble();
+    param.currentValue = json["currentValue"].toDouble();
+    if (json.contains("minValue")) param.minValue = json["minValue"].toDouble();
+    if (json.contains("maxValue")) param.maxValue = json["maxValue"].toDouble();
+  } else if (param.type == "bool") {
+    param.defaultValue = json["defaultValue"].toBool();
+    param.currentValue = json["currentValue"].toBool();
+  } else if (param.type == "array") {
+    QStringList defaultList, currentList;
+    for (const auto& val : json["defaultValue"].toArray()) defaultList.append(val.toString());
+    for (const auto& val : json["currentValue"].toArray()) currentList.append(val.toString());
+    param.defaultValue = defaultList;
+    param.currentValue = currentList;
+  }
+
+  if (json.contains("enumValues")) {
+    for (const auto& val : json["enumValues"].toArray()) {
+      param.enumValues.append(val.toString());
+    }
+  }
+
+  return param;
+}
+
 // BlockData serialization
 QJsonObject BlockData::toJson() const {
   QJsonObject json;
@@ -46,6 +129,20 @@ QJsonObject BlockData::toJson() const {
   }
   json["outputPins"] = outputsArray;
 
+  // Parameters
+  if (!parameters.isEmpty()) {
+    QJsonArray paramsArray;
+    for (const auto& param : parameters) {
+      paramsArray.append(param.toJson());
+    }
+    json["parameters"] = paramsArray;
+  }
+
+  // Preferred YAML source
+  if (!preferredYamlSource.isEmpty()) {
+    json["preferredYamlSource"] = preferredYamlSource;
+  }
+
   return json;
 }
 
@@ -65,6 +162,19 @@ BlockData BlockData::fromJson(const QJsonObject& json) {
   QJsonArray outputsArray = json["outputPins"].toArray();
   for (const auto& pinVal : outputsArray) {
     block.outputPins.append(PinData::fromJson(pinVal.toObject()));
+  }
+
+  // Parameters
+  if (json.contains("parameters")) {
+    QJsonArray paramsArray = json["parameters"].toArray();
+    for (const auto& paramVal : paramsArray) {
+      block.parameters.append(BlockParamData::fromJson(paramVal.toObject()));
+    }
+  }
+
+  // Preferred YAML source
+  if (json.contains("preferredYamlSource")) {
+    block.preferredYamlSource = json["preferredYamlSource"].toString();
   }
 
   return block;
@@ -171,6 +281,32 @@ ProjectMetadata ProjectMetadata::fromJson(const QJsonObject& json) {
   return meta;
 }
 
+// YamlFileInfo serialization
+QJsonObject YamlFileInfo::toJson() const {
+  QJsonObject json;
+  json["path"] = filePath;
+
+  QJsonArray nodeNamesArray;
+  for (const QString& nodeName : nodeNames) {
+    nodeNamesArray.append(nodeName);
+  }
+  json["nodeNames"] = nodeNamesArray;
+
+  return json;
+}
+
+YamlFileInfo YamlFileInfo::fromJson(const QJsonObject& json) {
+  YamlFileInfo info;
+  info.filePath = json["path"].toString();
+
+  QJsonArray nodeNamesArray = json["nodeNames"].toArray();
+  for (const auto& val : nodeNamesArray) {
+    info.nodeNames.append(val.toString());
+  }
+
+  return info;
+}
+
 // Project implementation
 Project::Project()
   : hasUnsavedChanges_(false)
@@ -225,10 +361,41 @@ void Project::removeNodeGroup(const QUuid& id) {
   }
 }
 
+void Project::addYamlFile(const YamlFileInfo& yamlFile) {
+  // Check if already exists
+  for (const auto& existing : yamlFiles_) {
+    if (existing.filePath == yamlFile.filePath) {
+      return;
+    }
+  }
+  yamlFiles_.append(yamlFile);
+  hasUnsavedChanges_ = true;
+}
+
+void Project::removeYamlFile(const QString& filePath) {
+  for (int i = 0; i < yamlFiles_.size(); ++i) {
+    if (yamlFiles_[i].filePath == filePath) {
+      yamlFiles_.removeAt(i);
+      hasUnsavedChanges_ = true;
+      break;
+    }
+  }
+}
+
+QString Project::findYamlFileForNode(const QString& nodeName) const {
+  for (const auto& yamlFile : yamlFiles_) {
+    if (yamlFile.nodeNames.contains(nodeName)) {
+      return yamlFile.filePath;
+    }
+  }
+  return QString();
+}
+
 void Project::clear() {
   blocks_.clear();
   connections_.clear();
   nodeGroups_.clear();
+  yamlFiles_.clear();
   metadata_ = ProjectMetadata();
   metadata_.version = "1.0";
   metadata_.createdDate = QDateTime::currentDateTime().toString(Qt::ISODate);
@@ -268,6 +435,15 @@ QJsonObject Project::toJson() const {
   }
   json["nodeGroups"] = nodeGroupsArray;
 
+  // YAML Files
+  if (!yamlFiles_.isEmpty()) {
+    QJsonArray yamlFilesArray;
+    for (const auto& yamlFile : yamlFiles_) {
+      yamlFilesArray.append(yamlFile.toJson());
+    }
+    json["yamlFiles"] = yamlFilesArray;
+  }
+
   return json;
 }
 
@@ -295,6 +471,14 @@ Project Project::fromJson(const QJsonObject& json) {
   QJsonArray nodeGroupsArray = json["nodeGroups"].toArray();
   for (const auto& groupVal : nodeGroupsArray) {
     project.nodeGroups_.append(NodeGroupData::fromJson(groupVal.toObject()));
+  }
+
+  // YAML Files
+  if (json.contains("yamlFiles")) {
+    QJsonArray yamlFilesArray = json["yamlFiles"].toArray();
+    for (const auto& yamlVal : yamlFilesArray) {
+      project.yamlFiles_.append(YamlFileInfo::fromJson(yamlVal.toObject()));
+    }
   }
 
   project.hasUnsavedChanges_ = false;

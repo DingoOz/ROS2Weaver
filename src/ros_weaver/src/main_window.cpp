@@ -20,6 +20,11 @@
 #include <QPushButton>
 #include <QInputDialog>
 #include <QRegularExpression>
+#include <QDir>
+#include <QFile>
+
+#include <ament_index_cpp/get_package_share_directory.hpp>
+#include <yaml-cpp/yaml.h>
 
 namespace ros_weaver {
 
@@ -142,6 +147,53 @@ void MainWindow::setupMenuBar() {
   fitAllAction->setShortcut(tr("F"));
   fitAllAction->setToolTip(tr("Fit all nodes in the view"));
   connect(fitAllAction, &QAction::triggered, canvas_, &WeaverCanvas::fitToContents);
+
+  viewMenu->addSeparator();
+
+  // Panels submenu - toggles for dock widgets
+  QMenu* panelsMenu = viewMenu->addMenu(tr("&Panels"));
+
+  // These will be connected after dock widgets are created
+  // We add them here and connect in setupDockWidgets
+  QAction* showPackageBrowserAction = panelsMenu->addAction(tr("Package &Browser"));
+  showPackageBrowserAction->setCheckable(true);
+  showPackageBrowserAction->setChecked(true);
+  showPackageBrowserAction->setObjectName("showPackageBrowserAction");
+
+  QAction* showPropertiesAction = panelsMenu->addAction(tr("&Properties (Parameters)"));
+  showPropertiesAction->setCheckable(true);
+  showPropertiesAction->setChecked(true);
+  showPropertiesAction->setObjectName("showPropertiesAction");
+
+  QAction* showOutputAction = panelsMenu->addAction(tr("&Output"));
+  showOutputAction->setCheckable(true);
+  showOutputAction->setChecked(true);
+  showOutputAction->setObjectName("showOutputAction");
+
+  panelsMenu->addSeparator();
+
+  QAction* resetLayoutAction = panelsMenu->addAction(tr("&Reset Layout"));
+  resetLayoutAction->setToolTip(tr("Reset all panels to their default positions"));
+  connect(resetLayoutAction, &QAction::triggered, this, [this]() {
+    // Show all docks
+    packageBrowserDock_->show();
+    propertiesDock_->show();
+    outputDock_->show();
+
+    // Reset to default docked positions
+    packageBrowserDock_->setFloating(false);
+    propertiesDock_->setFloating(false);
+    outputDock_->setFloating(false);
+
+    addDockWidget(Qt::LeftDockWidgetArea, packageBrowserDock_);
+    addDockWidget(Qt::RightDockWidgetArea, propertiesDock_);
+    addDockWidget(Qt::BottomDockWidgetArea, outputDock_);
+
+    // Update checkboxes
+    findChild<QAction*>("showPackageBrowserAction")->setChecked(true);
+    findChild<QAction*>("showPropertiesAction")->setChecked(true);
+    findChild<QAction*>("showOutputAction")->setChecked(true);
+  });
 
   // ROS2 menu
   QMenu* ros2Menu = menuBar()->addMenu(tr("&ROS2"));
@@ -284,6 +336,24 @@ void MainWindow::setupDockWidgets() {
 
   outputDock_->setWidget(outputWidget);
   addDockWidget(Qt::BottomDockWidgetArea, outputDock_);
+
+  // Connect panel visibility toggles from View > Panels menu
+  QAction* showPackageBrowserAction = findChild<QAction*>("showPackageBrowserAction");
+  QAction* showPropertiesAction = findChild<QAction*>("showPropertiesAction");
+  QAction* showOutputAction = findChild<QAction*>("showOutputAction");
+
+  if (showPackageBrowserAction) {
+    connect(showPackageBrowserAction, &QAction::toggled, packageBrowserDock_, &QDockWidget::setVisible);
+    connect(packageBrowserDock_, &QDockWidget::visibilityChanged, showPackageBrowserAction, &QAction::setChecked);
+  }
+  if (showPropertiesAction) {
+    connect(showPropertiesAction, &QAction::toggled, propertiesDock_, &QDockWidget::setVisible);
+    connect(propertiesDock_, &QDockWidget::visibilityChanged, showPropertiesAction, &QAction::setChecked);
+  }
+  if (showOutputAction) {
+    connect(showOutputAction, &QAction::toggled, outputDock_, &QDockWidget::setVisible);
+    connect(outputDock_, &QDockWidget::visibilityChanged, showOutputAction, &QAction::setChecked);
+  }
 }
 
 void MainWindow::setupCentralWidget() {
@@ -292,6 +362,15 @@ void MainWindow::setupCentralWidget() {
 
   // Connect canvas signals
   connect(canvas_, &WeaverCanvas::blockSelected, this, &MainWindow::onBlockSelected);
+
+  // When user changes preferred YAML source via context menu, refresh the param dashboard
+  connect(canvas_, &WeaverCanvas::blockYamlSourceChanged, this,
+          [this](PackageBlock* block, const QString& /* yamlSource */) {
+    // Refresh the param dashboard if this is the currently selected block
+    if (paramDashboard_->currentBlock() == block) {
+      paramDashboard_->setCurrentBlock(block);
+    }
+  });
 }
 
 void MainWindow::onBlockSelected(PackageBlock* block) {
@@ -306,6 +385,8 @@ void MainWindow::setupStatusBar() {
 }
 
 void MainWindow::onNewProject() {
+  // Clear param dashboard first to avoid dangling pointer when canvas clears blocks
+  paramDashboard_->setCurrentBlock(nullptr);
   canvas_->clearCanvas();
   currentProjectPath_.clear();
   setWindowTitle("ROS Weaver - Visual ROS2 Package Editor");
@@ -387,215 +468,138 @@ bool MainWindow::loadProject(const QString& filePath) {
     return false;
   }
 
+  // Clear param dashboard before import (which clears the canvas)
+  paramDashboard_->setCurrentBlock(nullptr);
   canvas_->importFromProject(project);
   return true;
 }
 
 void MainWindow::onLoadTurtleBotExample() {
-  // Create a TurtleBot3 navigation example project programmatically
-  Project project;
-  project.metadata().name = "TurtleBot3 Navigation";
-  project.metadata().description = "Example TurtleBot3 navigation system with SLAM";
-  project.metadata().rosDistro = "humble";
+  // Try to load from installed package share directory first
+  QString examplePath;
 
-  // Create blocks for TurtleBot3 navigation stack
+  try {
+    std::string packageShare = ament_index_cpp::get_package_share_directory("ros_weaver");
+    examplePath = QString::fromStdString(packageShare) +
+                  "/examples/turtlebot3_navigation/turtlebot3_navigation.rwp";
+  } catch (const std::exception&) {
+    // Fallback to source directory (for development)
+    examplePath = QDir::currentPath() +
+                  "/src/ros_weaver/examples/turtlebot3_navigation/turtlebot3_navigation.rwp";
+  }
 
-  // 1. LiDAR sensor node
-  BlockData lidarBlock;
-  lidarBlock.id = QUuid::createUuid();
-  lidarBlock.name = "lidar_sensor";
-  lidarBlock.position = QPointF(-300, -100);
-  PinData lidarOut;
-  lidarOut.name = "scan";
-  lidarOut.type = "output";
-  lidarOut.dataType = "topic";
-  lidarOut.messageType = "sensor_msgs/msg/LaserScan";
-  lidarBlock.outputPins.append(lidarOut);
-  project.addBlock(lidarBlock);
+  // Check if file exists
+  if (!QFile::exists(examplePath)) {
+    // Try another fallback path for development
+    QDir sourceDir(QDir::currentPath());
+    if (sourceDir.exists("examples/turtlebot3_navigation/turtlebot3_navigation.rwp")) {
+      examplePath = sourceDir.absoluteFilePath("examples/turtlebot3_navigation/turtlebot3_navigation.rwp");
+    } else {
+      QMessageBox::warning(this, tr("Example Not Found"),
+        tr("Could not find the TurtleBot3 Navigation example.\n"
+           "Please ensure the package is properly installed.\n\n"
+           "Looked in:\n%1").arg(examplePath));
+      return;
+    }
+  }
 
-  // 2. Odometry publisher
-  BlockData odomBlock;
-  odomBlock.id = QUuid::createUuid();
-  odomBlock.name = "odometry";
-  odomBlock.position = QPointF(-300, 50);
-  PinData odomOut;
-  odomOut.name = "odom";
-  odomOut.type = "output";
-  odomOut.dataType = "topic";
-  odomOut.messageType = "nav_msgs/msg/Odometry";
-  odomBlock.outputPins.append(odomOut);
-  project.addBlock(odomBlock);
+  // Load the project file
+  QString errorMsg;
+  Project project = Project::loadFromFile(examplePath, &errorMsg);
 
-  // 3. SLAM node (takes scan and odom, outputs map and tf)
-  BlockData slamBlock;
-  slamBlock.id = QUuid::createUuid();
-  slamBlock.name = "slam_toolbox";
-  slamBlock.position = QPointF(0, -50);
-  PinData slamScanIn;
-  slamScanIn.name = "scan";
-  slamScanIn.type = "input";
-  slamScanIn.dataType = "topic";
-  slamScanIn.messageType = "sensor_msgs/msg/LaserScan";
-  slamBlock.inputPins.append(slamScanIn);
-  PinData slamOdomIn;
-  slamOdomIn.name = "odom";
-  slamOdomIn.type = "input";
-  slamOdomIn.dataType = "topic";
-  slamOdomIn.messageType = "nav_msgs/msg/Odometry";
-  slamBlock.inputPins.append(slamOdomIn);
-  PinData slamMapOut;
-  slamMapOut.name = "map";
-  slamMapOut.type = "output";
-  slamMapOut.dataType = "topic";
-  slamMapOut.messageType = "nav_msgs/msg/OccupancyGrid";
-  slamBlock.outputPins.append(slamMapOut);
-  project.addBlock(slamBlock);
+  if (!errorMsg.isEmpty()) {
+    QMessageBox::warning(this, tr("Load Error"),
+      tr("Failed to load TurtleBot3 example:\n%1").arg(errorMsg));
+    return;
+  }
 
-  // 4. Nav2 Planner (takes map, outputs path)
-  BlockData plannerBlock;
-  plannerBlock.id = QUuid::createUuid();
-  plannerBlock.name = "nav2_planner";
-  plannerBlock.position = QPointF(300, -100);
-  PinData plannerMapIn;
-  plannerMapIn.name = "map";
-  plannerMapIn.type = "input";
-  plannerMapIn.dataType = "topic";
-  plannerMapIn.messageType = "nav_msgs/msg/OccupancyGrid";
-  plannerBlock.inputPins.append(plannerMapIn);
-  PinData plannerGoalIn;
-  plannerGoalIn.name = "goal_pose";
-  plannerGoalIn.type = "input";
-  plannerGoalIn.dataType = "topic";
-  plannerGoalIn.messageType = "geometry_msgs/msg/PoseStamped";
-  plannerBlock.inputPins.append(plannerGoalIn);
-  PinData plannerPathOut;
-  plannerPathOut.name = "path";
-  plannerPathOut.type = "output";
-  plannerPathOut.dataType = "topic";
-  plannerPathOut.messageType = "nav_msgs/msg/Path";
-  plannerBlock.outputPins.append(plannerPathOut);
-  project.addBlock(plannerBlock);
-
-  // 5. Nav2 Controller (takes path, outputs cmd_vel)
-  BlockData controllerBlock;
-  controllerBlock.id = QUuid::createUuid();
-  controllerBlock.name = "nav2_controller";
-  controllerBlock.position = QPointF(300, 100);
-  PinData controllerPathIn;
-  controllerPathIn.name = "path";
-  controllerPathIn.type = "input";
-  controllerPathIn.dataType = "topic";
-  controllerPathIn.messageType = "nav_msgs/msg/Path";
-  controllerBlock.inputPins.append(controllerPathIn);
-  PinData controllerOdomIn;
-  controllerOdomIn.name = "odom";
-  controllerOdomIn.type = "input";
-  controllerOdomIn.dataType = "topic";
-  controllerOdomIn.messageType = "nav_msgs/msg/Odometry";
-  controllerBlock.inputPins.append(controllerOdomIn);
-  PinData controllerCmdOut;
-  controllerCmdOut.name = "cmd_vel";
-  controllerCmdOut.type = "output";
-  controllerCmdOut.dataType = "topic";
-  controllerCmdOut.messageType = "geometry_msgs/msg/Twist";
-  controllerBlock.outputPins.append(controllerCmdOut);
-  project.addBlock(controllerBlock);
-
-  // 6. Motor driver (takes cmd_vel)
-  BlockData motorBlock;
-  motorBlock.id = QUuid::createUuid();
-  motorBlock.name = "diff_drive";
-  motorBlock.position = QPointF(600, 100);
-  PinData motorCmdIn;
-  motorCmdIn.name = "cmd_vel";
-  motorCmdIn.type = "input";
-  motorCmdIn.dataType = "topic";
-  motorCmdIn.messageType = "geometry_msgs/msg/Twist";
-  motorBlock.inputPins.append(motorCmdIn);
-  project.addBlock(motorBlock);
-
-  // 7. Goal pose publisher (user input)
-  BlockData goalBlock;
-  goalBlock.id = QUuid::createUuid();
-  goalBlock.name = "goal_publisher";
-  goalBlock.position = QPointF(0, -200);
-  PinData goalOut;
-  goalOut.name = "goal_pose";
-  goalOut.type = "output";
-  goalOut.dataType = "topic";
-  goalOut.messageType = "geometry_msgs/msg/PoseStamped";
-  goalBlock.outputPins.append(goalOut);
-  project.addBlock(goalBlock);
-
-  // Create connections
-  // LiDAR -> SLAM
-  ConnectionData lidarToSlam;
-  lidarToSlam.id = QUuid::createUuid();
-  lidarToSlam.sourceBlockId = lidarBlock.id;
-  lidarToSlam.sourcePinIndex = 0;
-  lidarToSlam.targetBlockId = slamBlock.id;
-  lidarToSlam.targetPinIndex = 0;
-  project.addConnection(lidarToSlam);
-
-  // Odom -> SLAM
-  ConnectionData odomToSlam;
-  odomToSlam.id = QUuid::createUuid();
-  odomToSlam.sourceBlockId = odomBlock.id;
-  odomToSlam.sourcePinIndex = 0;
-  odomToSlam.targetBlockId = slamBlock.id;
-  odomToSlam.targetPinIndex = 1;
-  project.addConnection(odomToSlam);
-
-  // SLAM -> Planner
-  ConnectionData slamToPlanner;
-  slamToPlanner.id = QUuid::createUuid();
-  slamToPlanner.sourceBlockId = slamBlock.id;
-  slamToPlanner.sourcePinIndex = 0;
-  slamToPlanner.targetBlockId = plannerBlock.id;
-  slamToPlanner.targetPinIndex = 0;
-  project.addConnection(slamToPlanner);
-
-  // Goal -> Planner
-  ConnectionData goalToPlanner;
-  goalToPlanner.id = QUuid::createUuid();
-  goalToPlanner.sourceBlockId = goalBlock.id;
-  goalToPlanner.sourcePinIndex = 0;
-  goalToPlanner.targetBlockId = plannerBlock.id;
-  goalToPlanner.targetPinIndex = 1;
-  project.addConnection(goalToPlanner);
-
-  // Planner -> Controller
-  ConnectionData plannerToController;
-  plannerToController.id = QUuid::createUuid();
-  plannerToController.sourceBlockId = plannerBlock.id;
-  plannerToController.sourcePinIndex = 0;
-  plannerToController.targetBlockId = controllerBlock.id;
-  plannerToController.targetPinIndex = 0;
-  project.addConnection(plannerToController);
-
-  // Odom -> Controller
-  ConnectionData odomToController;
-  odomToController.id = QUuid::createUuid();
-  odomToController.sourceBlockId = odomBlock.id;
-  odomToController.sourcePinIndex = 0;
-  odomToController.targetBlockId = controllerBlock.id;
-  odomToController.targetPinIndex = 1;
-  project.addConnection(odomToController);
-
-  // Controller -> Motor
-  ConnectionData controllerToMotor;
-  controllerToMotor.id = QUuid::createUuid();
-  controllerToMotor.sourceBlockId = controllerBlock.id;
-  controllerToMotor.sourcePinIndex = 0;
-  controllerToMotor.targetBlockId = motorBlock.id;
-  controllerToMotor.targetPinIndex = 0;
-  project.addConnection(controllerToMotor);
+  // Clear param dashboard before import (which clears the canvas)
+  paramDashboard_->setCurrentBlock(nullptr);
+  paramDashboard_->clearYamlFiles();
 
   // Import the project
   canvas_->importFromProject(project);
   currentProjectPath_.clear();
   setWindowTitle("ROS Weaver - TurtleBot3 Navigation (Example)");
+
+  // Determine YAML directory
+  QString yamlDir;
+  try {
+    std::string packageShare = ament_index_cpp::get_package_share_directory("ros_weaver");
+    yamlDir = QString::fromStdString(packageShare) + "/examples/turtlebot3_navigation/";
+  } catch (const std::exception&) {
+    yamlDir = QDir::currentPath() + "/src/ros_weaver/examples/turtlebot3_navigation/";
+  }
+
+  // Load YAML files for the project
+  loadProjectYamlFiles(yamlDir);
+
   statusBar()->showMessage(tr("Loaded TurtleBot3 Navigation example"));
+
+  // Append to output about YAML files
+  outputText_->clear();
+  outputText_->append(tr("Loaded TurtleBot3 Navigation example project.\n"));
+  outputText_->append(tr("Associated YAML configuration files:\n"));
+  outputText_->append(tr("  - nav2_params.yaml (Navigation2 stack parameters)\n"));
+  outputText_->append(tr("  - slam_toolbox_params.yaml (SLAM Toolbox parameters)\n"));
+  outputText_->append(tr("\nYAML files location: %1\n").arg(yamlDir));
+  outputText_->append(tr("\nSelect a node to see its parameters. Use the Source dropdown to switch between block parameters and YAML files."));
+}
+
+void MainWindow::loadProjectYamlFiles(const QString& projectDir) {
+  QDir dir(projectDir);
+  if (!dir.exists()) {
+    return;
+  }
+
+  QList<YamlFileInfo> yamlFiles;
+
+  // Find all YAML files in the directory
+  QStringList yamlFilters;
+  yamlFilters << "*.yaml" << "*.yml";
+  QStringList yamlFileNames = dir.entryList(yamlFilters, QDir::Files);
+
+  for (const QString& fileName : yamlFileNames) {
+    QString filePath = dir.absoluteFilePath(fileName);
+    YamlFileInfo info;
+    info.filePath = filePath;
+
+    // Parse YAML to extract top-level node names
+    QFile file(filePath);
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+      QString content = QString::fromUtf8(file.readAll());
+      file.close();
+
+      try {
+        YAML::Node root = YAML::Load(content.toStdString());
+        for (auto it = root.begin(); it != root.end(); ++it) {
+          QString key = QString::fromStdString(it->first.as<std::string>());
+          // Check if this looks like a node section (has ros__parameters)
+          if (it->second.IsMap()) {
+            info.nodeNames.append(key);
+          }
+        }
+      } catch (const YAML::Exception& e) {
+        // Skip files that can't be parsed
+        continue;
+      }
+    }
+
+    if (!info.nodeNames.isEmpty()) {
+      yamlFiles.append(info);
+    }
+  }
+
+  // Pass to param dashboard
+  paramDashboard_->setProjectDirectory(projectDir);
+  paramDashboard_->setProjectYamlFiles(yamlFiles);
+
+  // Pass to canvas for context menu
+  QStringList yamlFilePaths;
+  for (const YamlFileInfo& info : yamlFiles) {
+    yamlFilePaths.append(info.filePath);
+  }
+  canvas_->setAvailableYamlFiles(yamlFilePaths);
 }
 
 void MainWindow::onExit() {

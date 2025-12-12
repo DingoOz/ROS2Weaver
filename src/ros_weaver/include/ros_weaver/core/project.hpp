@@ -25,6 +25,22 @@ struct PinData {
   static PinData fromJson(const QJsonObject& json);
 };
 
+// Serializable parameter data for blocks
+struct BlockParamData {
+  QString name;
+  QString type;           // "string", "int", "double", "bool", "array"
+  QVariant defaultValue;
+  QVariant currentValue;
+  QString description;
+  QVariant minValue;
+  QVariant maxValue;
+  QStringList enumValues;
+  QString group;
+
+  QJsonObject toJson() const;
+  static BlockParamData fromJson(const QJsonObject& json);
+};
+
 // Serializable block data
 struct BlockData {
   QUuid id;
@@ -32,6 +48,8 @@ struct BlockData {
   QPointF position;
   QList<PinData> inputPins;
   QList<PinData> outputPins;
+  QList<BlockParamData> parameters;  // Parameters for this block
+  QString preferredYamlSource;       // Empty = auto, "block" = block params, path = YAML file
 
   QJsonObject toJson() const;
   static BlockData fromJson(const QJsonObject& json);
@@ -76,6 +94,15 @@ struct ProjectMetadata {
   static ProjectMetadata fromJson(const QJsonObject& json);
 };
 
+// YAML file information for project-associated parameter files
+struct YamlFileInfo {
+  QString filePath;         // Path to YAML file (relative to project or absolute)
+  QStringList nodeNames;    // Top-level keys in the YAML (e.g., "slam_toolbox", "amcl")
+
+  QJsonObject toJson() const;
+  static YamlFileInfo fromJson(const QJsonObject& json);
+};
+
 // Main project class
 class Project {
 public:
@@ -104,6 +131,13 @@ public:
   const QList<NodeGroupData>& nodeGroups() const { return nodeGroups_; }
   QList<NodeGroupData>& nodeGroups() { return nodeGroups_; }
 
+  // YAML Files
+  void addYamlFile(const YamlFileInfo& yamlFile);
+  void removeYamlFile(const QString& filePath);
+  const QList<YamlFileInfo>& yamlFiles() const { return yamlFiles_; }
+  QList<YamlFileInfo>& yamlFiles() { return yamlFiles_; }
+  QString findYamlFileForNode(const QString& nodeName) const;
+
   // Clear all data
   void clear();
 
@@ -126,6 +160,7 @@ private:
   QList<BlockData> blocks_;
   QList<ConnectionData> connections_;
   QList<NodeGroupData> nodeGroups_;
+  QList<YamlFileInfo> yamlFiles_;
   QString filePath_;
   bool hasUnsavedChanges_;
 };

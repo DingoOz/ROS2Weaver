@@ -66,12 +66,16 @@ public:
                                const QList<QPair<QString, QString>>& inputPins,
                                const QList<QPair<QString, QString>>& outputPins);
 
+  // Set available YAML files for context menu
+  void setAvailableYamlFiles(const QStringList& yamlFiles);
+
 signals:
   void blockSelected(PackageBlock* block);
   void blockDoubleClicked(PackageBlock* block);
   void connectionCreated(ConnectionLine* connection);
   void groupCreated(NodeGroup* group);
   void canvasCleared();
+  void blockYamlSourceChanged(PackageBlock* block, const QString& yamlSource);
 
 protected:
   void wheelEvent(QWheelEvent* event) override;
@@ -132,6 +136,9 @@ private:
 
   // Node groups
   QList<NodeGroup*> nodeGroups_;
+
+  // Available YAML files for context menu
+  QStringList availableYamlFiles_;
 
   static constexpr double MIN_ZOOM = 0.1;
   static constexpr double MAX_ZOOM = 5.0;

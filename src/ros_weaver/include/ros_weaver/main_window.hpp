@@ -62,6 +62,7 @@ private:
 
   bool saveProject(const QString& filePath);
   bool loadProject(const QString& filePath);
+  void loadProjectYamlFiles(const QString& projectDir);
 
   // Central canvas for visual editing
   WeaverCanvas* canvas_;

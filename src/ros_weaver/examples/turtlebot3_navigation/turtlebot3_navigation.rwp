@@ -1,0 +1,196 @@
+{
+  "formatVersion": "1.0",
+  "application": "ROS Weaver",
+  "metadata": {
+    "name": "TurtleBot3 Navigation",
+    "description": "Example TurtleBot3 navigation system with SLAM and Nav2",
+    "author": "ROS Weaver",
+    "version": "1.0",
+    "rosDistro": "humble",
+    "createdDate": "2025-01-01T00:00:00",
+    "modifiedDate": "2025-01-01T00:00:00"
+  },
+  "blocks": [
+    {
+      "id": "{11111111-1111-1111-1111-111111111111}",
+      "name": "lidar_sensor",
+      "position": { "x": -300, "y": -100 },
+      "inputPins": [],
+      "outputPins": [
+        { "name": "scan", "type": "output", "dataType": "topic", "messageType": "sensor_msgs/msg/LaserScan" }
+      ],
+      "parameters": [
+        { "name": "frame_id", "type": "string", "defaultValue": "base_scan", "currentValue": "base_scan", "description": "TF frame for the sensor", "group": "frames" },
+        { "name": "angle_min", "type": "double", "defaultValue": -3.14159, "currentValue": -3.14159, "description": "Start angle of scan (radians)", "minValue": -3.14159, "maxValue": 3.14159, "group": "scan" },
+        { "name": "angle_max", "type": "double", "defaultValue": 3.14159, "currentValue": 3.14159, "description": "End angle of scan (radians)", "minValue": -3.14159, "maxValue": 3.14159, "group": "scan" },
+        { "name": "range_min", "type": "double", "defaultValue": 0.12, "currentValue": 0.12, "description": "Minimum range value (meters)", "minValue": 0.0, "maxValue": 10.0, "group": "range" },
+        { "name": "range_max", "type": "double", "defaultValue": 3.5, "currentValue": 3.5, "description": "Maximum range value (meters)", "minValue": 1.0, "maxValue": 100.0, "group": "range" },
+        { "name": "scan_frequency", "type": "double", "defaultValue": 5.0, "currentValue": 5.0, "description": "Scan frequency in Hz", "minValue": 1.0, "maxValue": 100.0, "group": "timing" }
+      ]
+    },
+    {
+      "id": "{22222222-2222-2222-2222-222222222222}",
+      "name": "odometry",
+      "position": { "x": -300, "y": 50 },
+      "inputPins": [],
+      "outputPins": [
+        { "name": "odom", "type": "output", "dataType": "topic", "messageType": "nav_msgs/msg/Odometry" }
+      ],
+      "parameters": [
+        { "name": "odom_frame", "type": "string", "defaultValue": "odom", "currentValue": "odom", "description": "Odometry frame ID", "group": "frames" },
+        { "name": "base_frame", "type": "string", "defaultValue": "base_footprint", "currentValue": "base_footprint", "description": "Robot base frame ID", "group": "frames" },
+        { "name": "publish_rate", "type": "double", "defaultValue": 30.0, "currentValue": 30.0, "description": "Publish rate in Hz", "minValue": 1.0, "maxValue": 100.0, "group": "timing" },
+        { "name": "use_sim_time", "type": "bool", "defaultValue": true, "currentValue": true, "description": "Use simulation time", "group": "timing" }
+      ]
+    },
+    {
+      "id": "{33333333-3333-3333-3333-333333333333}",
+      "name": "slam_toolbox",
+      "position": { "x": 0, "y": -50 },
+      "inputPins": [
+        { "name": "scan", "type": "input", "dataType": "topic", "messageType": "sensor_msgs/msg/LaserScan" },
+        { "name": "odom", "type": "input", "dataType": "topic", "messageType": "nav_msgs/msg/Odometry" }
+      ],
+      "outputPins": [
+        { "name": "map", "type": "output", "dataType": "topic", "messageType": "nav_msgs/msg/OccupancyGrid" }
+      ],
+      "parameters": [
+        { "name": "base_frame", "type": "string", "defaultValue": "base_footprint", "currentValue": "base_footprint", "description": "Base frame of the robot", "group": "frames" },
+        { "name": "odom_frame", "type": "string", "defaultValue": "odom", "currentValue": "odom", "description": "Odometry frame", "group": "frames" },
+        { "name": "map_frame", "type": "string", "defaultValue": "map", "currentValue": "map", "description": "Map frame", "group": "frames" },
+        { "name": "resolution", "type": "double", "defaultValue": 0.05, "currentValue": 0.05, "description": "Map resolution in meters", "minValue": 0.01, "maxValue": 1.0, "group": "map" },
+        { "name": "max_laser_range", "type": "double", "defaultValue": 3.5, "currentValue": 3.5, "description": "Maximum laser range (TurtleBot3 LDS-01)", "minValue": 1.0, "maxValue": 100.0, "group": "sensor" },
+        { "name": "minimum_travel_distance", "type": "double", "defaultValue": 0.5, "currentValue": 0.5, "description": "Minimum travel distance before processing", "minValue": 0.0, "maxValue": 10.0, "group": "processing" },
+        { "name": "minimum_travel_heading", "type": "double", "defaultValue": 0.5, "currentValue": 0.5, "description": "Minimum heading change before processing", "minValue": 0.0, "maxValue": 3.14, "group": "processing" },
+        { "name": "map_update_interval", "type": "double", "defaultValue": 5.0, "currentValue": 5.0, "description": "Map update interval in seconds", "minValue": 0.1, "maxValue": 60.0, "group": "timing" },
+        { "name": "use_sim_time", "type": "bool", "defaultValue": true, "currentValue": true, "description": "Use simulation time", "group": "timing" }
+      ]
+    },
+    {
+      "id": "{44444444-4444-4444-4444-444444444444}",
+      "name": "nav2_planner",
+      "position": { "x": 300, "y": -100 },
+      "inputPins": [
+        { "name": "map", "type": "input", "dataType": "topic", "messageType": "nav_msgs/msg/OccupancyGrid" },
+        { "name": "goal_pose", "type": "input", "dataType": "topic", "messageType": "geometry_msgs/msg/PoseStamped" }
+      ],
+      "outputPins": [
+        { "name": "path", "type": "output", "dataType": "topic", "messageType": "nav_msgs/msg/Path" }
+      ],
+      "parameters": [
+        { "name": "planner_plugin", "type": "string", "defaultValue": "GridBased", "currentValue": "GridBased", "description": "Planner plugin to use", "enumValues": ["GridBased", "SmacPlanner2D", "ThetaStarPlanner"], "group": "planner" },
+        { "name": "expected_planner_frequency", "type": "double", "defaultValue": 20.0, "currentValue": 20.0, "description": "Expected planning frequency", "minValue": 0.1, "maxValue": 100.0, "group": "planner" },
+        { "name": "tolerance", "type": "double", "defaultValue": 0.5, "currentValue": 0.5, "description": "Goal tolerance in meters", "minValue": 0.01, "maxValue": 5.0, "group": "planner" },
+        { "name": "use_sim_time", "type": "bool", "defaultValue": true, "currentValue": true, "description": "Use simulation time", "group": "timing" }
+      ]
+    },
+    {
+      "id": "{55555555-5555-5555-5555-555555555555}",
+      "name": "nav2_controller",
+      "position": { "x": 300, "y": 100 },
+      "inputPins": [
+        { "name": "path", "type": "input", "dataType": "topic", "messageType": "nav_msgs/msg/Path" },
+        { "name": "odom", "type": "input", "dataType": "topic", "messageType": "nav_msgs/msg/Odometry" }
+      ],
+      "outputPins": [
+        { "name": "cmd_vel", "type": "output", "dataType": "topic", "messageType": "geometry_msgs/msg/Twist" }
+      ],
+      "parameters": [
+        { "name": "controller_plugin", "type": "string", "defaultValue": "DWB", "currentValue": "DWB", "description": "Controller plugin to use", "enumValues": ["DWB", "TEB", "RegulatedPurePursuit"], "group": "controller" },
+        { "name": "controller_frequency", "type": "double", "defaultValue": 10.0, "currentValue": 10.0, "description": "Controller frequency in Hz", "minValue": 1.0, "maxValue": 100.0, "group": "controller" },
+        { "name": "min_vel_x", "type": "double", "defaultValue": -0.22, "currentValue": -0.22, "description": "Minimum x velocity (m/s)", "minValue": -1.0, "maxValue": 0.0, "group": "velocity" },
+        { "name": "max_vel_x", "type": "double", "defaultValue": 0.22, "currentValue": 0.22, "description": "Maximum x velocity (TurtleBot3 Burger)", "minValue": 0.0, "maxValue": 1.0, "group": "velocity" },
+        { "name": "max_vel_theta", "type": "double", "defaultValue": 2.84, "currentValue": 2.84, "description": "Maximum angular velocity (rad/s)", "minValue": 0.0, "maxValue": 10.0, "group": "velocity" },
+        { "name": "min_speed_xy", "type": "double", "defaultValue": 0.0, "currentValue": 0.0, "description": "Minimum speed", "minValue": 0.0, "maxValue": 1.0, "group": "velocity" },
+        { "name": "max_speed_xy", "type": "double", "defaultValue": 0.22, "currentValue": 0.22, "description": "Maximum speed", "minValue": 0.0, "maxValue": 1.0, "group": "velocity" },
+        { "name": "acc_lim_x", "type": "double", "defaultValue": 2.5, "currentValue": 2.5, "description": "X acceleration limit", "minValue": 0.0, "maxValue": 10.0, "group": "acceleration" },
+        { "name": "acc_lim_theta", "type": "double", "defaultValue": 3.2, "currentValue": 3.2, "description": "Angular acceleration limit", "minValue": 0.0, "maxValue": 10.0, "group": "acceleration" },
+        { "name": "use_sim_time", "type": "bool", "defaultValue": true, "currentValue": true, "description": "Use simulation time", "group": "timing" }
+      ]
+    },
+    {
+      "id": "{66666666-6666-6666-6666-666666666666}",
+      "name": "diff_drive",
+      "position": { "x": 600, "y": 100 },
+      "inputPins": [
+        { "name": "cmd_vel", "type": "input", "dataType": "topic", "messageType": "geometry_msgs/msg/Twist" }
+      ],
+      "outputPins": [],
+      "parameters": [
+        { "name": "wheel_radius", "type": "double", "defaultValue": 0.033, "currentValue": 0.033, "description": "Wheel radius in meters (TurtleBot3 Burger)", "minValue": 0.01, "maxValue": 1.0, "group": "geometry" },
+        { "name": "wheel_separation", "type": "double", "defaultValue": 0.160, "currentValue": 0.160, "description": "Distance between wheels (TurtleBot3 Burger)", "minValue": 0.05, "maxValue": 2.0, "group": "geometry" },
+        { "name": "max_linear_velocity", "type": "double", "defaultValue": 0.22, "currentValue": 0.22, "description": "Maximum linear velocity (m/s)", "minValue": 0.0, "maxValue": 5.0, "group": "limits" },
+        { "name": "max_angular_velocity", "type": "double", "defaultValue": 2.84, "currentValue": 2.84, "description": "Maximum angular velocity (rad/s)", "minValue": 0.0, "maxValue": 10.0, "group": "limits" },
+        { "name": "publish_rate", "type": "double", "defaultValue": 30.0, "currentValue": 30.0, "description": "Odometry publish rate in Hz", "minValue": 1.0, "maxValue": 100.0, "group": "timing" },
+        { "name": "use_sim_time", "type": "bool", "defaultValue": true, "currentValue": true, "description": "Use simulation time", "group": "timing" }
+      ]
+    },
+    {
+      "id": "{77777777-7777-7777-7777-777777777777}",
+      "name": "goal_publisher",
+      "position": { "x": 0, "y": -200 },
+      "inputPins": [],
+      "outputPins": [
+        { "name": "goal_pose", "type": "output", "dataType": "topic", "messageType": "geometry_msgs/msg/PoseStamped" }
+      ],
+      "parameters": [
+        { "name": "frame_id", "type": "string", "defaultValue": "map", "currentValue": "map", "description": "Frame ID for goal poses", "group": "frames" },
+        { "name": "default_goal_x", "type": "double", "defaultValue": 1.0, "currentValue": 1.0, "description": "Default goal X position", "minValue": -100.0, "maxValue": 100.0, "group": "goal" },
+        { "name": "default_goal_y", "type": "double", "defaultValue": 0.0, "currentValue": 0.0, "description": "Default goal Y position", "minValue": -100.0, "maxValue": 100.0, "group": "goal" },
+        { "name": "default_goal_theta", "type": "double", "defaultValue": 0.0, "currentValue": 0.0, "description": "Default goal orientation (radians)", "minValue": -3.14159, "maxValue": 3.14159, "group": "goal" }
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "{aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa}",
+      "sourceBlockId": "{11111111-1111-1111-1111-111111111111}",
+      "sourcePinIndex": 0,
+      "targetBlockId": "{33333333-3333-3333-3333-333333333333}",
+      "targetPinIndex": 0
+    },
+    {
+      "id": "{bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb}",
+      "sourceBlockId": "{22222222-2222-2222-2222-222222222222}",
+      "sourcePinIndex": 0,
+      "targetBlockId": "{33333333-3333-3333-3333-333333333333}",
+      "targetPinIndex": 1
+    },
+    {
+      "id": "{cccccccc-cccc-cccc-cccc-cccccccccccc}",
+      "sourceBlockId": "{33333333-3333-3333-3333-333333333333}",
+      "sourcePinIndex": 0,
+      "targetBlockId": "{44444444-4444-4444-4444-444444444444}",
+      "targetPinIndex": 0
+    },
+    {
+      "id": "{dddddddd-dddd-dddd-dddd-dddddddddddd}",
+      "sourceBlockId": "{77777777-7777-7777-7777-777777777777}",
+      "sourcePinIndex": 0,
+      "targetBlockId": "{44444444-4444-4444-4444-444444444444}",
+      "targetPinIndex": 1
+    },
+    {
+      "id": "{eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee}",
+      "sourceBlockId": "{44444444-4444-4444-4444-444444444444}",
+      "sourcePinIndex": 0,
+      "targetBlockId": "{55555555-5555-5555-5555-555555555555}",
+      "targetPinIndex": 0
+    },
+    {
+      "id": "{ffffffff-ffff-ffff-ffff-ffffffffffff}",
+      "sourceBlockId": "{22222222-2222-2222-2222-222222222222}",
+      "sourcePinIndex": 0,
+      "targetBlockId": "{55555555-5555-5555-5555-555555555555}",
+      "targetPinIndex": 1
+    },
+    {
+      "id": "{00000000-0000-0000-0000-000000000001}",
+      "sourceBlockId": "{55555555-5555-5555-5555-555555555555}",
+      "sourcePinIndex": 0,
+      "targetBlockId": "{66666666-6666-6666-6666-666666666666}",
+      "targetPinIndex": 0
+    }
+  ],
+  "nodeGroups": []
+}

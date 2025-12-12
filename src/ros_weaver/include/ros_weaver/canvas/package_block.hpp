@@ -8,6 +8,8 @@
 #include <QString>
 #include <QList>
 #include <QUuid>
+#include <QVariant>
+#include "ros_weaver/core/project.hpp"
 
 namespace ros_weaver {
 
@@ -90,6 +92,16 @@ public:
   int hoveredPinIndex() const { return hoveredPinIndex_; }
   bool hoveredPinIsOutput() const { return hoveredPinIsOutput_; }
 
+  // Parameters storage
+  void setParameters(const QList<BlockParamData>& params);
+  QList<BlockParamData> parameters() const { return parameters_; }
+  bool hasParameters() const { return !parameters_.isEmpty(); }
+
+  // Preferred YAML source for parameters
+  // Empty = auto-detect, "block" = use block params, path = specific YAML file
+  void setPreferredYamlSource(const QString& source);
+  QString preferredYamlSource() const { return preferredYamlSource_; }
+
 signals:
   void pinHovered(PackageBlock* block, int pinIndex, bool isOutput);
   void pinUnhovered(PackageBlock* block);
@@ -124,6 +136,12 @@ private:
 
   // Drag state
   bool isDragging_;
+
+  // Parameters
+  QList<BlockParamData> parameters_;
+
+  // Preferred YAML source (empty = auto, "block" = block params, path = YAML file)
+  QString preferredYamlSource_;
 
   // Visual dimensions
   static constexpr qreal BLOCK_WIDTH = 180.0;

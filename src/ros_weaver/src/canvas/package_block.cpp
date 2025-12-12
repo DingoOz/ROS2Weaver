@@ -1,5 +1,6 @@
 #include "ros_weaver/canvas/package_block.hpp"
 #include "ros_weaver/canvas/connection_line.hpp"
+#include "ros_weaver/core/project.hpp"
 
 #include <QGraphicsSceneMouseEvent>
 #include <QGraphicsSceneHoverEvent>
@@ -378,6 +379,14 @@ void PackageBlock::clearHoveredPin() {
     hoveredPinIndex_ = -1;
     update();
   }
+}
+
+void PackageBlock::setParameters(const QList<BlockParamData>& params) {
+  parameters_ = params;
+}
+
+void PackageBlock::setPreferredYamlSource(const QString& source) {
+  preferredYamlSource_ = source;
 }
 
 }  // namespace ros_weaver
