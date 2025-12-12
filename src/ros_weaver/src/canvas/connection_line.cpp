@@ -193,6 +193,11 @@ void ConnectionLine::paint(QPainter* painter, const QStyleOptionGraphicsItem* op
 
   bool shouldAnimate = isHovered_ || isPinHighlighted_;
 
+  // Check if this connection is actively receiving data
+  bool isActiveDataFlow = liveMonitoringEnabled_ &&
+    (activityState_ == TopicActivityState::Active ||
+     activityState_ == TopicActivityState::HighRate);
+
   if (isSelected()) {
     color = QColor(42, 130, 218);
     penWidth = HIGHLIGHT_WIDTH;
@@ -200,6 +205,11 @@ void ConnectionLine::paint(QPainter* painter, const QStyleOptionGraphicsItem* op
     penWidth = HIGHLIGHT_WIDTH;
   } else if (isHovered_) {
     penWidth = HOVER_WIDTH;
+  } else if (isActiveDataFlow) {
+    // Throbbing width effect for active data flow
+    qreal throb = 0.5 + 0.5 * std::sin(dataFlowPhase_ * 2 * M_PI);
+    penWidth = LINE_WIDTH + 1.5 * throb;  // Pulse between 2.0 and 3.5
+    color = getActivityColor();
   }
 
   // Draw glow/pulse effect for hovered or highlighted connections
@@ -223,6 +233,20 @@ void ConnectionLine::paint(QPainter* painter, const QStyleOptionGraphicsItem* op
     glowColor.setAlpha(static_cast<int>(150 * pulseIntensity));
     glowPen.setColor(glowColor);
     glowPen.setWidthF(penWidth + 4);
+    painter->setPen(glowPen);
+    painter->drawPath(path_);
+  }
+
+  // Draw throbbing glow for active data flow connections
+  if (isActiveDataFlow) {
+    qreal throb = 0.5 + 0.5 * std::sin(dataFlowPhase_ * 2 * M_PI);
+
+    // Outer glow that pulses
+    QColor glowColor = color.lighter(130);
+    glowColor.setAlpha(static_cast<int>(80 * throb));
+    QPen glowPen(glowColor);
+    glowPen.setWidthF(penWidth + 6 * throb);
+    glowPen.setCapStyle(Qt::RoundCap);
     painter->setPen(glowPen);
     painter->drawPath(path_);
   }

@@ -473,6 +473,32 @@ void MainWindow::setupDockWidgets() {
   connect(topicViewerPanel_, &TopicViewerPanel::echoTopicRequested,
           this, &MainWindow::onEchoTopicRequested);
 
+  // Connect topic viewer rate updates to animate canvas connections
+  connect(topicViewerPanel_, &TopicViewerPanel::messageReceived,
+          this, [this](const QString& topicName, const QString&, double rate) {
+    // Update connection lines that match this topic
+    if (!canvas_) return;
+
+    for (ConnectionLine* conn : canvas_->connections()) {
+      if (conn->topicName() == topicName) {
+        conn->setLiveMonitoringEnabled(true);
+        conn->setMessageRate(rate);
+
+        // Update activity state based on rate
+        if (rate > ConnectionLine::HIGH_RATE_THRESHOLD) {
+          conn->setActivityState(TopicActivityState::HighRate);
+        } else if (rate > 0) {
+          conn->setActivityState(TopicActivityState::Active);
+        } else {
+          conn->setActivityState(TopicActivityState::Inactive);
+        }
+
+        // Pulse the connection to show activity
+        conn->pulseActivity();
+      }
+    }
+  });
+
   // TopicViewerPanel is its own dock widget
   addDockWidget(Qt::RightDockWidgetArea, topicViewerPanel_);
   tabifyDockWidget(systemMappingDock_, topicViewerPanel_);
