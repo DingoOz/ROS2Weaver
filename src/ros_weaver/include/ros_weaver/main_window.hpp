@@ -11,6 +11,7 @@
 #include <QLineEdit>
 #include <QProgressBar>
 #include <QTextEdit>
+#include <QAction>
 
 namespace ros_weaver {
 
@@ -20,6 +21,9 @@ class ParamDashboard;
 class RosPackageIndex;
 class CodeGenerator;
 class PackageBlock;
+class TopicMonitor;
+class TopicInspectorPopup;
+class ConnectionLine;
 
 class MainWindow : public QMainWindow {
   Q_OBJECT
@@ -51,6 +55,13 @@ private slots:
   // Code generation progress
   void onGenerationProgress(int percent, const QString& message);
   void onGenerationFinished(bool success);
+
+  // Live topic monitoring
+  void onToggleLiveMonitoring(bool enabled);
+  void onConnectionClicked(ConnectionLine* connection);
+  void onConnectionDoubleClicked(ConnectionLine* connection);
+  void onTopicActivity(const QString& topicName, double rate);
+  void onEchoTopicRequested(const QString& topicName);
 
 private:
   void setupMenuBar();
@@ -89,6 +100,12 @@ private:
   // Core components
   RosPackageIndex* packageIndex_;
   CodeGenerator* codeGenerator_;
+
+  // Live topic monitoring
+  TopicMonitor* topicMonitor_;
+  TopicInspectorPopup* topicInspector_;
+  QAction* liveMonitoringAction_;
+  bool liveMonitoringEnabled_;
 
   // Current project state
   QString currentProjectPath_;

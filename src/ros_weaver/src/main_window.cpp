@@ -1,10 +1,13 @@
 #include "ros_weaver/main_window.hpp"
 #include "ros_weaver/canvas/weaver_canvas.hpp"
 #include "ros_weaver/canvas/package_block.hpp"
+#include "ros_weaver/canvas/connection_line.hpp"
 #include "ros_weaver/core/project.hpp"
 #include "ros_weaver/core/ros_package_index.hpp"
 #include "ros_weaver/core/code_generator.hpp"
+#include "ros_weaver/core/topic_monitor.hpp"
 #include "ros_weaver/widgets/param_dashboard.hpp"
+#include "ros_weaver/widgets/topic_inspector.hpp"
 
 #include <QApplication>
 #include <QMessageBox>
@@ -44,6 +47,10 @@ MainWindow::MainWindow(QWidget* parent)
   , progressBar_(nullptr)
   , packageIndex_(nullptr)
   , codeGenerator_(nullptr)
+  , topicMonitor_(nullptr)
+  , topicInspector_(nullptr)
+  , liveMonitoringAction_(nullptr)
+  , liveMonitoringEnabled_(false)
 {
   setWindowTitle("ROS Weaver - Visual ROS2 Package Editor");
   setMinimumSize(1200, 800);
@@ -755,6 +762,127 @@ void MainWindow::onGenerationFinished(bool success) {
     outputText_->append(tr("\nCode generation failed: %1").arg(codeGenerator_->lastError()));
     QMessageBox::critical(this, tr("Code Generation Failed"),
       tr("Failed to generate ROS2 package:\n%1").arg(codeGenerator_->lastError()));
+  }
+}
+
+// Live topic monitoring slots
+
+void MainWindow::onToggleLiveMonitoring(bool enabled) {
+  liveMonitoringEnabled_ = enabled;
+
+  if (enabled) {
+    // Create topic monitor if needed
+    if (!topicMonitor_) {
+      topicMonitor_ = new TopicMonitor(this);
+      connect(topicMonitor_, &TopicMonitor::topicActivity,
+              this, &MainWindow::onTopicActivity);
+    }
+
+    // Create topic inspector popup if needed
+    if (!topicInspector_) {
+      topicInspector_ = new TopicInspectorPopup(this);
+      topicInspector_->setTopicMonitor(topicMonitor_);
+      connect(topicInspector_, &TopicInspectorPopup::echoTopicRequested,
+              this, &MainWindow::onEchoTopicRequested);
+    }
+
+    topicMonitor_->startMonitoring();
+    statusBar()->showMessage(tr("Live topic monitoring enabled"));
+
+    // Enable live monitoring on all connections
+    if (canvas_) {
+      for (ConnectionLine* conn : canvas_->connections()) {
+        conn->setLiveMonitoringEnabled(true);
+      }
+    }
+  } else {
+    if (topicMonitor_) {
+      topicMonitor_->stopMonitoring();
+    }
+    statusBar()->showMessage(tr("Live topic monitoring disabled"));
+
+    // Disable live monitoring on all connections
+    if (canvas_) {
+      for (ConnectionLine* conn : canvas_->connections()) {
+        conn->setLiveMonitoringEnabled(false);
+      }
+    }
+  }
+
+  if (liveMonitoringAction_) {
+    liveMonitoringAction_->setChecked(enabled);
+  }
+}
+
+void MainWindow::onConnectionClicked(ConnectionLine* connection) {
+  if (!connection || !liveMonitoringEnabled_) {
+    return;
+  }
+
+  // Create inspector popup if needed
+  if (!topicInspector_) {
+    topicInspector_ = new TopicInspectorPopup(this);
+    if (topicMonitor_) {
+      topicInspector_->setTopicMonitor(topicMonitor_);
+    }
+    connect(topicInspector_, &TopicInspectorPopup::echoTopicRequested,
+            this, &MainWindow::onEchoTopicRequested);
+  }
+
+  // Show popup near the mouse cursor
+  QPoint globalPos = QCursor::pos();
+  topicInspector_->showForConnection(connection, globalPos);
+}
+
+void MainWindow::onConnectionDoubleClicked(ConnectionLine* connection) {
+  if (!connection) {
+    return;
+  }
+
+  // Double-click could open echo in output panel
+  QString topicName = connection->topicName();
+  if (!topicName.isEmpty()) {
+    onEchoTopicRequested(topicName);
+  }
+}
+
+void MainWindow::onTopicActivity(const QString& topicName, double rate) {
+  // Update connection lines that match this topic
+  if (!canvas_) return;
+
+  for (ConnectionLine* conn : canvas_->connections()) {
+    if (conn->topicName() == topicName) {
+      conn->setMessageRate(rate);
+
+      // Update activity state based on rate
+      if (rate > ConnectionLine::HIGH_RATE_THRESHOLD) {
+        conn->setActivityState(TopicActivityState::HighRate);
+      } else if (rate > 0) {
+        conn->setActivityState(TopicActivityState::Active);
+      } else {
+        conn->setActivityState(TopicActivityState::Inactive);
+      }
+
+      // Pulse the connection to show activity
+      conn->pulseActivity();
+    }
+  }
+}
+
+void MainWindow::onEchoTopicRequested(const QString& topicName) {
+  if (topicName.isEmpty()) {
+    return;
+  }
+
+  // Output the echo request to the output panel
+  if (outputText_) {
+    outputText_->append(tr("\n--- Echoing topic: %1 ---").arg(topicName));
+    outputText_->append(tr("(Topic echo functionality will be available in future update)\n"));
+  }
+
+  // Show output dock if hidden
+  if (outputDock_ && !outputDock_->isVisible()) {
+    outputDock_->show();
   }
 }
 

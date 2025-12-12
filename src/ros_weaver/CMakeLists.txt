@@ -49,7 +49,9 @@ set(SOURCES
   src/core/project.cpp
   src/core/ros_package_index.cpp
   src/core/code_generator.cpp
+  src/core/topic_monitor.cpp
   src/widgets/param_dashboard.cpp
+  src/widgets/topic_inspector.cpp
 )
 
 # Header files (for MOC)
@@ -62,7 +64,9 @@ set(HEADERS
   include/ros_weaver/core/project.hpp
   include/ros_weaver/core/ros_package_index.hpp
   include/ros_weaver/core/code_generator.hpp
+  include/ros_weaver/core/topic_monitor.hpp
   include/ros_weaver/widgets/param_dashboard.hpp
+  include/ros_weaver/widgets/topic_inspector.hpp
 )
 
 # Create executable

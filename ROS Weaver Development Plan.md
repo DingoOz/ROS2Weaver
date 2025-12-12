@@ -87,6 +87,93 @@ The architecture emphasizes non-destructive workflows: Changes to graphs trigger
 - Documentation: README with setup, similar to BranchForge.
 - Release: Open-source on GitHub, package for ROS distribution.
 
+## Feature: ROS2 System Status Display
+
+### Overview
+
+Provide discrete, always-visible status indicators showing the current ROS2 system state and ROS_DOMAIN_ID. This gives users constant awareness of their ROS2 environment without cluttering the interface, helping prevent common issues like connecting to the wrong ROS_DOMAIN_ID or operating while ROS2 is not properly initialized.
+
+### Features
+
+1. **Status Bar Indicators**: Compact status display in the main window status bar:
+   - ROS2 connection status (Connected/Disconnected/Error)
+   - Current ROS_DOMAIN_ID value
+   - Visual indicator (colored dot or icon) for at-a-glance status
+
+2. **Title Bar Integration** (Optional):
+   - Display ROS_DOMAIN_ID in window title: "ROS Weaver - Project Name [Domain: 0]"
+   - Configurable: show in title bar, status bar, or both
+
+3. **Status States**:
+   - **Connected** (green): ROS2 context is active and healthy
+   - **Disconnected** (gray): ROS2 not initialized or shutdown
+   - **Error** (red): ROS2 initialization failed or daemon unreachable
+   - **Warning** (yellow): Partial connectivity or unusual state
+
+4. **ROS_DOMAIN_ID Display**:
+   - Show current domain ID prominently
+   - Highlight if non-default (ID ≠ 0) to draw attention
+   - Tooltip showing environment variable source
+
+5. **User Settings**:
+   - Toggle to show/hide ROS2 status display (default: ON)
+   - Toggle to show/hide ROS_DOMAIN_ID display (default: ON)
+   - Option to show in title bar vs status bar vs both
+   - Accessible via Settings/Preferences dialog
+
+### Technical Implementation
+
+- **Status Detection**:
+  - Check `rclcpp::ok()` for ROS2 context status
+  - Read `ROS_DOMAIN_ID` environment variable
+  - Periodic health check (every 1-2 seconds)
+
+- **UI Components**:
+  - Custom `RosStatusWidget` for status bar
+  - QLabel or custom widget with icon + text
+  - Signal-slot connection for status updates
+
+- **Settings Storage**:
+  - Store preferences in QSettings
+  - Keys: `display/show_ros_status`, `display/show_domain_id`, `display/status_location`
+
+### UI/UX
+
+**Status Bar Layout**:
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│ Ready | ● ROS2: Connected | Domain ID: 0 | Nodes: 5/7 matched         │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+**Title Bar Format**:
+```
+ROS Weaver - MyProject.weaver [ROS2 ● | Domain: 42]
+```
+
+**Settings Panel**:
+```
+┌─ ROS2 Status Display ────────────────────────────────┐
+│                                                       │
+│  ☑ Show ROS2 connection status                       │
+│  ☑ Show ROS_DOMAIN_ID                                │
+│                                                       │
+│  Display location:                                    │
+│    ○ Status bar only (default)                       │
+│    ○ Title bar only                                  │
+│    ○ Both status bar and title bar                   │
+│                                                       │
+│  ☑ Highlight non-default Domain ID                   │
+│                                                       │
+└───────────────────────────────────────────────────────┘
+```
+
+### Default Behavior
+
+- Both status indicators are **ON by default**
+- Display in status bar by default
+- Non-default Domain IDs are highlighted with a different color
+
 ## Feature: ROS Logger Integration
 
 ### Overview
