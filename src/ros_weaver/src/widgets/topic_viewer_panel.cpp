@@ -64,6 +64,13 @@ TopicViewerPanel::TopicViewerPanel(QWidget* parent)
     autoRefreshTimer_->start(autoRefreshInterval_ * 1000);
   }
 
+  // Inactivity detection timer - checks for topics that stopped sending
+  inactivityTimer_ = new QTimer(this);
+  connect(inactivityTimer_, &QTimer::timeout, this, [this]() {
+    checkTopicInactivity();
+  });
+  inactivityTimer_->start(INACTIVITY_CHECK_INTERVAL_MS);
+
   // Initial topic discovery
   QTimer::singleShot(500, this, &TopicViewerPanel::refreshTopics);
 }
@@ -699,6 +706,32 @@ QList<TopicDisplayInfo> TopicViewerPanel::getFilteredTopics() const {
   }
 
   return filtered;
+}
+
+void TopicViewerPanel::checkTopicInactivity() {
+  if (!monitoring_.load()) return;
+
+  qint64 now = QDateTime::currentMSecsSinceEpoch();
+  QStringList inactiveTopics;
+
+  {
+    std::lock_guard<std::mutex> lock(topicsMutex_);
+    for (const auto& [topic, lastTime] : lastMessageTimes_) {
+      if (lastTime > 0 && (now - lastTime) > INACTIVITY_TIMEOUT_MS) {
+        inactiveTopics.append(QString::fromStdString(topic));
+      }
+    }
+  }
+
+  // Emit rate=0 for inactive topics
+  for (const QString& topicName : inactiveTopics) {
+    emit messageReceived(topicName, QString(), 0.0);
+    topicModel_->updateTopicRate(topicName, 0.0);
+
+    // Reset the last message time to prevent repeated emissions
+    std::lock_guard<std::mutex> lock(topicsMutex_);
+    lastMessageTimes_[topicName.toStdString()] = 0;
+  }
 }
 
 }  // namespace ros_weaver

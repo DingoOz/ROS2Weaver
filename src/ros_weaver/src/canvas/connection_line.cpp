@@ -68,8 +68,9 @@ QRectF ConnectionLine::boundingRect() const {
   if (path_.isEmpty()) {
     return QRectF();
   }
-  // Add margin for the glow effect and line width
-  qreal margin = HIGHLIGHT_WIDTH + 10;
+  // Add margin for the glow effect, line width, and animation effects
+  // Animation can add up to 6 pixels of glow + activity glow of 8 pixels
+  qreal margin = HIGHLIGHT_WIDTH + 20;
   return path_.boundingRect().adjusted(-margin, -margin, margin, margin);
 }
 

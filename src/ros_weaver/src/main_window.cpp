@@ -487,14 +487,14 @@ void MainWindow::setupDockWidgets() {
         // Update activity state based on rate
         if (rate > ConnectionLine::HIGH_RATE_THRESHOLD) {
           conn->setActivityState(TopicActivityState::HighRate);
+          conn->pulseActivity();  // Only pulse when active
         } else if (rate > 0) {
           conn->setActivityState(TopicActivityState::Active);
+          conn->pulseActivity();  // Only pulse when active
         } else {
           conn->setActivityState(TopicActivityState::Inactive);
+          // Don't pulse when inactive - let animation fade out
         }
-
-        // Pulse the connection to show activity
-        conn->pulseActivity();
       }
     }
   });

@@ -117,6 +117,7 @@ private:
 
   void performTopicDiscovery();
   void updateTopicDetails(const QString& topicName);
+  void checkTopicInactivity();
 
   // Get topics matching current filter
   QList<TopicDisplayInfo> getFilteredTopics() const;
@@ -171,6 +172,11 @@ private:
   QTimer* autoRefreshTimer_;
   bool autoRefreshEnabled_;
   int autoRefreshInterval_;  // seconds
+
+  // Inactivity detection
+  QTimer* inactivityTimer_;
+  static constexpr int INACTIVITY_CHECK_INTERVAL_MS = 250;
+  static constexpr qint64 INACTIVITY_TIMEOUT_MS = 500;
 };
 
 }  // namespace ros_weaver
