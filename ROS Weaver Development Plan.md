@@ -1424,6 +1424,18 @@ Flat list with sortable columns:
 
 ### Link Detection and Display
 
+The TF Tree Viewer provides comprehensive cross-referencing between TF frames and all ROS2 components, enabling users to understand how frames relate to their system architecture.
+
+**Link Types Summary:**
+| Link Type | Source | Detection Method |
+|-----------|--------|------------------|
+| Frame → Canvas Block | Parameter values | String matching in block parameters |
+| Frame → Topic | Message headers | frame_id field inspection |
+| Frame → Package | Package manifest | Frame names in package.xml, URDF |
+| Frame → Node | ROS2 graph | Publisher/subscriber introspection |
+| Frame → YAML Config | Config files | Parameter file scanning |
+| Frame → URDF | Robot description | URDF link/joint parsing |
+
 #### 1. Frame → Canvas Block Links
 
 **Detection Methods:**
@@ -1507,6 +1519,59 @@ Flat list with sortable columns:
   /ekf_localization
      └─ Publishes: odom → base_footprint (dynamic, 50 Hz)
 ```
+
+**Interactions:**
+- Click → show node details (subscriptions, publications, services)
+- Right-click → "Show in System Mapping", "Open package in VS Code"
+
+#### 5. Frame → Package Links
+
+**Detection Methods:**
+- Scan installed ROS2 packages for URDF files containing frame/link names
+- Match frame names against package names (e.g., "lidar_frame" → lidar_driver package)
+- Check package.xml for sensor/frame-related dependencies
+- Parse launch files for frame_id arguments
+
+**Display:**
+```
+📦 Package Links (2):
+  turtlebot3_description
+     └─ URDF: base_link, wheel_left_link, wheel_right_link
+     └─ Launch: robot_state_publisher (publishes static TF)
+  rplidar_ros
+     └─ URDF: laser_frame
+     └─ Node: rplidar_node (publishes /scan with frame_id)
+```
+
+**Interactions:**
+- Click → show package details (nodes, launch files, dependencies)
+- Right-click → "Open package in VS Code", "Show package.xml"
+- Double-click → add package block to canvas
+
+#### 6. Frame → URDF Links
+
+**Detection Methods:**
+- Parse robot_description parameter for URDF content
+- Extract all link and joint names
+- Map joint parent/child to TF parent/child relationships
+- Detect visual/collision mesh associations
+
+**Display:**
+```
+🤖 URDF Links:
+  Link: base_link
+     └─ Visual: meshes/base.stl
+     └─ Collision: box (0.1 x 0.1 x 0.05)
+     └─ Inertia: mass=1.0kg
+  Joint: wheel_left_joint (parent: base_link)
+     └─ Type: continuous
+     └─ Axis: [0, 1, 0]
+     └─ Limits: effort=10, velocity=5
+```
+
+**Interactions:**
+- Click → highlight in 3D TF view (when implemented)
+- Right-click → "Show URDF snippet", "Edit in VS Code"
 
 ### Details Panel
 
