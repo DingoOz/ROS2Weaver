@@ -81,7 +81,7 @@ void TFTreePanel::setupUi() {
   mainLayout->addWidget(splitter_);
 
   // Status bar
-  statusLabel_ = new QLabel(tr("Not listening"), this);
+  statusLabel_ = new QLabel(tr("Click 'Live' button to start listening to TF"), this);
   statusLabel_->setStyleSheet("color: gray; font-size: 10px;");
   mainLayout->addWidget(statusLabel_);
 
@@ -122,8 +122,8 @@ QWidget* TFTreePanel::createToolbar() {
   liveButton_ = new QToolButton(toolbar);
   liveButton_->setText(tr("Live"));
   liveButton_->setCheckable(true);
-  liveButton_->setChecked(true);
-  liveButton_->setToolTip(tr("Toggle live updates"));
+  liveButton_->setChecked(false);  // Start unchecked - user clicks to start listening
+  liveButton_->setToolTip(tr("Click to start listening to TF transforms"));
   layout->addWidget(liveButton_);
 
   return toolbar;
@@ -205,10 +205,10 @@ void TFTreePanel::setupConnections() {
   connect(refreshButton_, &QPushButton::clicked, this, &TFTreePanel::refreshTree);
   connect(liveButton_, &QToolButton::toggled, this, [this](bool checked) {
     liveUpdateEnabled_ = checked;
-    if (checked && listening_.load()) {
-      updateTimer_->start();
+    if (checked) {
+      startListening();
     } else {
-      updateTimer_->stop();
+      stopListening();
     }
   });
 
@@ -284,22 +284,32 @@ void TFTreePanel::startListening() {
 
   if (rosNode_) {
     listening_ = true;
+    liveUpdateEnabled_ = true;
     lastRateCalcTime_ = QDateTime::currentMSecsSinceEpoch();
 
-    if (liveUpdateEnabled_) {
-      updateTimer_->start();
-    }
+    updateTimer_->start();
 
     statusLabel_->setText(tr("Listening to TF..."));
     liveButton_->setStyleSheet("background-color: #4a7;");
+
+    // Sync button state (without re-triggering signal)
+    liveButton_->blockSignals(true);
+    liveButton_->setChecked(true);
+    liveButton_->blockSignals(false);
   }
 }
 
 void TFTreePanel::stopListening() {
   listening_ = false;
+  liveUpdateEnabled_ = false;
   updateTimer_->stop();
-  statusLabel_->setText(tr("Stopped"));
+  statusLabel_->setText(tr("Stopped - Click 'Live' to start"));
   liveButton_->setStyleSheet("");
+
+  // Sync button state (without re-triggering signal)
+  liveButton_->blockSignals(true);
+  liveButton_->setChecked(false);
+  liveButton_->blockSignals(false);
 }
 
 void TFTreePanel::toggleListening() {
