@@ -58,6 +58,7 @@ private slots:
   void onLoadTurtleBotExample();
   void onLoadTurtlesimExample();
   void onLaunchTurtlesim();
+  void onLaunchTurtleBot3Gazebo();
 
   // Package search
   void onSearchPackages();

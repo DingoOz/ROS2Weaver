@@ -156,6 +156,10 @@ void MainWindow::setupMenuBar() {
   launchTurtlesimAction->setToolTip(tr("Launch the turtlesim_node and turtle_teleop_key nodes"));
   connect(launchTurtlesimAction, &QAction::triggered, this, &MainWindow::onLaunchTurtlesim);
 
+  QAction* launchTurtleBot3Action = examplesMenu->addAction(tr("Launch TurtleBot3 &Gazebo"));
+  launchTurtleBot3Action->setToolTip(tr("Launch TurtleBot3 simulation in Gazebo with SLAM and Nav2"));
+  connect(launchTurtleBot3Action, &QAction::triggered, this, &MainWindow::onLaunchTurtleBot3Gazebo);
+
   fileMenu->addSeparator();
 
   QAction* generateAction = fileMenu->addAction(tr("&Generate ROS2 Package..."));
@@ -975,6 +979,278 @@ void MainWindow::onLaunchTurtlesim() {
     outputPanel_->appendBuildOutput(tr("\nNodes displayed on canvas show the running system topology."));
 
     statusBar()->showMessage(tr("Turtlesim launched - use 'ros2 run turtlesim turtle_teleop_key' in a terminal to control"), 10000);
+  });
+}
+
+void MainWindow::onLaunchTurtleBot3Gazebo() {
+  // Check if required TurtleBot3 packages are available
+  QProcess checkProcess;
+  checkProcess.start("ros2", QStringList() << "pkg" << "list");
+  checkProcess.waitForFinished(5000);
+  QString packages = checkProcess.readAllStandardOutput();
+
+  QStringList missingPackages;
+  if (!packages.contains("turtlebot3_gazebo")) {
+    missingPackages << "turtlebot3_gazebo";
+  }
+  if (!packages.contains("nav2_bringup")) {
+    missingPackages << "nav2_bringup";
+  }
+  if (!packages.contains("slam_toolbox")) {
+    missingPackages << "slam_toolbox";
+  }
+
+  if (!missingPackages.isEmpty()) {
+    QString distro = qgetenv("ROS_DISTRO");
+    if (distro.isEmpty()) distro = "jazzy";
+
+    QMessageBox::warning(this, tr("Missing Packages"),
+      tr("The following packages are required but not installed:\n\n"
+         "  %1\n\n"
+         "Install TurtleBot3 packages with:\n"
+         "  sudo apt install ros-%2-turtlebot3*\n\n"
+         "Install Navigation2 packages with:\n"
+         "  sudo apt install ros-%2-navigation2 ros-%2-nav2-bringup\n\n"
+         "Install SLAM Toolbox with:\n"
+         "  sudo apt install ros-%2-slam-toolbox")
+         .arg(missingPackages.join(", "), distro));
+    return;
+  }
+
+  // Check TURTLEBOT3_MODEL environment variable
+  QString tbModel = qgetenv("TURTLEBOT3_MODEL");
+  if (tbModel.isEmpty()) {
+    QMessageBox::StandardButton reply = QMessageBox::question(this,
+      tr("TurtleBot3 Model"),
+      tr("TURTLEBOT3_MODEL environment variable is not set.\n\n"
+         "Would you like to launch with 'burger' model?\n\n"
+         "You can set this permanently with:\n"
+         "  export TURTLEBOT3_MODEL=burger"),
+      QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel);
+
+    if (reply == QMessageBox::Cancel) {
+      return;
+    } else if (reply == QMessageBox::No) {
+      QMessageBox::information(this, tr("Manual Setup Required"),
+        tr("Please set TURTLEBOT3_MODEL and try again:\n\n"
+           "  export TURTLEBOT3_MODEL=burger  (or waffle, waffle_pi)"));
+      return;
+    }
+    tbModel = "burger";
+  }
+
+  // Create dialog to select what to launch
+  QDialog launchDialog(this);
+  launchDialog.setWindowTitle(tr("Launch TurtleBot3 Gazebo Simulation"));
+  launchDialog.setMinimumWidth(400);
+
+  QVBoxLayout* layout = new QVBoxLayout(&launchDialog);
+
+  QLabel* infoLabel = new QLabel(tr("Select components to launch:"), &launchDialog);
+  layout->addWidget(infoLabel);
+
+  QGroupBox* componentGroup = new QGroupBox(tr("Components"), &launchDialog);
+  QVBoxLayout* componentLayout = new QVBoxLayout(componentGroup);
+
+  QCheckBox* gazeboCheck = new QCheckBox(tr("Gazebo Simulation (required)"), componentGroup);
+  gazeboCheck->setChecked(true);
+  gazeboCheck->setEnabled(false);  // Always launch Gazebo
+  componentLayout->addWidget(gazeboCheck);
+
+  QCheckBox* slamCheck = new QCheckBox(tr("SLAM Toolbox (mapping)"), componentGroup);
+  slamCheck->setChecked(true);
+  slamCheck->setToolTip(tr("Enable SLAM for simultaneous localization and mapping"));
+  componentLayout->addWidget(slamCheck);
+
+  QCheckBox* nav2Check = new QCheckBox(tr("Nav2 Navigation Stack"), componentGroup);
+  nav2Check->setChecked(true);
+  nav2Check->setToolTip(tr("Enable Navigation2 for autonomous path planning"));
+  componentLayout->addWidget(nav2Check);
+
+  QCheckBox* rvizCheck = new QCheckBox(tr("RViz2 Visualization"), componentGroup);
+  rvizCheck->setChecked(true);
+  rvizCheck->setToolTip(tr("Launch RViz2 to visualize robot state, map, and navigation"));
+  componentLayout->addWidget(rvizCheck);
+
+  layout->addWidget(componentGroup);
+
+  // World selection
+  QGroupBox* worldGroup = new QGroupBox(tr("Gazebo World"), &launchDialog);
+  QVBoxLayout* worldLayout = new QVBoxLayout(worldGroup);
+
+  QRadioButton* emptyWorldRadio = new QRadioButton(tr("Empty World"), worldGroup);
+  QRadioButton* tb3WorldRadio = new QRadioButton(tr("TurtleBot3 World (obstacles)"), worldGroup);
+  QRadioButton* houseWorldRadio = new QRadioButton(tr("TurtleBot3 House"), worldGroup);
+  tb3WorldRadio->setChecked(true);
+
+  worldLayout->addWidget(emptyWorldRadio);
+  worldLayout->addWidget(tb3WorldRadio);
+  worldLayout->addWidget(houseWorldRadio);
+
+  layout->addWidget(worldGroup);
+
+  // Add to canvas option
+  QCheckBox* addToCanvasCheck = new QCheckBox(tr("Load TurtleBot3 Navigation project on canvas"), &launchDialog);
+  addToCanvasCheck->setChecked(true);
+  layout->addWidget(addToCanvasCheck);
+
+  // Dialog buttons
+  QDialogButtonBox* buttonBox = new QDialogButtonBox(
+    QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &launchDialog);
+  connect(buttonBox, &QDialogButtonBox::accepted, &launchDialog, &QDialog::accept);
+  connect(buttonBox, &QDialogButtonBox::rejected, &launchDialog, &QDialog::reject);
+  layout->addWidget(buttonBox);
+
+  if (launchDialog.exec() != QDialog::Accepted) {
+    return;
+  }
+
+  // Determine which world to use
+  QString worldArg;
+  if (emptyWorldRadio->isChecked()) {
+    worldArg = "empty_world.launch.py";
+  } else if (tb3WorldRadio->isChecked()) {
+    worldArg = "turtlebot3_world.launch.py";
+  } else if (houseWorldRadio->isChecked()) {
+    worldArg = "turtlebot3_house.launch.py";
+  }
+
+  // Load example project if requested
+  if (addToCanvasCheck->isChecked()) {
+    onLoadTurtleBotExample();
+  }
+
+  // Setup output
+  outputPanel_->clearBuildOutput();
+  outputPanel_->appendBuildOutput(tr("Launching TurtleBot3 Gazebo Simulation...\n"));
+  outputPanel_->appendBuildOutput(tr("Model: %1\n").arg(tbModel));
+  outputPanel_->appendBuildOutput(tr("World: %1\n\n").arg(worldArg));
+
+  QString rosDistro = qgetenv("ROS_DISTRO");
+  if (rosDistro.isEmpty()) rosDistro = "jazzy";
+
+  // Launch Gazebo simulation
+  QProcess* gazeboProc = new QProcess(this);
+  gazeboProc->setProcessChannelMode(QProcess::MergedChannels);
+
+  connect(gazeboProc, &QProcess::readyReadStandardOutput, [this, gazeboProc]() {
+    outputPanel_->appendBuildOutput(QString::fromUtf8(gazeboProc->readAllStandardOutput()));
+  });
+
+  connect(gazeboProc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+          [this, gazeboProc](int exitCode, QProcess::ExitStatus) {
+    outputPanel_->appendBuildOutput(tr("\nGazebo process exited with code %1\n").arg(exitCode));
+    gazeboProc->deleteLater();
+  });
+
+  QString gazeboCmd = QString(
+    "source /opt/ros/%1/setup.bash && "
+    "export TURTLEBOT3_MODEL=%2 && "
+    "ros2 launch turtlebot3_gazebo %3"
+  ).arg(rosDistro, tbModel, worldArg);
+
+  gazeboProc->start("bash", QStringList() << "-c" << gazeboCmd);
+  outputPanel_->appendBuildOutput(tr("Started: ros2 launch turtlebot3_gazebo %1\n").arg(worldArg));
+  outputPanel_->appendBuildOutput(tr("Waiting for Gazebo to initialize...\n\n"));
+
+  // Launch SLAM, Nav2, and RViz after a delay to let Gazebo start
+  int launchDelay = 5000;  // 5 seconds
+
+  if (slamCheck->isChecked()) {
+    QTimer::singleShot(launchDelay, this, [this, rosDistro, tbModel]() {
+      QProcess* slamProc = new QProcess(this);
+      slamProc->setProcessChannelMode(QProcess::MergedChannels);
+
+      connect(slamProc, &QProcess::readyReadStandardOutput, [this, slamProc]() {
+        outputPanel_->appendBuildOutput(QString::fromUtf8(slamProc->readAllStandardOutput()));
+      });
+
+      connect(slamProc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+              [this, slamProc](int exitCode, QProcess::ExitStatus) {
+        outputPanel_->appendBuildOutput(tr("\nSLAM process exited with code %1\n").arg(exitCode));
+        slamProc->deleteLater();
+      });
+
+      QString slamCmd = QString(
+        "source /opt/ros/%1/setup.bash && "
+        "export TURTLEBOT3_MODEL=%2 && "
+        "ros2 launch slam_toolbox online_async_launch.py use_sim_time:=true"
+      ).arg(rosDistro, tbModel);
+
+      slamProc->start("bash", QStringList() << "-c" << slamCmd);
+      outputPanel_->appendBuildOutput(tr("Started: SLAM Toolbox\n"));
+    });
+    launchDelay += 2000;
+  }
+
+  if (nav2Check->isChecked()) {
+    QTimer::singleShot(launchDelay, this, [this, rosDistro, tbModel]() {
+      QProcess* nav2Proc = new QProcess(this);
+      nav2Proc->setProcessChannelMode(QProcess::MergedChannels);
+
+      connect(nav2Proc, &QProcess::readyReadStandardOutput, [this, nav2Proc]() {
+        outputPanel_->appendBuildOutput(QString::fromUtf8(nav2Proc->readAllStandardOutput()));
+      });
+
+      connect(nav2Proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+              [this, nav2Proc](int exitCode, QProcess::ExitStatus) {
+        outputPanel_->appendBuildOutput(tr("\nNav2 process exited with code %1\n").arg(exitCode));
+        nav2Proc->deleteLater();
+      });
+
+      QString nav2Cmd = QString(
+        "source /opt/ros/%1/setup.bash && "
+        "export TURTLEBOT3_MODEL=%2 && "
+        "ros2 launch nav2_bringup navigation_launch.py use_sim_time:=true"
+      ).arg(rosDistro, tbModel);
+
+      nav2Proc->start("bash", QStringList() << "-c" << nav2Cmd);
+      outputPanel_->appendBuildOutput(tr("Started: Navigation2 Stack\n"));
+    });
+    launchDelay += 2000;
+  }
+
+  if (rvizCheck->isChecked()) {
+    QTimer::singleShot(launchDelay, this, [this, rosDistro, tbModel]() {
+      QProcess* rvizProc = new QProcess(this);
+      rvizProc->setProcessChannelMode(QProcess::MergedChannels);
+
+      connect(rvizProc, &QProcess::readyReadStandardOutput, [this, rvizProc]() {
+        outputPanel_->appendBuildOutput(QString::fromUtf8(rvizProc->readAllStandardOutput()));
+      });
+
+      connect(rvizProc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+              [this, rvizProc](int exitCode, QProcess::ExitStatus) {
+        outputPanel_->appendBuildOutput(tr("\nRViz process exited with code %1\n").arg(exitCode));
+        rvizProc->deleteLater();
+      });
+
+      QString rvizCmd = QString(
+        "source /opt/ros/%1/setup.bash && "
+        "export TURTLEBOT3_MODEL=%2 && "
+        "ros2 launch nav2_bringup rviz_launch.py use_sim_time:=true"
+      ).arg(rosDistro, tbModel);
+
+      rvizProc->start("bash", QStringList() << "-c" << rvizCmd);
+      outputPanel_->appendBuildOutput(tr("Started: RViz2\n"));
+    });
+    launchDelay += 1000;
+  }
+
+  // Show instructions after all components have started
+  QTimer::singleShot(launchDelay + 2000, this, [this]() {
+    outputPanel_->appendBuildOutput(tr("\n=== TurtleBot3 Simulation Ready ===\n\n"));
+    outputPanel_->appendBuildOutput(tr("To control the robot with keyboard:\n"));
+    outputPanel_->appendBuildOutput(tr("  ros2 run turtlebot3_teleop teleop_keyboard\n\n"));
+    outputPanel_->appendBuildOutput(tr("To set a 2D navigation goal in RViz:\n"));
+    outputPanel_->appendBuildOutput(tr("  1. Click '2D Goal Pose' button in RViz toolbar\n"));
+    outputPanel_->appendBuildOutput(tr("  2. Click and drag on the map to set goal position and orientation\n\n"));
+    outputPanel_->appendBuildOutput(tr("To save the map after mapping:\n"));
+    outputPanel_->appendBuildOutput(tr("  ros2 run nav2_map_server map_saver_cli -f ~/my_map\n\n"));
+    outputPanel_->appendBuildOutput(tr("Use the TF Tree tab (Ctrl+T) to visualize transforms!\n"));
+    outputPanel_->appendBuildOutput(tr("Use the Topic Viewer (Ctrl+Shift+T) to see live data flow.\n"));
+
+    statusBar()->showMessage(tr("TurtleBot3 Gazebo simulation launched"), 10000);
   });
 }
 
