@@ -460,11 +460,24 @@ void ConnectionLine::startDataFlowAnimation() {
 }
 
 void ConnectionLine::stopDataFlowAnimation() {
-  if (dataFlowAnimation_) {
+  if (dataFlowAnimation_ && dataFlowAnimation_->state() == QAbstractAnimation::Running) {
+    // Quick fade-out over 250ms instead of abrupt stop
+    // Stop the looping animation and animate to 0
     dataFlowAnimation_->stop();
+
+    // Create a one-shot fade-out animation
+    QPropertyAnimation* fadeOut = new QPropertyAnimation(this, "dataFlowPhase");
+    fadeOut->setDuration(250);
+    fadeOut->setStartValue(dataFlowPhase_);
+    fadeOut->setEndValue(0.0);
+    fadeOut->setEasingCurve(QEasingCurve::OutQuad);
+
+    connect(fadeOut, &QPropertyAnimation::finished, fadeOut, &QObject::deleteLater);
+    fadeOut->start();
+  } else {
+    dataFlowPhase_ = 0.0;
+    update();
   }
-  dataFlowPhase_ = 0.0;
-  update();
 }
 
 QColor ConnectionLine::getActivityColor() const {
