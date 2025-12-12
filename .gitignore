@@ -70,8 +70,10 @@ qrc_*.cpp
 .cproject
 .settings/
 
-# Planning and Claude session files
+# Planning and Claude session files (ignore most .md except key docs)
 *.md
+!README.md
+!ROS Weaver Development Plan.md
 
 # OS generated files
 .DS_Store
