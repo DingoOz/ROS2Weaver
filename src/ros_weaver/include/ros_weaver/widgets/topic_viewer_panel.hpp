@@ -1,7 +1,7 @@
 #ifndef ROS_WEAVER_TOPIC_VIEWER_PANEL_HPP
 #define ROS_WEAVER_TOPIC_VIEWER_PANEL_HPP
 
-#include <QDockWidget>
+#include <QWidget>
 #include <QTreeView>
 #include <QLineEdit>
 #include <QComboBox>
@@ -48,7 +48,7 @@ struct TopicFilterSettings {
   QString namespaceFilter;     // Namespace filter (empty = all)
 };
 
-class TopicViewerPanel : public QDockWidget {
+class TopicViewerPanel : public QWidget {
   Q_OBJECT
 
 public:
@@ -123,7 +123,6 @@ private:
   QList<TopicDisplayInfo> getFilteredTopics() const;
 
   // UI Components
-  QWidget* mainWidget_;
   QSplitter* splitter_;
 
   // Toolbar

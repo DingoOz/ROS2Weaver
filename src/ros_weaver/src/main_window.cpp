@@ -315,9 +315,13 @@ void MainWindow::setupMenuBar() {
   QAction* showTopicViewerAction = ros2Menu->addAction(tr("Show &Topic Viewer"));
   showTopicViewerAction->setShortcut(tr("Ctrl+Shift+T"));
   connect(showTopicViewerAction, &QAction::triggered, this, [this]() {
-    if (topicViewerPanel_) {
-      topicViewerPanel_->show();
-      topicViewerPanel_->raise();
+    // Show Properties dock and switch to Topics tab
+    if (propertiesDock_) {
+      propertiesDock_->show();
+      propertiesDock_->raise();
+    }
+    if (propertiesTab_ && topicViewerPanel_) {
+      propertiesTab_->setCurrentWidget(topicViewerPanel_);
     }
   });
 
@@ -424,46 +428,10 @@ void MainWindow::setupDockWidgets() {
   paramDashboard_ = new ParamDashboard();
   propertiesTab_->addTab(paramDashboard_, tr("Parameters"));
 
-  // Topics tab (placeholder for now)
-  QWidget* topicsWidget = new QWidget();
-  QVBoxLayout* topicsLayout = new QVBoxLayout(topicsWidget);
-  QLabel* topicsLabel = new QLabel(tr("Topics and connections for the selected node will appear here."));
-  topicsLabel->setWordWrap(true);
-  topicsLayout->addWidget(topicsLabel);
-  topicsLayout->addStretch();
-  propertiesTab_->addTab(topicsWidget, tr("Topics"));
-
-  propertiesDock_->setWidget(propertiesTab_);
-  addDockWidget(Qt::RightDockWidgetArea, propertiesDock_);
-
-  // Output Dock (bottom) - with tabs for Build Output, ROS Logs, and Terminal
-  outputDock_ = new QDockWidget(tr("Output"), this);
-  outputDock_->setAllowedAreas(Qt::BottomDockWidgetArea | Qt::TopDockWidgetArea);
-
-  outputPanel_ = new OutputPanel();
-  outputDock_->setWidget(outputPanel_);
-  addDockWidget(Qt::BottomDockWidgetArea, outputDock_);
-
-  // System Mapping Dock (right side, tabbed with Properties)
-  systemMappingDock_ = new QDockWidget(tr("System Mapping"), this);
-  systemMappingDock_->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-
-  systemMappingPanel_ = new SystemMappingPanel();
-  systemMappingPanel_->setSystemDiscovery(systemDiscovery_);
-  systemMappingPanel_->setCanvasMapper(canvasMapper_);
-
-  connect(systemMappingPanel_, &SystemMappingPanel::blockSelected,
-          this, &MainWindow::onMappingBlockSelected);
-  connect(systemMappingPanel_, &SystemMappingPanel::scanRequested,
-          this, &MainWindow::onScanSystem);
-
-  systemMappingDock_->setWidget(systemMappingPanel_);
-  addDockWidget(Qt::RightDockWidgetArea, systemMappingDock_);
-  tabifyDockWidget(propertiesDock_, systemMappingDock_);
-
-  // Topic Viewer Dock (right side, tabbed with Properties and System Mapping)
-  topicViewerPanel_ = new TopicViewerPanel(this);
+  // Topics tab with TopicViewerPanel
+  topicViewerPanel_ = new TopicViewerPanel();
   topicViewerPanel_->setCanvas(canvas_);
+  propertiesTab_->addTab(topicViewerPanel_, tr("Topics"));
 
   // Connect topic viewer signals
   connect(topicViewerPanel_, &TopicViewerPanel::topicSelected,
@@ -499,9 +467,33 @@ void MainWindow::setupDockWidgets() {
     }
   });
 
-  // TopicViewerPanel is its own dock widget
-  addDockWidget(Qt::RightDockWidgetArea, topicViewerPanel_);
-  tabifyDockWidget(systemMappingDock_, topicViewerPanel_);
+  propertiesDock_->setWidget(propertiesTab_);
+  addDockWidget(Qt::RightDockWidgetArea, propertiesDock_);
+
+  // Output Dock (bottom) - with tabs for Build Output, ROS Logs, and Terminal
+  outputDock_ = new QDockWidget(tr("Output"), this);
+  outputDock_->setAllowedAreas(Qt::BottomDockWidgetArea | Qt::TopDockWidgetArea);
+
+  outputPanel_ = new OutputPanel();
+  outputDock_->setWidget(outputPanel_);
+  addDockWidget(Qt::BottomDockWidgetArea, outputDock_);
+
+  // System Mapping Dock (right side, tabbed with Properties)
+  systemMappingDock_ = new QDockWidget(tr("System Mapping"), this);
+  systemMappingDock_->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+
+  systemMappingPanel_ = new SystemMappingPanel();
+  systemMappingPanel_->setSystemDiscovery(systemDiscovery_);
+  systemMappingPanel_->setCanvasMapper(canvasMapper_);
+
+  connect(systemMappingPanel_, &SystemMappingPanel::blockSelected,
+          this, &MainWindow::onMappingBlockSelected);
+  connect(systemMappingPanel_, &SystemMappingPanel::scanRequested,
+          this, &MainWindow::onScanSystem);
+
+  systemMappingDock_->setWidget(systemMappingPanel_);
+  addDockWidget(Qt::RightDockWidgetArea, systemMappingDock_);
+  tabifyDockWidget(propertiesDock_, systemMappingDock_);
 
   propertiesDock_->raise();  // Make Properties the default visible tab
 

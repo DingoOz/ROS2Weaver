@@ -15,8 +15,7 @@
 namespace ros_weaver {
 
 TopicViewerPanel::TopicViewerPanel(QWidget* parent)
-  : QDockWidget(tr("Topic Viewer"), parent)
-  , mainWidget_(nullptr)
+  : QWidget(parent)
   , splitter_(nullptr)
   , searchEdit_(nullptr)
   , quickFilterCombo_(nullptr)
@@ -48,9 +47,6 @@ TopicViewerPanel::TopicViewerPanel(QWidget* parent)
     typesRegistered = true;
   }
 
-  setAllowedAreas(Qt::AllDockWidgetAreas);
-  setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetClosable);
-
   setupUi();
   setupConnections();
 
@@ -81,8 +77,7 @@ TopicViewerPanel::~TopicViewerPanel() {
 }
 
 void TopicViewerPanel::setupUi() {
-  mainWidget_ = new QWidget(this);
-  QVBoxLayout* mainLayout = new QVBoxLayout(mainWidget_);
+  QVBoxLayout* mainLayout = new QVBoxLayout(this);
   mainLayout->setContentsMargins(4, 4, 4, 4);
   mainLayout->setSpacing(4);
 
@@ -90,7 +85,7 @@ void TopicViewerPanel::setupUi() {
   mainLayout->addWidget(createToolbarWidget());
 
   // Splitter for topic list and details
-  splitter_ = new QSplitter(Qt::Vertical, mainWidget_);
+  splitter_ = new QSplitter(Qt::Vertical, this);
 
   setupTopicList();
   splitter_->addWidget(topicTreeView_);
@@ -104,11 +99,9 @@ void TopicViewerPanel::setupUi() {
   mainLayout->addWidget(splitter_);
 
   // Status bar
-  statusLabel_ = new QLabel(tr("Ready"), mainWidget_);
+  statusLabel_ = new QLabel(tr("Ready"), this);
   statusLabel_->setStyleSheet("color: gray; font-size: 10px;");
   mainLayout->addWidget(statusLabel_);
-
-  setWidget(mainWidget_);
 }
 
 QWidget* TopicViewerPanel::createToolbarWidget() {
