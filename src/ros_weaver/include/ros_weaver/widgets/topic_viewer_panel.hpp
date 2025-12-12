@@ -12,6 +12,7 @@
 #include <QTextEdit>
 #include <QTimer>
 #include <QSortFilterProxyModel>
+#include <QSet>
 
 #include <rclcpp/rclcpp.hpp>
 #include <memory>
@@ -83,6 +84,9 @@ public slots:
   void monitorTopic(const QString& topicName);
   void stopMonitoringTopic(const QString& topicName);
 
+  // Auto-monitor topics that match canvas connections
+  void autoMonitorCanvasTopics();
+
 signals:
   // Emitted when a topic is selected (for canvas highlighting)
   void topicSelected(const QString& topicName);
@@ -122,6 +126,9 @@ private:
   // Get topics matching current filter
   QList<TopicDisplayInfo> getFilteredTopics() const;
 
+  // Helper for auto-monitor
+  void doAutoMonitorMatching(const QSet<QString>& canvasTopics);
+
   // UI Components
   QSplitter* splitter_;
 
@@ -131,6 +138,7 @@ private:
   QPushButton* refreshButton_;
   QToolButton* autoRefreshButton_;
   QToolButton* monitorButton_;
+  QPushButton* autoMonitorButton_;
   QLabel* statusLabel_;
 
   // Topic list

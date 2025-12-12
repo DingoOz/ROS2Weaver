@@ -1,6 +1,7 @@
 #include "ros_weaver/widgets/topic_viewer_panel.hpp"
 #include "ros_weaver/widgets/topic_list_model.hpp"
 #include "ros_weaver/canvas/weaver_canvas.hpp"
+#include "ros_weaver/canvas/connection_line.hpp"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -22,6 +23,7 @@ TopicViewerPanel::TopicViewerPanel(QWidget* parent)
   , refreshButton_(nullptr)
   , autoRefreshButton_(nullptr)
   , monitorButton_(nullptr)
+  , autoMonitorButton_(nullptr)
   , statusLabel_(nullptr)
   , topicTreeView_(nullptr)
   , topicModel_(nullptr)
@@ -153,6 +155,11 @@ QWidget* TopicViewerPanel::createToolbarWidget() {
   monitorButton_->setToolTip(tr("Toggle live message monitoring"));
   layout->addWidget(monitorButton_);
 
+  // Auto-monitor canvas topics button
+  autoMonitorButton_ = new QPushButton(tr("Canvas"));
+  autoMonitorButton_->setToolTip(tr("Auto-monitor topics matching canvas connections"));
+  layout->addWidget(autoMonitorButton_);
+
   return toolbar;
 }
 
@@ -252,6 +259,9 @@ void TopicViewerPanel::setupConnections() {
       stopMonitoring();
     }
   });
+
+  // Auto-monitor canvas topics
+  connect(autoMonitorButton_, &QPushButton::clicked, this, &TopicViewerPanel::autoMonitorCanvasTopics);
 
   // Topic selection
   connect(topicTreeView_->selectionModel(), &QItemSelectionModel::currentChanged,
@@ -725,6 +735,78 @@ void TopicViewerPanel::checkTopicInactivity() {
     std::lock_guard<std::mutex> lock(topicsMutex_);
     lastMessageTimes_[topicName.toStdString()] = 0;
   }
+}
+
+void TopicViewerPanel::autoMonitorCanvasTopics() {
+  if (!canvas_) {
+    statusLabel_->setText(tr("No canvas connected"));
+    return;
+  }
+
+  // Get all topic names from canvas connections
+  QSet<QString> canvasTopics;
+  for (ConnectionLine* conn : canvas_->connections()) {
+    QString topicName = conn->topicName();
+    if (!topicName.isEmpty()) {
+      canvasTopics.insert(topicName);
+    }
+  }
+
+  if (canvasTopics.isEmpty()) {
+    statusLabel_->setText(tr("No topics found on canvas"));
+    return;
+  }
+
+  // Ensure monitoring is started
+  if (!monitoring_.load()) {
+    startMonitoring();
+    monitorButton_->setChecked(true);
+  }
+
+  // Refresh topics if needed
+  if (allTopics_.isEmpty()) {
+    refreshTopics();
+    // Give discovery time to complete
+    QTimer::singleShot(1000, this, [this, canvasTopics]() {
+      doAutoMonitorMatching(canvasTopics);
+    });
+  } else {
+    doAutoMonitorMatching(canvasTopics);
+  }
+}
+
+void TopicViewerPanel::doAutoMonitorMatching(const QSet<QString>& canvasTopics) {
+  int matchCount = 0;
+
+  // For each canvas topic, find matching ROS topics and subscribe
+  for (const QString& canvasTopic : canvasTopics) {
+    // Try exact match first
+    bool found = false;
+    for (const TopicDisplayInfo& topic : allTopics_) {
+      if (topic.name == canvasTopic) {
+        monitorTopic(topic.name);
+        matchCount++;
+        found = true;
+        break;
+      }
+    }
+
+    // If no exact match, try suffix match (e.g., "/scan" matches "/tb3/scan")
+    if (!found) {
+      QString suffix = canvasTopic;
+      if (!suffix.startsWith('/')) suffix = "/" + suffix;
+
+      for (const TopicDisplayInfo& topic : allTopics_) {
+        if (topic.name.endsWith(suffix)) {
+          monitorTopic(topic.name);
+          matchCount++;
+          break;
+        }
+      }
+    }
+  }
+
+  statusLabel_->setText(tr("Monitoring %1 canvas topics").arg(matchCount));
 }
 
 }  // namespace ros_weaver
