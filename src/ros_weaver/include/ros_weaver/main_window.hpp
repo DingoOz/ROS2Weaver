@@ -21,6 +21,7 @@ class RosPackageIndex;
 class CodeGenerator;
 class PackageBlock;
 class ExternalEditor;
+class PackageWizard;
 
 class MainWindow : public QMainWindow {
   Q_OBJECT
@@ -35,6 +36,7 @@ private slots:
   void onSaveProject();
   void onSaveProjectAs();
   void onGenerateCode();
+  void onGenerateCodeWizard();
   void onExit();
   void onAbout();
 

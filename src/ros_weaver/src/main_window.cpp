@@ -6,6 +6,7 @@
 #include "ros_weaver/core/code_generator.hpp"
 #include "ros_weaver/core/external_editor.hpp"
 #include "ros_weaver/widgets/param_dashboard.hpp"
+#include "ros_weaver/wizards/package_wizard.hpp"
 
 #include <QApplication>
 #include <QMessageBox>
@@ -104,6 +105,11 @@ void MainWindow::setupMenuBar() {
   generateAction->setShortcut(tr("Ctrl+G"));
   generateAction->setToolTip(tr("Generate ROS2 package code from the current project"));
   connect(generateAction, &QAction::triggered, this, &MainWindow::onGenerateCode);
+
+  QAction* generateWizardAction = fileMenu->addAction(tr("Generate ROS2 Package (&Wizard)..."));
+  generateWizardAction->setShortcut(tr("Ctrl+Shift+G"));
+  generateWizardAction->setToolTip(tr("Step-by-step wizard for generating ROS2 packages with full customization"));
+  connect(generateWizardAction, &QAction::triggered, this, &MainWindow::onGenerateCodeWizard);
 
   fileMenu->addSeparator();
 
@@ -679,6 +685,56 @@ void MainWindow::onPackageItemDoubleClicked(QTreeWidgetItem* item, int column) {
   canvas_->addPackageBlock(packageName, centerPos);
 
   statusBar()->showMessage(tr("Added '%1' to canvas").arg(packageName));
+}
+
+void MainWindow::onGenerateCodeWizard() {
+  // Export current project
+  Project project;
+  canvas_->exportToProject(project);
+
+  if (project.blocks().isEmpty()) {
+    QMessageBox::warning(this, tr("Empty Project"),
+      tr("Cannot generate code from an empty project. Please add some nodes first."));
+    return;
+  }
+
+  // Create and show the wizard
+  PackageWizard wizard(project, this);
+
+  // Connect to generation complete signal
+  connect(&wizard, &PackageWizard::generationComplete,
+          this, [this](bool success, const QString& path) {
+    if (success) {
+      lastGeneratedPackagePath_ = path;
+      outputText_->append(tr("\nPackage generated via wizard: %1").arg(path));
+    }
+  });
+
+  if (wizard.exec() == QDialog::Accepted) {
+    // Show success dialog with VS Code option
+    QMessageBox msgBox(this);
+    msgBox.setWindowTitle(tr("Package Generated"));
+    msgBox.setIcon(QMessageBox::Information);
+    msgBox.setText(tr("ROS2 package has been generated successfully!"));
+    msgBox.setInformativeText(tr("Package location: %1").arg(wizard.generatedPackagePath()));
+
+    QPushButton* openVSCodeBtn = msgBox.addButton(tr("Open in VS Code"), QMessageBox::ActionRole);
+    QPushButton* openFolderBtn = msgBox.addButton(tr("Open Folder"), QMessageBox::ActionRole);
+    msgBox.addButton(QMessageBox::Close);
+
+    if (!ExternalEditor::isVSCodeAvailable()) {
+      openVSCodeBtn->setEnabled(false);
+      openVSCodeBtn->setToolTip(tr("VS Code not found on this system"));
+    }
+
+    msgBox.exec();
+
+    if (msgBox.clickedButton() == openVSCodeBtn) {
+      externalEditor_->openFolderInVSCode(wizard.generatedPackagePath());
+    } else if (msgBox.clickedButton() == openFolderBtn) {
+      ExternalEditor::openWithSystemDefault(wizard.generatedPackagePath());
+    }
+  }
 }
 
 void MainWindow::onGenerateCode() {
