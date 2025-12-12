@@ -1103,3 +1103,568 @@ system_discovery:
 - Warn if generating code for nodes not found in system
 - Option to only generate for matched/running nodes
 
+## Feature: TF Tree Viewer and Frame Linker
+
+### Overview
+
+A dedicated panel for visualizing the ROS2 TF (Transform) tree hierarchy in real-time, with intelligent linking back to canvas packages, topics, and YAML parameters. This provides roboticists with immediate insight into coordinate frame relationships and helps debug transform-related issues by connecting the visual TF tree to the design elements in ROS Weaver.
+
+### Why TF Visualization Matters
+
+TF2 is fundamental to ROS2 robotics - it defines how coordinate frames relate to each other (e.g., how the robot's base relates to its sensors, how odometry relates to the map). Common pain points:
+- "Why can't my planner find a transform to the goal?"
+- "Which node is supposed to publish the odom→base_link transform?"
+- "Is my URDF frame name matching what's in my YAML config?"
+
+This feature addresses these by making the TF tree visible and connected to the rest of the project.
+
+### Core Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           TF Tree Panel                                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ [🔍 Search frames...] [View: Tree ▼] [⟳ Refresh] [▶ Live] [⚙ Settings]     │
+├───────────────────────────────────┬─────────────────────────────────────────┤
+│                                   │                                         │
+│         Tree/Graph View           │           Details Panel                 │
+│                                   │                                         │
+│    map                            │  Frame: base_link                       │
+│    └── odom                       │  ─────────────────────────────────      │
+│        └── base_footprint         │  Parent: base_footprint                 │
+│            └── base_link ●        │  Type: Dynamic (10.2 Hz)                │
+│                ├── laser_frame    │  Last update: 0.02s ago                 │
+│                ├── camera_link    │  ─────────────────────────────────      │
+│                │   └── camera_rgb │  Transform:                             │
+│                └── imu_link       │    Translation: (0.0, 0.0, 0.1)         │
+│                                   │    Rotation: (0, 0, 0, 1)               │
+│    [orphan] tool_frame ⚠         │  ─────────────────────────────────      │
+│                                   │  🔗 Links:                              │
+│                                   │    📦 slam_toolbox (canvas)             │
+│                                   │    📄 nav2_params.yaml:line 42          │
+│                                   │    📡 /odom topic                        │
+│                                   │                                         │
+├───────────────────────────────────┴─────────────────────────────────────────┤
+│ Frames: 12 | Static: 8 | Dynamic: 4 | ⚠ 1 orphan | Updated: 12:34:56       │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### View Modes
+
+#### 1. Tree View (Default)
+Traditional hierarchical tree similar to a file explorer:
+```
+▼ map
+  └─▼ odom
+      └─▼ base_footprint
+          └─▼ base_link
+              ├── laser_frame
+              ├─▼ camera_link
+              │   ├── camera_rgb_frame
+              │   ├── camera_depth_frame
+              │   └── camera_ir_frame
+              └── imu_link
+```
+
+**Advantages:** Familiar, compact, easy to navigate deep hierarchies
+**Best for:** Understanding parent-child relationships, finding specific frames
+
+#### 2. Graph View
+Visual node-and-edge graph layout (similar to rqt_tf_tree):
+```
+        ┌─────┐
+        │ map │
+        └──┬──┘
+           │
+        ┌──▼──┐
+        │odom │
+        └──┬──┘
+           │
+    ┌──────▼───────┐
+    │base_footprint│
+    └──────┬───────┘
+           │
+      ┌────▼────┐
+      │base_link│
+      └─┬──┬──┬─┘
+        │  │  │
+   ┌────┘  │  └────┐
+   ▼       ▼       ▼
+┌─────┐ ┌─────┐ ┌─────┐
+│laser│ │cam  │ │imu  │
+└─────┘ └──┬──┘ └─────┘
+           │
+        ┌──▼──┐
+        │depth│
+        └─────┘
+```
+
+**Layout Options:**
+- **Top-Down**: Root at top, children below (default)
+- **Left-Right**: Root at left, better for wide/shallow trees
+- **Radial**: Root at center, frames radiate outward
+- **Force-Directed**: Auto-arranged, good for complex graphs
+
+**Advantages:** Visual relationships, see whole tree at once
+**Best for:** Understanding overall structure, presentations, debugging disconnections
+
+#### 3. Table View
+Flat list with sortable columns:
+```
+| Frame           | Parent          | Type    | Rate   | Publisher      | Status |
+|-----------------|-----------------|---------|--------|----------------|--------|
+| base_link       | base_footprint  | Dynamic | 10.2Hz | robot_state_pub| ✓ OK   |
+| laser_frame     | base_link       | Static  | -      | robot_state_pub| ✓ OK   |
+| camera_link     | base_link       | Static  | -      | urdf_publisher | ✓ OK   |
+| tool_frame      | (none)          | Dynamic | 1.0Hz  | tool_driver    | ⚠ Orphan|
+```
+
+**Advantages:** Dense information, sortable, filterable
+**Best for:** Finding specific issues, bulk analysis, export
+
+### Visual Encoding
+
+#### Frame Status Colors
+```
+🟢 Green  - Healthy: Recent updates, connected to tree
+🟡 Yellow - Warning: Stale (no update in 1-5 seconds), or orphan with publisher
+🔴 Red    - Error: Very stale (>5s), or critical orphan
+🔵 Blue   - Static: Transform published once on /tf_static
+⚪ Gray   - Unlinked: Frame exists but no canvas/YAML links found
+🟣 Purple - Selected/Highlighted: Currently selected frame
+```
+
+#### Connection Lines (Graph View)
+```
+───────  Solid thick:   High-rate dynamic transform (>10 Hz)
+─ ─ ─ ─  Dashed:        Low-rate dynamic transform (<1 Hz)
+═══════  Double:        Static transform
+· · · ·  Dotted:        Stale/problematic connection
+```
+
+#### Frame Icons
+```
+🔲 Standard frame
+📍 Root frame (no parent)
+🎯 Base link (robot body frame)
+📷 Camera/sensor frame
+🔗 Frame with canvas links
+⚠️ Problem frame (orphan, stale)
+📌 Pinned/bookmarked frame
+```
+
+### Link Detection and Display
+
+#### 1. Frame → Canvas Block Links
+
+**Detection Methods:**
+- Parameter matching: Block has parameter containing frame name
+  - E.g., `base_frame: "base_link"` in slam_toolbox block
+- Pin frame_id: Connection pins with matching frame references
+- Block name inference: Block named "laser" → likely publishes laser_frame
+
+**Display:**
+```
+🔗 Canvas Links (2):
+  📦 slam_toolbox
+     └─ Parameter: base_frame = "base_link"
+  📦 nav2_controller
+     └─ Parameter: robot_base_frame = "base_link"
+```
+
+**Interactions:**
+- Click link → highlight block on canvas
+- Double-click → center canvas on block
+- Right-click → "Show block parameters"
+
+#### 2. Frame → Topic Links
+
+**Detection Methods:**
+- Topic message contains frame_id field matching this frame
+- Topic is /tf or /tf_static and contains this transform
+- Publisher node also publishes transforms for this frame
+
+**Display:**
+```
+📡 Topic Links (3):
+  /scan
+     └─ Header.frame_id = "laser_frame" @ 10 Hz
+  /odom
+     └─ Header.frame_id = "odom" @ 30 Hz
+     └─ child_frame_id = "base_footprint"
+  /tf
+     └─ Publishes: odom → base_footprint
+```
+
+**Interactions:**
+- Click → open in Topic Viewer
+- Right-click → "Echo topic", "Show publishers"
+
+#### 3. Frame → YAML Parameter Links
+
+**Detection Methods:**
+- Scan loaded YAML files for string values matching frame name
+- Common parameter patterns: `*_frame`, `*_frame_id`, `frame_id`
+- Exact and fuzzy matching (e.g., "base_link" matches "base_link_frame")
+
+**Display:**
+```
+📄 YAML Links (2):
+  nav2_params.yaml
+     └─ Line 42: global_frame: "map"
+     └─ Line 43: robot_base_frame: "base_link"
+  slam_params.yaml
+     └─ Line 15: odom_frame: "odom"
+     └─ Line 16: base_frame: "base_link"
+```
+
+**Interactions:**
+- Click → open YAML file in param dashboard (scrolled to line)
+- Right-click → "Open in VS Code at line"
+- Hover → show surrounding context
+
+#### 4. Frame → Node/Publisher Links
+
+**Detection Methods:**
+- Query /tf topic for publishers of this specific transform
+- Use ros2 node info to find which nodes publish TF
+
+**Display:**
+```
+🖥️ Publishers:
+  /robot_state_publisher
+     └─ Publishes: base_link → laser_frame (static)
+     └─ Publishes: base_link → camera_link (static)
+  /ekf_localization
+     └─ Publishes: odom → base_footprint (dynamic, 50 Hz)
+```
+
+### Details Panel
+
+When a frame is selected, show comprehensive details:
+
+```
+┌─ Frame Details ─────────────────────────────────────────┐
+│                                                         │
+│  Frame: base_link                                       │
+│  ════════════════════════════════════════════════════   │
+│                                                         │
+│  Hierarchy                                              │
+│  ──────────                                             │
+│  Parent: base_footprint                                 │
+│  Children: laser_frame, camera_link, imu_link          │
+│  Depth: 4 (from root "map")                            │
+│                                                         │
+│  Transform (from parent)                                │
+│  ────────────────────────                               │
+│  Translation: x=0.0, y=0.0, z=0.05                     │
+│  Rotation (quaternion): x=0, y=0, z=0, w=1             │
+│  Rotation (RPY): roll=0°, pitch=0°, yaw=0°             │
+│                                                         │
+│  Status                                                 │
+│  ──────                                                 │
+│  Type: Dynamic                                          │
+│  Update Rate: 50.2 Hz                                   │
+│  Last Update: 0.019 seconds ago                        │
+│  Publisher: /robot_state_publisher                      │
+│  Status: ✓ Healthy                                      │
+│                                                         │
+│  Links                                  [Show All...]   │
+│  ─────                                                  │
+│  📦 slam_toolbox (base_frame)                          │
+│  📦 nav2_controller (robot_base_frame)                 │
+│  📄 nav2_params.yaml:42                                │
+│  📡 /odom (child_frame_id)                             │
+│                                                         │
+│  Actions                                                │
+│  ───────                                                │
+│  [Lookup Transform...] [Echo TF] [Copy Frame Name]     │
+│  [Show on Canvas] [Find in YAML] [Pin Frame]           │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Transform Lookup Tool
+
+Inline tool for looking up transforms between any two frames:
+
+```
+┌─ Transform Lookup ──────────────────────────────────────┐
+│                                                         │
+│  From: [map          ▼]  To: [base_link      ▼]        │
+│                                                         │
+│  [Lookup]  [Swap]  [Copy]                              │
+│                                                         │
+│  Result:                                                │
+│  ────────                                               │
+│  Translation: x=1.234, y=5.678, z=0.0                  │
+│  Rotation (quat): x=0, y=0, z=0.707, w=0.707           │
+│  Rotation (RPY): roll=0°, pitch=0°, yaw=90°            │
+│                                                         │
+│  Path: map → odom → base_footprint → base_link         │
+│  Total hops: 3                                          │
+│                                                         │
+│  ☑ Live update (currently: 10 Hz)                      │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Problem Detection and Alerts
+
+#### Issue Types
+
+```
+┌─ TF Issues (3) ─────────────────────────────────────────┐
+│                                                         │
+│ ⚠️ ORPHAN FRAME                                         │
+│    tool_frame has no parent connection                  │
+│    Publisher: /tool_driver                              │
+│    Suggestion: Add transform from base_link → tool_frame│
+│    [Show Frame] [Ignore]                               │
+│                                                         │
+│ ⚠️ STALE TRANSFORM                                      │
+│    camera_link → camera_depth hasn't updated in 5.2s   │
+│    Expected rate: 30 Hz                                 │
+│    Last publisher: /camera_driver (may have crashed)   │
+│    [Show Frame] [Check Node]                           │
+│                                                         │
+│ ⚠️ FRAME MISMATCH                                       │
+│    YAML config uses "base_footprint"                   │
+│    But TF tree has "base_foot_print" (typo?)           │
+│    Location: slam_params.yaml:16                       │
+│    [Show in YAML] [Show in TF]                         │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
+```
+
+#### Problem Indicators in Tree
+```
+map
+└── odom
+    └── base_footprint
+        └── base_link
+            ├── laser_frame
+            ├── camera_link
+            │   └── camera_depth ⚠️ [stale: 5.2s]
+            └── imu_link
+[orphan] tool_frame ⚠️
+```
+
+### Filtering and Search
+
+#### Search Box
+```
+[🔍 Search: base                                    ]
+     ↓
+Matching frames:
+  • base_footprint
+  • base_link
+  • base_scan
+
+Search in:
+  ☑ Frame names
+  ☑ Parent names
+  ☐ Publisher names
+  ☐ Linked parameters
+```
+
+#### Filter Options
+```
+Filter ▼
+┌────────────────────────┐
+│ ☑ Show static frames   │
+│ ☑ Show dynamic frames  │
+│ ☐ Show orphans only    │
+│ ☐ Show problems only   │
+│ ───────────────────    │
+│ ☑ Show linked frames   │
+│ ☐ Show unlinked only   │
+│ ───────────────────    │
+│ Publisher: [Any     ▼] │
+│ Min rate:  [0    ] Hz  │
+└────────────────────────┘
+```
+
+### Context Menu Actions
+
+Right-click on a frame:
+```
+┌────────────────────────────────┐
+│ 📋 Copy Frame Name             │
+│ 📋 Copy Full Path (map/odom/…) │
+│ ─────────────────────────────  │
+│ 🔍 Lookup Transform To...      │
+│ 🔍 Lookup Transform From...    │
+│ ─────────────────────────────  │
+│ 📺 Echo Transform              │
+│ 📊 Plot Transform Over Time    │
+│ ─────────────────────────────  │
+│ 📦 Show on Canvas              │
+│ 📄 Find in YAML Files          │
+│ 📡 Show Related Topics         │
+│ ─────────────────────────────  │
+│ 📌 Pin Frame                   │
+│ 👁️ Hide Frame                  │
+│ ─────────────────────────────  │
+│ 🎯 Set as Reference Frame      │
+│ ⚙️ Frame Properties...         │
+└────────────────────────────────┘
+```
+
+### Canvas Integration
+
+#### Bidirectional Linking
+
+**TF Panel → Canvas:**
+- Click frame → highlight all canvas blocks that reference this frame
+- Double-click → center canvas on most relevant block
+- Drag frame to canvas → add frame reference to selected block's parameters
+
+**Canvas → TF Panel:**
+- Select block on canvas → highlight all frames it references in TF tree
+- Right-click block → "Show TF Frames" opens TF panel filtered to relevant frames
+- Connection hover → show frame info if connection involves TF
+
+#### Visual Sync Mode
+```
+☑ Sync selection between Canvas and TF Panel
+```
+When enabled:
+- Selecting a block on canvas auto-selects its frames in TF panel
+- Selecting a frame in TF panel auto-selects blocks that use it
+
+### Timeline / History View
+
+For debugging transform issues over time:
+
+```
+┌─ TF Timeline ───────────────────────────────────────────┐
+│                                                         │
+│ Frame: odom → base_footprint                           │
+│                                                         │
+│ Time ──────────────────────────────────────────►       │
+│ 12:34:50    :51    :52    :53    :54    :55   NOW     │
+│    │         │      │      │      │      │      │      │
+│    ●─────────●──────●──────●──────●──────●──────●      │
+│    50Hz     50Hz   50Hz   ⚠️2Hz  50Hz   50Hz   50Hz    │
+│                            │                            │
+│                     [Rate drop detected]               │
+│                                                         │
+│ [◀◀] [◀] [▶] [▶▶]  [⏸ Pause]  [📊 Plot]              │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| Ctrl+T | Open/focus TF Panel |
+| Ctrl+F | Focus search box (when panel focused) |
+| F5 | Refresh TF tree |
+| Space | Toggle live updates |
+| Enter | Show details for selected frame |
+| Ctrl+L | Open transform lookup dialog |
+| Ctrl+G | Toggle graph/tree view |
+| Arrow keys | Navigate tree |
+| Ctrl+C | Copy selected frame name |
+
+### Technical Implementation
+
+#### TF Listener Integration
+
+```cpp
+class TFTreeModel : public QAbstractItemModel {
+public:
+  // Listens to /tf and /tf_static
+  void startListening();
+  void stopListening();
+
+  // Build tree from tf2_ros::Buffer
+  void rebuildTree();
+
+  // Query frame info
+  FrameInfo getFrameInfo(const QString& frame);
+  QStringList getFrameChildren(const QString& frame);
+  QString getFrameParent(const QString& frame);
+
+signals:
+  void frameUpdated(const QString& frame);
+  void treeStructureChanged();
+  void issueDetected(const TFIssue& issue);
+
+private:
+  std::shared_ptr<tf2_ros::Buffer> tfBuffer_;
+  std::shared_ptr<tf2_ros::TransformListener> tfListener_;
+  QMap<QString, FrameInfo> frameCache_;
+};
+```
+
+#### Link Discovery Engine
+
+```cpp
+class TFLinkDiscovery {
+public:
+  struct FrameLinks {
+    QList<CanvasBlockLink> canvasLinks;
+    QList<TopicLink> topicLinks;
+    QList<YAMLLink> yamlLinks;
+    QList<NodeLink> publisherLinks;
+  };
+
+  // Discover all links for a frame
+  FrameLinks discoverLinks(
+    const QString& frameName,
+    const Project& project,
+    const SystemGraph& systemGraph
+  );
+
+private:
+  // Search strategies
+  QList<CanvasBlockLink> findCanvasLinks(const QString& frame, const Project& project);
+  QList<YAMLLink> findYAMLLinks(const QString& frame, const QList<YamlFileInfo>& yamlFiles);
+  QList<TopicLink> findTopicLinks(const QString& frame, const SystemGraph& graph);
+};
+```
+
+#### Update Strategy
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   TF Listener   │────►│   Frame Cache   │────►│    Qt Model     │
+│   (ROS thread)  │     │  (shared data)  │     │   (UI thread)   │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+         │                      │                       │
+         │ /tf callbacks        │ Periodic sync         │ dataChanged()
+         │ ~100 Hz              │ 10-30 Hz              │ signals
+         ▼                      ▼                       ▼
+    Raw transforms      Aggregated state          UI updates
+```
+
+### Configuration Options
+
+```yaml
+tf_viewer:
+  default_view: tree  # tree, graph, table
+  live_update: true
+  update_rate_hz: 10
+  stale_threshold_sec: 1.0
+  critical_stale_sec: 5.0
+  show_static_frames: true
+  show_orphan_frames: true
+  highlight_problems: true
+  sync_canvas_selection: true
+  graph_layout: top_down  # top_down, left_right, radial, force
+  show_transform_values: true
+  rotation_format: rpy  # rpy, quaternion, axis_angle
+```
+
+### Future Enhancements
+
+- URDF import: Load URDF and compare expected vs actual TF tree
+- Transform recording: Record transforms to bag for replay
+- Visual transform editor: Adjust transforms visually and publish corrections
+- Multi-robot TF: Handle namespaced TF trees for multi-robot setups
+- AR overlay: Show TF frames overlaid on camera images
+- Performance profiler: Identify TF-related bottlenecks
+
