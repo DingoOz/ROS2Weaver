@@ -267,6 +267,15 @@ ConnectionLine* WeaverCanvas::createConnection(PackageBlock* source, int sourceP
   // Set connection color based on data type
   connection->setConnectionColor(source->pinColor(false, sourcePin));
 
+  // Set topic name from source pin name (for animation matching)
+  const QList<Pin>& pins = source->outputPins();
+  if (sourcePin < pins.size()) {
+    QString pinName = pins[sourcePin].name;
+    // Ensure topic name starts with / for ROS convention
+    QString topicName = pinName.startsWith('/') ? pinName : ("/" + pinName);
+    connection->setTopicName(topicName);
+  }
+
   scene_->addItem(connection);
 
   source->addConnection(connection);
