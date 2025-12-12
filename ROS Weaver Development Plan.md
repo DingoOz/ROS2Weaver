@@ -1830,6 +1830,20 @@ tf_viewer:
 
 ### Future Enhancements
 
+- **3D TF Tree Visualization**: Interactive 3D rendering of the transform tree
+  - **OpenGL/Qt3D Rendering**: Embedded 3D viewport showing frame axes in 3D space
+  - **Frame Axes Display**: RGB axes (X=Red, Y=Green, Z=Blue) at each frame origin
+  - **Connection Lines**: Lines connecting parent-child frames showing hierarchy
+  - **Interactive Camera**: Orbit, pan, zoom controls for 3D navigation
+  - **Frame Labels**: Hoverable/clickable frame names in 3D view
+  - **Animation**: Smooth interpolation showing transform changes over time
+  - **Grid/Origin**: Reference grid plane and world origin marker
+  - **Selective Rendering**: Show/hide specific branches or frame types
+  - **Depth Visualization**: Color gradient based on tree depth
+  - **Transform Gizmos**: Visual representation of rotation/translation at each frame
+  - **Screenshot/Recording**: Export 3D view as image or animated GIF
+  - **Sync with Tree View**: Selecting frame in 3D highlights it in tree panel and vice versa
+
 - URDF import: Load URDF and compare expected vs actual TF tree
 - Transform recording: Record transforms to bag for replay
 - Visual transform editor: Adjust transforms visually and publish corrections
