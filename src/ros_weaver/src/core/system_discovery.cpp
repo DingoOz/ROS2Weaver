@@ -14,9 +14,25 @@ SystemDiscovery::SystemDiscovery(QObject* parent)
   , autoScanEnabled_(false)
   , autoScanIntervalSec_(10)
   , autoScanTimer_(nullptr)
+  , scanTimeoutSec_(5)
+  , scanTimeoutTimer_(nullptr)
+  , scanStartTime_(0)
 {
+  // Register meta types for cross-thread signal/slot connections
+  static bool typesRegistered = false;
+  if (!typesRegistered) {
+    qRegisterMetaType<DiscoveredTopic>("DiscoveredTopic");
+    qRegisterMetaType<DiscoveredNode>("DiscoveredNode");
+    qRegisterMetaType<SystemGraph>("SystemGraph");
+    typesRegistered = true;
+  }
+
   autoScanTimer_ = new QTimer(this);
   connect(autoScanTimer_, &QTimer::timeout, this, &SystemDiscovery::onAutoScanTimer);
+
+  scanTimeoutTimer_ = new QTimer(this);
+  scanTimeoutTimer_->setSingleShot(true);
+  connect(scanTimeoutTimer_, &QTimer::timeout, this, &SystemDiscovery::onScanTimeoutTimer);
 }
 
 SystemDiscovery::~SystemDiscovery() {
@@ -30,6 +46,11 @@ void SystemDiscovery::initializeRosNode() {
   }
 
   try {
+    // Initialize ROS2 if not already done
+    if (!rclcpp::ok()) {
+      rclcpp::init(0, nullptr);
+    }
+
     // Create a unique node name for discovery
     std::string nodeName = "ros_weaver_discovery_" +
                            std::to_string(QDateTime::currentMSecsSinceEpoch());
@@ -65,8 +86,12 @@ void SystemDiscovery::scan() {
   }
 
   scanning_ = true;
+  scanStartTime_ = QDateTime::currentMSecsSinceEpoch();
   emit scanStarted();
   emit scanProgress(0, tr("Initializing ROS2 discovery..."));
+
+  // Start timeout timer
+  scanTimeoutTimer_->start(scanTimeoutSec_ * 1000);
 
   // Perform scan in a separate thread to avoid blocking UI
   QThread* thread = QThread::create([this]() {
@@ -75,6 +100,13 @@ void SystemDiscovery::scan() {
 
   connect(thread, &QThread::finished, thread, &QThread::deleteLater);
   thread->start();
+}
+
+qint64 SystemDiscovery::elapsedScanTime() const {
+  if (!scanning_.load() || scanStartTime_ == 0) {
+    return 0;
+  }
+  return QDateTime::currentMSecsSinceEpoch() - scanStartTime_;
 }
 
 void SystemDiscovery::performScan() {
@@ -110,14 +142,20 @@ void SystemDiscovery::performScan() {
     // Store results
     systemGraph_ = graph;
 
+    // Stop timeout timer (from main thread)
+    QMetaObject::invokeMethod(scanTimeoutTimer_, "stop", Qt::QueuedConnection);
+
     emit scanProgress(100, tr("Scan complete"));
     emit scanCompleted(graph);
 
   } catch (const std::exception& e) {
+    // Stop timeout timer (from main thread)
+    QMetaObject::invokeMethod(scanTimeoutTimer_, "stop", Qt::QueuedConnection);
     emit scanFailed(tr("Scan failed: %1").arg(e.what()));
   }
 
   scanning_ = false;
+  scanStartTime_ = 0;
 }
 
 QList<DiscoveredTopic> SystemDiscovery::discoverTopics() {
@@ -289,6 +327,27 @@ void SystemDiscovery::setAutoScanInterval(int seconds) {
 void SystemDiscovery::onAutoScanTimer() {
   if (!scanning_.load()) {
     scan();
+  }
+}
+
+void SystemDiscovery::setScanTimeout(int seconds) {
+  scanTimeoutSec_ = qBound(1, seconds, 30);
+}
+
+void SystemDiscovery::onScanTimeoutTimer() {
+  if (scanning_.load()) {
+    // Scan is still running - it timed out
+    scanning_ = false;
+    scanStartTime_ = 0;
+
+    // Emit with whatever data we have so far (may be partial)
+    if (!systemGraph_.isEmpty()) {
+      emit scanProgress(100, tr("Scan timed out (partial results)"));
+      emit scanCompleted(systemGraph_);
+    } else {
+      emit scanProgress(100, tr("Scan timed out"));
+    }
+    emit scanTimedOut();
   }
 }
 

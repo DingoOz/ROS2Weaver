@@ -70,6 +70,12 @@ public:
   // Get auto-scan interval in seconds
   int autoScanInterval() const { return autoScanIntervalSec_; }
 
+  // Get scan timeout in seconds
+  int scanTimeout() const { return scanTimeoutSec_; }
+
+  // Get elapsed scan time in milliseconds (only valid during scanning)
+  qint64 elapsedScanTime() const;
+
 public slots:
   // Trigger a manual scan
   void scan();
@@ -79,6 +85,9 @@ public slots:
 
   // Set auto-scan interval in seconds (5-60)
   void setAutoScanInterval(int seconds);
+
+  // Set scan timeout in seconds (1-30)
+  void setScanTimeout(int seconds);
 
   // Stop any ongoing scan
   void stopScan();
@@ -96,8 +105,12 @@ signals:
   // Emitted if scan fails
   void scanFailed(const QString& error);
 
+  // Emitted if scan times out
+  void scanTimedOut();
+
 private slots:
   void onAutoScanTimer();
+  void onScanTimeoutTimer();
 
 private:
   void performScan();
@@ -122,8 +135,18 @@ private:
   bool autoScanEnabled_;
   int autoScanIntervalSec_;
   QTimer* autoScanTimer_;
+
+  // Scan timeout
+  int scanTimeoutSec_;
+  QTimer* scanTimeoutTimer_;
+  qint64 scanStartTime_;
 };
 
 }  // namespace ros_weaver
+
+// Register types for cross-thread signal/slot connections
+Q_DECLARE_METATYPE(ros_weaver::DiscoveredTopic)
+Q_DECLARE_METATYPE(ros_weaver::DiscoveredNode)
+Q_DECLARE_METATYPE(ros_weaver::SystemGraph)
 
 #endif  // ROS_WEAVER_SYSTEM_DISCOVERY_HPP

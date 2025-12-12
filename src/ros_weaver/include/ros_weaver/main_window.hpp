@@ -85,7 +85,10 @@ private slots:
   // System discovery
   void onScanSystem();
   void onToggleAutoScan(bool enabled);
+  void onScanStarted();
+  void onScanProgress(int percent, const QString& message);
   void onScanCompleted(const SystemGraph& graph);
+  void onScanTimedOut();
   void onMappingCompleted(const MappingResults& results);
   void onMappingBlockSelected(const QUuid& blockId);
 
@@ -148,6 +151,7 @@ private:
   QDockWidget* systemMappingDock_;
   QAction* scanSystemAction_;
   QAction* autoScanAction_;
+  QProgressBar* scanProgressBar_;
 };
 
 }  // namespace ros_weaver

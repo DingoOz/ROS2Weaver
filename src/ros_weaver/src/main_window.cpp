@@ -38,6 +38,7 @@
 #include <QRadioButton>
 #include <QGroupBox>
 #include <QFormLayout>
+#include <QSpinBox>
 
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <yaml-cpp/yaml.h>
@@ -71,6 +72,7 @@ MainWindow::MainWindow(QWidget* parent)
   , systemMappingDock_(nullptr)
   , scanSystemAction_(nullptr)
   , autoScanAction_(nullptr)
+  , scanProgressBar_(nullptr)
 {
   setWindowTitle(baseWindowTitle_);
   setMinimumSize(1200, 800);
@@ -85,8 +87,14 @@ MainWindow::MainWindow(QWidget* parent)
   canvasMapper_ = new CanvasMapper(this);
 
   // Connect system discovery signals
+  connect(systemDiscovery_, &SystemDiscovery::scanStarted,
+          this, &MainWindow::onScanStarted);
+  connect(systemDiscovery_, &SystemDiscovery::scanProgress,
+          this, &MainWindow::onScanProgress);
   connect(systemDiscovery_, &SystemDiscovery::scanCompleted,
           this, &MainWindow::onScanCompleted);
+  connect(systemDiscovery_, &SystemDiscovery::scanTimedOut,
+          this, &MainWindow::onScanTimedOut);
   connect(canvasMapper_, &CanvasMapper::mappingCompleted,
           this, &MainWindow::onMappingCompleted);
 
@@ -481,10 +489,20 @@ void MainWindow::setupStatusBar() {
   connect(rosStatusWidget_, &RosStatusWidget::titleBarUpdateRequested,
           this, &MainWindow::onRosStatusTitleBarUpdate);
 
-  // Add a stretch to push status widget to the right
+  // Create scan progress bar (hidden by default)
+  scanProgressBar_ = new QProgressBar(this);
+  scanProgressBar_->setTextVisible(true);
+  scanProgressBar_->setRange(0, 100);
+  scanProgressBar_->setFixedWidth(200);
+  scanProgressBar_->setVisible(false);
+
+  // Add a stretch to push widgets to the right
   QWidget* spacer = new QWidget();
   spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
   statusBar()->addWidget(spacer);
+
+  // Add scan progress bar
+  statusBar()->addPermanentWidget(scanProgressBar_);
 
   // Add ROS status widget to the right side of status bar
   statusBar()->addPermanentWidget(rosStatusWidget_);
@@ -1173,6 +1191,36 @@ void MainWindow::onOpenSettings() {
 
   mainLayout->addWidget(ros2Group);
 
+  // System Discovery group
+  QGroupBox* discoveryGroup = new QGroupBox(tr("System Discovery"), &dialog);
+  QVBoxLayout* discoveryLayout = new QVBoxLayout(discoveryGroup);
+
+  // Scan timeout setting
+  QHBoxLayout* timeoutLayout = new QHBoxLayout();
+  QLabel* timeoutLabel = new QLabel(tr("Scan timeout (seconds):"), discoveryGroup);
+  QSpinBox* timeoutSpinBox = new QSpinBox(discoveryGroup);
+  timeoutSpinBox->setRange(1, 30);
+  timeoutSpinBox->setValue(systemDiscovery_ ? systemDiscovery_->scanTimeout() : 5);
+  timeoutSpinBox->setToolTip(tr("Maximum time to wait for ROS2 system discovery (1-30 seconds)"));
+  timeoutLayout->addWidget(timeoutLabel);
+  timeoutLayout->addWidget(timeoutSpinBox);
+  timeoutLayout->addStretch();
+  discoveryLayout->addLayout(timeoutLayout);
+
+  // Auto-scan interval setting
+  QHBoxLayout* intervalLayout = new QHBoxLayout();
+  QLabel* intervalLabel = new QLabel(tr("Auto-scan interval (seconds):"), discoveryGroup);
+  QSpinBox* intervalSpinBox = new QSpinBox(discoveryGroup);
+  intervalSpinBox->setRange(5, 60);
+  intervalSpinBox->setValue(systemDiscovery_ ? systemDiscovery_->autoScanInterval() : 10);
+  intervalSpinBox->setToolTip(tr("Interval between automatic system scans when auto-scan is enabled (5-60 seconds)"));
+  intervalLayout->addWidget(intervalLabel);
+  intervalLayout->addWidget(intervalSpinBox);
+  intervalLayout->addStretch();
+  discoveryLayout->addLayout(intervalLayout);
+
+  mainLayout->addWidget(discoveryGroup);
+
   // Add stretch to push buttons to bottom
   mainLayout->addStretch();
 
@@ -1196,6 +1244,12 @@ void MainWindow::onOpenSettings() {
     } else if (bothRadio->isChecked()) {
       rosStatusWidget_->setDisplayLocation(StatusDisplayLocation::Both);
     }
+
+    // Apply system discovery settings
+    if (systemDiscovery_) {
+      systemDiscovery_->setScanTimeout(timeoutSpinBox->value());
+      systemDiscovery_->setAutoScanInterval(intervalSpinBox->value());
+    }
   }
 }
 
@@ -1204,7 +1258,6 @@ void MainWindow::onOpenSettings() {
 void MainWindow::onScanSystem() {
   if (!systemDiscovery_) return;
 
-  statusBar()->showMessage(tr("Scanning ROS2 system..."));
   systemDiscovery_->scan();
 }
 
@@ -1217,7 +1270,33 @@ void MainWindow::onToggleAutoScan(bool enabled) {
   }
 }
 
+void MainWindow::onScanStarted() {
+  if (scanProgressBar_) {
+    scanProgressBar_->setValue(0);
+    scanProgressBar_->setFormat(tr("Scanning..."));
+    scanProgressBar_->setVisible(true);
+  }
+  if (scanSystemAction_) {
+    scanSystemAction_->setEnabled(false);
+  }
+  statusBar()->showMessage(tr("Scanning ROS2 system..."));
+}
+
+void MainWindow::onScanProgress(int percent, const QString& message) {
+  if (scanProgressBar_) {
+    scanProgressBar_->setValue(percent);
+    scanProgressBar_->setFormat(message);
+  }
+}
+
 void MainWindow::onScanCompleted(const SystemGraph& graph) {
+  if (scanProgressBar_) {
+    scanProgressBar_->setVisible(false);
+  }
+  if (scanSystemAction_) {
+    scanSystemAction_->setEnabled(true);
+  }
+
   statusBar()->showMessage(
     tr("Scan complete: %1 nodes, %2 topics found")
       .arg(graph.nodes.size())
@@ -1231,6 +1310,17 @@ void MainWindow::onScanCompleted(const SystemGraph& graph) {
     canvas_->exportToProject(project);
     canvasMapper_->mapCanvasToSystem(project, graph);
   }
+}
+
+void MainWindow::onScanTimedOut() {
+  if (scanProgressBar_) {
+    scanProgressBar_->setVisible(false);
+  }
+  if (scanSystemAction_) {
+    scanSystemAction_->setEnabled(true);
+  }
+
+  statusBar()->showMessage(tr("Scan timed out"), 5000);
 }
 
 void MainWindow::onMappingCompleted(const MappingResults& results) {
