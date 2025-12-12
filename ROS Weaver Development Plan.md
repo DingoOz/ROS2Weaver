@@ -1893,6 +1893,16 @@ tf_viewer:
   rotation_format: rpy  # rpy, quaternion, axis_angle
 ```
 
+### Known Issues / Fixes Needed
+
+- **View Mode Switching (Bug)**: The Tree View / Flat List combo box doesn't properly switch between views
+  - **Current State**: Combo box exists but view doesn't change when selection changes
+  - **Fix Required**: Implement `onViewModeChanged()` slot to rebuild tree in selected mode
+  - **Tree View**: Hierarchical parent-child structure (current default)
+  - **Flat List**: Alphabetically sorted flat list of all frames with parent column
+  - **Table View** (future): Sortable columns for frame, parent, type, rate, status
+  - **Graph View** (future): Visual node-and-edge graph like rqt_tf_tree
+
 ### Future Enhancements
 
 - **3D TF Tree Visualization**: Interactive 3D rendering of the transform tree
