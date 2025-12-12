@@ -449,3 +449,333 @@ An optional step-by-step wizard that guides users through ROS2 package generatio
 - Support for generating multiple packages (e.g., interfaces package separate from nodes)
 - Export wizard configuration for team sharing
 
+## Feature: Real-Time Topic Viewer and Monitor
+
+### Overview
+
+A comprehensive dockable panel for monitoring, filtering, and searching ROS2 topics in real-time. This provides introspection capabilities similar to `ros2 topic` CLI tools but with a rich graphical interface optimized for rapid exploration and debugging.
+
+### Design Philosophy
+
+The topic viewer should follow these principles:
+
+1. **Lazy by Default**: Don't subscribe to topics until explicitly requested - subscribing to all topics simultaneously would overwhelm the system
+2. **Non-Blocking UI**: All ROS2 operations happen on background threads; the UI remains responsive
+3. **Progressive Disclosure**: Show summary info first, drill down for details on demand
+4. **Canvas Integration**: Seamlessly connect topic exploration with the visual node graph
+
+### Core Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      Topic Viewer Panel                          │
+├─────────────────────────────────────────────────────────────────┤
+│ [🔍 Search...        ] [Filter ▼] [⟳ Refresh] [▶ Auto] [⚙]     │
+├─────────────────────────────────────────────────────────────────┤
+│ Topic Name           │ Type              │ Hz    │ Pubs │ Subs  │
+├─────────────────────────────────────────────────────────────────┤
+│ ▶ /scan              │ sensor_msgs/...   │ 10.0  │  1   │  2    │
+│ ▼ /odom              │ nav_msgs/Odome... │ 30.0  │  1   │  3    │
+│   └─ [Message Preview Panel]                                    │
+│      pose.position.x: 1.234                                     │
+│      pose.position.y: 5.678                                     │
+│      twist.linear.x: 0.22                                       │
+│ ▶ /cmd_vel           │ geometry_msgs/... │ 10.0  │  1   │  1    │
+│ ▶ /map               │ nav_msgs/Occup... │  0.2  │  1   │  2    │
+├─────────────────────────────────────────────────────────────────┤
+│ Status: 47 topics │ 12 active │ Monitoring: /odom              │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Features
+
+#### 1. Topic Discovery and Listing
+
+- **Auto-Discovery**: Periodically refresh topic list (configurable: 1-10 seconds, or manual only)
+- **Hierarchical View**: Option to view topics as flat list or grouped by namespace tree
+  ```
+  / (root)
+  ├── robot1/
+  │   ├── scan
+  │   ├── odom
+  │   └── cmd_vel
+  └── sensors/
+      ├── camera/image_raw
+      └── imu/data
+  ```
+- **Topic Metadata**: For each topic, show:
+  - Full topic name
+  - Message type (with tooltip showing full type path)
+  - Current publish rate (Hz) - sampled, not subscribed
+  - Publisher count
+  - Subscriber count
+  - QoS profile summary (reliability, durability)
+
+#### 2. Filtering System
+
+**Quick Filters (Toolbar Dropdown):**
+- All Topics
+- Active Only (Hz > 0)
+- With Publishers
+- With Subscribers
+- Standard Messages (std_msgs/*)
+- Sensor Messages (sensor_msgs/*)
+- Navigation Messages (nav_msgs/*, geometry_msgs/*)
+- Custom filter...
+
+**Advanced Filter Dialog:**
+```
+┌─ Advanced Filter ─────────────────────────────────┐
+│                                                   │
+│ Topic Name:  [          ] ☑ Regex  ☑ Case-sens  │
+│ Message Type:[          ] ☑ Regex               │
+│                                                   │
+│ Namespace:   [/robot1/*        ▼]                │
+│                                                   │
+│ Activity:    ○ Any  ● Active  ○ Idle            │
+│                                                   │
+│ Publishers:  Min [0  ] Max [999]                 │
+│ Subscribers: Min [0  ] Max [999]                 │
+│ Rate (Hz):   Min [0.0] Max [1000]                │
+│                                                   │
+│ [Save as Preset...] [Load Preset ▼]              │
+│                                                   │
+│              [Cancel]  [Apply]                   │
+└───────────────────────────────────────────────────┘
+```
+
+**Filter Presets:**
+- Save named filter configurations
+- Quick-access to recent/favorite filters
+- Share presets via export/import
+
+#### 3. Search Capabilities
+
+**Topic Search (Fast):**
+- Instant search-as-you-type filtering on topic names
+- Fuzzy matching option (e.g., "cmd" matches "/cmd_vel", "/robot/command")
+- Search history with recent queries
+
+**Message Content Search (On-Demand):**
+- Search within message field values across monitored topics
+- Requires explicit "Search in Messages" action (expensive operation)
+- Results show topic + timestamp + matching field
+- Regex support for complex patterns
+
+**Type Search:**
+- Find all topics of a specific message type
+- Wildcard support: `sensor_msgs/*`, `*Image*`
+
+#### 4. Real-Time Monitoring
+
+**Subscription Modes:**
+- **Off**: No subscription, only metadata shown
+- **Sample**: Subscribe briefly to get one message, then unsubscribe
+- **Monitor**: Continuous subscription with configurable throttle
+- **Record**: Monitor + save to circular buffer
+
+**Message Display:**
+- **Tree View**: Expandable JSON-like structure for nested messages
+  ```
+  ▼ header
+      seq: 12345
+      stamp: 1704067200.123456
+      frame_id: "base_link"
+  ▼ pose
+    ▼ position
+        x: 1.234
+        y: 5.678
+        z: 0.0
+    ▼ orientation
+        x: 0.0
+        y: 0.0
+        z: 0.707
+        w: 0.707
+  ```
+- **Raw View**: Pretty-printed text representation
+- **Hex View**: For binary/encoded data inspection
+- **Delta Highlighting**: Changed fields flash/highlight on update
+
+**Throttling & Performance:**
+- Configurable max update rate per topic (default: 30 Hz display)
+- Automatic throttling for high-frequency topics
+- Bandwidth limiting option
+- Pause/Resume all monitoring
+
+#### 5. Message History and Playback
+
+- Circular buffer per monitored topic (configurable size: 10-10000 messages)
+- Timeline scrubber to review past messages
+- Pause live updates to examine specific message
+- Export history to:
+  - JSON file
+  - CSV (for numeric data)
+  - ROS2 bag file (single topic)
+
+#### 6. Visualization Widgets
+
+**Numeric Fields:**
+- Inline sparkline for trending
+- Click to open full plot window
+- Multi-field overlay plotting
+
+**Common Message Types:**
+- `geometry_msgs/Pose`: 3D pose preview widget
+- `sensor_msgs/Image`: Thumbnail preview (click to enlarge)
+- `sensor_msgs/LaserScan`: Polar plot preview
+- `nav_msgs/OccupancyGrid`: Minimap preview
+- `sensor_msgs/PointCloud2`: Point count + bounds summary
+
+#### 7. Canvas Integration
+
+**Topic → Canvas:**
+- Click topic → Highlight all nodes that publish/subscribe to it
+- Double-click topic → Center canvas on connected nodes
+- Drag topic to canvas → Create connection from available matching pin
+
+**Canvas → Topics:**
+- Select node on canvas → Filter topic list to that node's topics
+- Right-click node → "Show Topics" opens filtered topic viewer
+- Connection hover → Show topic stats tooltip
+
+**Synchronized Selection:**
+- Option to link selection: selecting topic selects corresponding connections on canvas
+- Visual indicators on canvas edges showing monitored topics
+
+### Technical Implementation
+
+#### Threading Model
+
+```
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│   Qt UI      │     │  ROS2 Thread │     │ Worker Pool  │
+│   Thread     │◄───►│  (Executor)  │◄───►│ (Analysis)   │
+└──────────────┘     └──────────────┘     └──────────────┘
+       │                    │                    │
+       │ Signals/Slots      │ Subscriptions      │ Heavy compute
+       │ (thread-safe)      │ Callbacks          │ (hz calc, etc)
+```
+
+- **Qt UI Thread**: All widget updates, user interaction
+- **ROS2 Executor Thread**: Dedicated `SingleThreadedExecutor` for subscriptions
+- **Worker Thread Pool**: Rate calculation, message analysis, search operations
+
+#### Key Classes
+
+```cpp
+class TopicViewerPanel : public QDockWidget {
+  // Main UI container
+};
+
+class TopicListModel : public QAbstractItemModel {
+  // Efficient model for topic list with lazy loading
+  // Supports both flat and hierarchical views
+};
+
+class TopicMonitor : public QObject {
+  // Manages subscriptions and message buffering
+  // Runs callbacks on ROS2 thread, emits signals to UI
+};
+
+class MessageIntrospector {
+  // Dynamic message parsing using rosidl_typesupport_introspection
+  // Converts any message to tree structure for display
+};
+
+class TopicFilterEngine {
+  // Compiled filter evaluation for performance
+  // Supports complex boolean expressions
+};
+```
+
+#### Message Introspection
+
+Use `rosidl_typesupport_introspection_cpp` to dynamically parse any message type:
+
+```cpp
+// Get type support for any message
+auto type_support = get_message_type_support(message_type);
+auto members = get_members(type_support);
+
+// Iterate fields dynamically
+for (auto& member : members) {
+  QString name = member.name_;
+  QString type = get_type_name(member);
+  QVariant value = extract_value(msg_data, member);
+  // Build tree node...
+}
+```
+
+#### Performance Optimizations
+
+1. **Lazy Subscription**: Only subscribe when topic is expanded/monitored
+2. **Message Sampling**: For rate calculation, sample 10 messages then extrapolate
+3. **Virtual Scrolling**: `QTreeView` with lazy model loading for 1000+ topics
+4. **Throttled Updates**: Batch UI updates at 30-60 Hz regardless of message rate
+5. **Subscription Pooling**: Reuse subscription objects when toggling monitor on/off
+6. **LRU Cache**: Cache parsed message structures for repeated message types
+
+#### QoS Handling
+
+- Auto-detect publisher QoS and match for reliable subscription
+- Fallback chain: try RELIABLE → BEST_EFFORT
+- Show QoS mismatch warnings in UI
+- Allow manual QoS override for debugging
+
+### UI/UX Details
+
+#### Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| Ctrl+F | Focus search box |
+| Ctrl+R | Refresh topic list |
+| Space | Toggle monitor on selected topic |
+| Enter | Expand/collapse selected topic |
+| Ctrl+E | Echo selected topic (open detail view) |
+| Ctrl+C | Copy selected message to clipboard |
+| Escape | Clear search / close dialogs |
+
+#### Context Menu (Right-Click on Topic)
+
+- Monitor Topic
+- Echo to Output Panel
+- Copy Topic Name
+- Copy Message Type
+- Show on Canvas
+- Plot Numeric Fields...
+- Export Messages...
+- Topic Info (detailed dialog)
+
+#### Status Bar
+
+- Total topic count
+- Active/monitored count
+- Network bandwidth usage (if monitoring)
+- Last refresh timestamp
+
+### Configuration Options
+
+```yaml
+topic_viewer:
+  auto_refresh: true
+  refresh_interval_sec: 2.0
+  default_throttle_hz: 30.0
+  message_buffer_size: 100
+  show_hidden_topics: false  # Topics starting with _
+  default_view: flat  # or 'tree'
+  highlight_active: true
+  qos_auto_match: true
+  max_concurrent_subscriptions: 10
+```
+
+### Future Enhancements
+
+- Message diffing: Compare two messages side-by-side
+- Latency analysis: Measure time between correlated topics
+- Topic statistics dashboard: Aggregate view of system health
+- Record to bag: Multi-topic recording directly from viewer
+- Remote monitoring: Connect to topics on remote ROS2 systems via DDS discovery
+- Message injection: Publish test messages from viewer for debugging
+- Custom message renderers: Plugin system for specialized visualizations
+
