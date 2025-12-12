@@ -904,6 +904,15 @@ void WeaverCanvas::contextMenuEvent(QContextMenuEvent* event) {
       block->setExpanded(!block->isExpanded());
     });
 
+    menu.addSeparator();
+
+    // VS Code integration
+    menu.addAction(tr("Open in VS Code"), [this, block]() {
+      emit openBlockInVSCodeRequested(block);
+    });
+
+    menu.addSeparator();
+
     // Parameter source submenu
     QMenu* paramSourceMenu = menu.addMenu(tr("Parameter Source"));
 

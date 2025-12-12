@@ -523,6 +523,9 @@ void MainWindow::setupCentralWidget() {
   // Connect canvas signals
   connect(canvas_, &WeaverCanvas::blockSelected, this, &MainWindow::onBlockSelected);
 
+  // VS Code integration from canvas context menu
+  connect(canvas_, &WeaverCanvas::openBlockInVSCodeRequested, this, &MainWindow::onOpenBlockInVSCode);
+
   // When user changes preferred YAML source via context menu, refresh the param dashboard
   connect(canvas_, &WeaverCanvas::blockYamlSourceChanged, this,
           [this](PackageBlock* block, const QString& /* yamlSource */) {
@@ -1257,6 +1260,52 @@ void MainWindow::onOpenGeneratedPackageInVSCode() {
   if (!externalEditor_->openFolderInVSCode(lastGeneratedPackagePath_)) {
     QMessageBox::warning(this, tr("Failed to Open VS Code"),
       tr("Could not open VS Code:\n%1").arg(externalEditor_->lastError()));
+  }
+}
+
+void MainWindow::onOpenBlockInVSCode(PackageBlock* block) {
+  if (!block) return;
+
+  QString packageName = block->packageName();
+
+  // First check if VS Code is available
+  if (!ExternalEditor::isVSCodeAvailable()) {
+    QMessageBox::warning(this, tr("VS Code Not Found"),
+      tr("Visual Studio Code was not found on this system.\n\n"
+         "Please install VS Code and ensure the 'code' command is available in your PATH."));
+    return;
+  }
+
+  // Try to find the package in ROS2 workspace
+  if (packageIndex_) {
+    QString packagePath = packageIndex_->findPackagePath(packageName);
+    if (!packagePath.isEmpty()) {
+      if (!externalEditor_->openFolderInVSCode(packagePath)) {
+        QMessageBox::warning(this, tr("Failed to Open VS Code"),
+          tr("Could not open VS Code:\n%1").arg(externalEditor_->lastError()));
+      }
+      return;
+    }
+  }
+
+  // Package not found in ROS2 workspace - offer alternatives
+  QMessageBox msgBox(this);
+  msgBox.setWindowTitle(tr("Package Not Found"));
+  msgBox.setIcon(QMessageBox::Information);
+  msgBox.setText(tr("The package '%1' was not found in the ROS2 workspace.\n\n"
+                    "This may be a custom node or the package hasn't been installed yet.")
+                    .arg(packageName));
+
+  QPushButton* openProjectBtn = msgBox.addButton(tr("Open Project Folder"), QMessageBox::ActionRole);
+  QPushButton* generateBtn = msgBox.addButton(tr("Generate Package"), QMessageBox::ActionRole);
+  msgBox.addButton(QMessageBox::Cancel);
+
+  msgBox.exec();
+
+  if (msgBox.clickedButton() == openProjectBtn) {
+    onOpenProjectInVSCode();
+  } else if (msgBox.clickedButton() == generateBtn) {
+    onGenerateCodeWizard();
   }
 }
 

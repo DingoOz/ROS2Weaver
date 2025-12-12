@@ -55,6 +55,10 @@ public:
   // Scan local workspace for packages
   void scanLocalWorkspace(const QString& workspacePath);
 
+  // Find the source path for a ROS2 package
+  // Returns empty string if not found
+  QString findPackagePath(const QString& packageName);
+
   // Get common message types (cached)
   QList<RosMessageInfo> commonMessageTypes() const;
 

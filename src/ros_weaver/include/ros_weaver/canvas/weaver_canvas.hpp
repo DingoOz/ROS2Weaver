@@ -79,6 +79,7 @@ signals:
   void groupCreated(NodeGroup* group);
   void canvasCleared();
   void blockYamlSourceChanged(PackageBlock* block, const QString& yamlSource);
+  void openBlockInVSCodeRequested(PackageBlock* block);
 
 protected:
   void wheelEvent(QWheelEvent* event) override;

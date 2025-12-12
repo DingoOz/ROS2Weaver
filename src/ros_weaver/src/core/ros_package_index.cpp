@@ -5,6 +5,7 @@
 #include <QXmlStreamReader>
 #include <QUrl>
 #include <QUrlQuery>
+#include <QProcess>
 
 namespace ros_weaver {
 
@@ -309,6 +310,100 @@ void RosPackageIndex::scanLocalWorkspace(const QString& workspacePath) {
 
 QList<RosMessageInfo> RosPackageIndex::commonMessageTypes() const {
   return commonMessages_;
+}
+
+QString RosPackageIndex::findPackagePath(const QString& packageName) {
+  if (packageName.isEmpty()) {
+    return QString();
+  }
+
+  // First, try to use 'ros2 pkg prefix --share' to find the package share directory
+  // This gives us the install location
+  QProcess process;
+  process.start("ros2", QStringList() << "pkg" << "prefix" << "--share" << packageName);
+  process.waitForFinished(5000);  // 5 second timeout
+
+  if (process.exitCode() == 0) {
+    QString sharePath = QString::fromUtf8(process.readAllStandardOutput()).trimmed();
+
+    // The share path is typically: <install_dir>/share/<package_name>
+    // We want to find the source, which might be in a parallel src directory
+    QDir shareDir(sharePath);
+    if (shareDir.exists()) {
+      // Try to find the source directory
+      // Common patterns:
+      // 1. <workspace>/install/<pkg>/share/<pkg> -> <workspace>/src/<pkg>
+      // 2. /opt/ros/<distro>/share/<pkg> -> installed system package (no source)
+
+      QString installPath = shareDir.absolutePath();
+
+      // Check if this is a workspace package (has install directory above share)
+      // install/ros_weaver/share/ros_weaver -> go up to workspace, then check src
+      if (installPath.contains("/install/")) {
+        // Extract workspace path
+        int installIdx = installPath.indexOf("/install/");
+        QString workspacePath = installPath.left(installIdx);
+        QString srcPath = workspacePath + "/src";
+
+        // Search for the package in src
+        QDirIterator it(srcPath, QStringList() << "package.xml",
+                        QDir::Files, QDirIterator::Subdirectories);
+        while (it.hasNext()) {
+          QString packageXmlPath = it.next();
+          QFile file(packageXmlPath);
+          if (file.open(QIODevice::ReadOnly)) {
+            QXmlStreamReader xml(&file);
+            while (!xml.atEnd() && !xml.hasError()) {
+              if (xml.readNext() == QXmlStreamReader::StartElement &&
+                  xml.name() == QString("name")) {
+                if (xml.readElementText() == packageName) {
+                  file.close();
+                  return QFileInfo(packageXmlPath).absolutePath();
+                }
+              }
+            }
+            file.close();
+          }
+        }
+      }
+
+      // If we can't find source, return the share path as a fallback
+      // (better than nothing - user can at least see the installed files)
+      return sharePath;
+    }
+  }
+
+  // Fallback: Check common ROS2 workspace locations
+  QStringList workspacePaths = {
+    QDir::homePath() + "/ros2_ws/src",
+    QDir::homePath() + "/colcon_ws/src",
+    QDir::homePath() + "/dev_ws/src",
+    "/opt/ros/" + distro_ + "/share"
+  };
+
+  for (const QString& basePath : workspacePaths) {
+    QDirIterator it(basePath, QStringList() << "package.xml",
+                    QDir::Files, QDirIterator::Subdirectories);
+    while (it.hasNext()) {
+      QString packageXmlPath = it.next();
+      QFile file(packageXmlPath);
+      if (file.open(QIODevice::ReadOnly)) {
+        QXmlStreamReader xml(&file);
+        while (!xml.atEnd() && !xml.hasError()) {
+          if (xml.readNext() == QXmlStreamReader::StartElement &&
+              xml.name() == QString("name")) {
+            if (xml.readElementText() == packageName) {
+              file.close();
+              return QFileInfo(packageXmlPath).absolutePath();
+            }
+          }
+        }
+        file.close();
+      }
+    }
+  }
+
+  return QString();  // Not found
 }
 
 }  // namespace ros_weaver

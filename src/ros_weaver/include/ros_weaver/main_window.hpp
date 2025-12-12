@@ -73,6 +73,7 @@ private slots:
   // VS Code integration
   void onOpenProjectInVSCode();
   void onOpenGeneratedPackageInVSCode();
+  void onOpenBlockInVSCode(PackageBlock* block);
 
   // Live topic monitoring
   void onToggleLiveMonitoring(bool enabled);
