@@ -35,6 +35,7 @@ class SystemDiscovery;
 class CanvasMapper;
 class SystemMappingPanel;
 class TopicViewerPanel;
+class TFTreePanel;
 
 class MainWindow : public QMainWindow {
   Q_OBJECT
@@ -164,6 +165,9 @@ private:
   // Topic viewer
   TopicViewerPanel* topicViewerPanel_;
   QDockWidget* topicViewerDock_;
+
+  // TF Tree viewer
+  TFTreePanel* tfTreePanel_;
 };
 
 }  // namespace ros_weaver

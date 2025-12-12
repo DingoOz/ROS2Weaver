@@ -17,6 +17,10 @@ find_package(std_msgs REQUIRED)
 find_package(rcl_interfaces REQUIRED)
 find_package(ament_index_cpp REQUIRED)
 find_package(yaml-cpp REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(tf2_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
 
 # Qt5 setup
 set(CMAKE_AUTOMOC ON)
@@ -60,6 +64,7 @@ set(SOURCES
   src/widgets/system_mapping_panel.cpp
   src/widgets/topic_viewer_panel.cpp
   src/widgets/topic_list_model.cpp
+  src/widgets/tf_tree_panel.cpp
   src/wizards/package_wizard.cpp
 )
 
@@ -84,6 +89,7 @@ set(HEADERS
   include/ros_weaver/widgets/system_mapping_panel.hpp
   include/ros_weaver/widgets/topic_viewer_panel.hpp
   include/ros_weaver/widgets/topic_list_model.hpp
+  include/ros_weaver/widgets/tf_tree_panel.hpp
   include/ros_weaver/wizards/package_wizard.hpp
 )
 
@@ -107,6 +113,10 @@ ament_target_dependencies(${PROJECT_NAME}
   std_msgs
   rcl_interfaces
   ament_index_cpp
+  tf2
+  tf2_ros
+  tf2_msgs
+  geometry_msgs
 )
 
 # Install targets

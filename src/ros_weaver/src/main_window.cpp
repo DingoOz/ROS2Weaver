@@ -13,6 +13,7 @@
 #include "ros_weaver/widgets/ros_status_widget.hpp"
 #include "ros_weaver/widgets/system_mapping_panel.hpp"
 #include "ros_weaver/widgets/topic_viewer_panel.hpp"
+#include "ros_weaver/widgets/tf_tree_panel.hpp"
 #include "ros_weaver/core/system_discovery.hpp"
 #include "ros_weaver/core/canvas_mapper.hpp"
 #include "ros_weaver/wizards/package_wizard.hpp"
@@ -325,6 +326,23 @@ void MainWindow::setupMenuBar() {
     }
   });
 
+  QAction* showTFTreeAction = ros2Menu->addAction(tr("Show T&F Tree"));
+  showTFTreeAction->setShortcut(tr("Ctrl+T"));
+  connect(showTFTreeAction, &QAction::triggered, this, [this]() {
+    // Show Properties dock and switch to TF Tree tab
+    if (propertiesDock_) {
+      propertiesDock_->show();
+      propertiesDock_->raise();
+    }
+    if (propertiesTab_ && tfTreePanel_) {
+      propertiesTab_->setCurrentWidget(tfTreePanel_);
+      // Start listening if not already
+      if (!tfTreePanel_->isListening()) {
+        tfTreePanel_->startListening();
+      }
+    }
+  });
+
   // Help menu
   QMenu* helpMenu = menuBar()->addMenu(tr("&Help"));
 
@@ -464,6 +482,46 @@ void MainWindow::setupDockWidgets() {
           // Don't pulse when inactive - let animation fade out
         }
       }
+    }
+  });
+
+  // TF Tree tab
+  tfTreePanel_ = new TFTreePanel();
+  tfTreePanel_->setCanvas(canvas_);
+  propertiesTab_->addTab(tfTreePanel_, tr("TF Tree"));
+
+  // Connect TF tree signals
+  connect(tfTreePanel_, &TFTreePanel::frameSelected,
+          this, [this](const QString& frameName) {
+    // Could highlight blocks that use this frame
+    statusBar()->showMessage(tr("Selected frame: %1").arg(frameName), 3000);
+  });
+
+  connect(tfTreePanel_, &TFTreePanel::showFrameOnCanvas,
+          this, [this](const QString& frameName) {
+    // Find and highlight blocks that use this frame
+    if (!canvas_) return;
+    for (QGraphicsItem* item : canvas_->scene()->items()) {
+      PackageBlock* block = dynamic_cast<PackageBlock*>(item);
+      if (!block) continue;
+      for (const auto& param : block->parameters()) {
+        if (param.currentValue.toString().contains(frameName)) {
+          canvas_->centerOn(block);
+          block->setBlockSelected(true);
+          statusBar()->showMessage(tr("Found frame '%1' in block '%2'")
+            .arg(frameName, block->packageName()), 3000);
+          return;
+        }
+      }
+    }
+    statusBar()->showMessage(tr("Frame '%1' not found in any block parameters").arg(frameName), 3000);
+  });
+
+  connect(tfTreePanel_, &TFTreePanel::openYamlAtLine,
+          this, [this](const QString& filePath, int lineNumber) {
+    // Open YAML file in VS Code at specific line
+    if (externalEditor_) {
+      externalEditor_->openFileInVSCodeAtLine(filePath, lineNumber);
     }
   });
 
