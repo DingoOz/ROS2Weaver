@@ -233,7 +233,25 @@ Implement continuous integration and deployment pipelines using GitHub Actions t
    - Code coverage reports (optional)
    - Linting with `ament_lint` tools
 
-3. **Static Analysis**: Code quality checks
+3. **Automated UI/Integration Testing**: Comprehensive user-facing tests
+   - **Qt Test Framework**: Use QTest for widget and signal/slot testing
+   - **GUI Automation**: Headless testing with `xvfb` (X Virtual Framebuffer)
+   - **Test Categories**:
+     - **Unit Tests**: Individual class/function testing (canvas operations, project serialization)
+     - **Widget Tests**: UI component behavior (block creation, connection drawing, panel interactions)
+     - **Integration Tests**: End-to-end workflows (load project → modify → save → verify)
+     - **ROS2 Integration Tests**: Mock ROS2 environment for topic/TF testing
+   - **Test Scenarios**:
+     - Create/delete blocks and connections
+     - Load/save project files
+     - Node grouping operations
+     - Topic viewer subscription and animation
+     - Code generation output validation
+     - TF tree discovery and display
+   - **Regression Testing**: Automated screenshot comparison for visual regressions
+   - **Performance Tests**: Canvas rendering with 100+ nodes, memory leak detection
+
+4. **Static Analysis**: Code quality checks
    - `cppcheck` for C++ analysis
    - `clang-tidy` for additional checks
    - Qt-specific checks where applicable
