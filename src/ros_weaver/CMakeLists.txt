@@ -51,6 +51,7 @@ set(SOURCES
   src/core/code_generator.cpp
   src/core/external_editor.cpp
   src/widgets/param_dashboard.cpp
+  src/widgets/output_panel.cpp
   src/wizards/package_wizard.cpp
 )
 
@@ -66,6 +67,7 @@ set(HEADERS
   include/ros_weaver/core/code_generator.hpp
   include/ros_weaver/core/external_editor.hpp
   include/ros_weaver/widgets/param_dashboard.hpp
+  include/ros_weaver/widgets/output_panel.hpp
   include/ros_weaver/wizards/package_wizard.hpp
 )
 

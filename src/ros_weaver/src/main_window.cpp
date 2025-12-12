@@ -6,6 +6,7 @@
 #include "ros_weaver/core/code_generator.hpp"
 #include "ros_weaver/core/external_editor.hpp"
 #include "ros_weaver/widgets/param_dashboard.hpp"
+#include "ros_weaver/widgets/output_panel.hpp"
 #include "ros_weaver/wizards/package_wizard.hpp"
 
 #include <QApplication>
@@ -42,8 +43,7 @@ MainWindow::MainWindow(QWidget* parent)
   , localPackagesItem_(nullptr)
   , propertiesTab_(nullptr)
   , paramDashboard_(nullptr)
-  , outputText_(nullptr)
-  , progressBar_(nullptr)
+  , outputPanel_(nullptr)
   , packageIndex_(nullptr)
   , codeGenerator_(nullptr)
 {
@@ -336,25 +336,12 @@ void MainWindow::setupDockWidgets() {
   propertiesDock_->setWidget(propertiesTab_);
   addDockWidget(Qt::RightDockWidgetArea, propertiesDock_);
 
-  // Output Dock (bottom)
+  // Output Dock (bottom) - with tabs for Build Output, ROS Logs, and Terminal
   outputDock_ = new QDockWidget(tr("Output"), this);
   outputDock_->setAllowedAreas(Qt::BottomDockWidgetArea | Qt::TopDockWidgetArea);
 
-  QWidget* outputWidget = new QWidget();
-  QVBoxLayout* outputLayout = new QVBoxLayout(outputWidget);
-  outputLayout->setContentsMargins(4, 4, 4, 4);
-  outputLayout->setSpacing(4);
-
-  outputText_ = new QTextEdit();
-  outputText_->setReadOnly(true);
-  outputText_->setPlaceholderText(tr("Build and generation output will appear here..."));
-  outputLayout->addWidget(outputText_);
-
-  progressBar_ = new QProgressBar();
-  progressBar_->setVisible(false);
-  outputLayout->addWidget(progressBar_);
-
-  outputDock_->setWidget(outputWidget);
+  outputPanel_ = new OutputPanel();
+  outputDock_->setWidget(outputPanel_);
   addDockWidget(Qt::BottomDockWidgetArea, outputDock_);
 
   // Connect panel visibility toggles from View > Panels menu
@@ -557,13 +544,13 @@ void MainWindow::onLoadTurtleBotExample() {
   statusBar()->showMessage(tr("Loaded TurtleBot3 Navigation example"));
 
   // Append to output about YAML files
-  outputText_->clear();
-  outputText_->append(tr("Loaded TurtleBot3 Navigation example project.\n"));
-  outputText_->append(tr("Associated YAML configuration files:\n"));
-  outputText_->append(tr("  - nav2_params.yaml (Navigation2 stack parameters)\n"));
-  outputText_->append(tr("  - slam_toolbox_params.yaml (SLAM Toolbox parameters)\n"));
-  outputText_->append(tr("\nYAML files location: %1\n").arg(yamlDir));
-  outputText_->append(tr("\nSelect a node to see its parameters. Use the Source dropdown to switch between block parameters and YAML files."));
+  outputPanel_->clearBuildOutput();
+  outputPanel_->appendBuildOutput(tr("Loaded TurtleBot3 Navigation example project.\n"));
+  outputPanel_->appendBuildOutput(tr("Associated YAML configuration files:\n"));
+  outputPanel_->appendBuildOutput(tr("  - nav2_params.yaml (Navigation2 stack parameters)\n"));
+  outputPanel_->appendBuildOutput(tr("  - slam_toolbox_params.yaml (SLAM Toolbox parameters)\n"));
+  outputPanel_->appendBuildOutput(tr("\nYAML files location: %1\n").arg(yamlDir));
+  outputPanel_->appendBuildOutput(tr("\nSelect a node to see its parameters. Use the Source dropdown to switch between block parameters and YAML files."));
 }
 
 void MainWindow::loadProjectYamlFiles(const QString& projectDir) {
@@ -796,26 +783,27 @@ void MainWindow::onGenerateCode() {
   }
 
   // Show progress
-  progressBar_->setVisible(true);
-  progressBar_->setValue(0);
-  outputText_->clear();
-  outputText_->append(tr("Starting code generation...\n"));
+  outputPanel_->showProgress(true);
+  outputPanel_->progressBar()->setValue(0);
+  outputPanel_->clearBuildOutput();
+  outputPanel_->appendBuildOutput(tr("Starting code generation...\n"));
+  outputPanel_->showBuildTab();
 
   // Generate the package
   codeGenerator_->generatePackage(project, options);
 }
 
 void MainWindow::onGenerationProgress(int percent, const QString& message) {
-  progressBar_->setValue(percent);
-  outputText_->append(message);
+  outputPanel_->progressBar()->setValue(percent);
+  outputPanel_->appendBuildOutput(message);
 }
 
 void MainWindow::onGenerationFinished(bool success) {
-  progressBar_->setVisible(false);
+  outputPanel_->showProgress(false);
 
   if (success) {
-    outputText_->append(tr("\nCode generation completed successfully!"));
-    outputText_->append(tr("You can now build the package with: colcon build --packages-select <package_name>"));
+    outputPanel_->appendBuildOutput(tr("\nCode generation completed successfully!"));
+    outputPanel_->appendBuildOutput(tr("You can now build the package with: colcon build --packages-select <package_name>"));
 
     // Create custom dialog with VS Code option
     QMessageBox msgBox(this);
@@ -850,7 +838,7 @@ void MainWindow::onGenerationFinished(bool success) {
       ExternalEditor::openWithSystemDefault(lastGeneratedPackagePath_);
     }
   } else {
-    outputText_->append(tr("\nCode generation failed: %1").arg(codeGenerator_->lastError()));
+    outputPanel_->appendBuildError(tr("Code generation failed: %1").arg(codeGenerator_->lastError()));
     QMessageBox::critical(this, tr("Code Generation Failed"),
       tr("Failed to generate ROS2 package:\n%1").arg(codeGenerator_->lastError()));
   }
