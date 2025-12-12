@@ -2073,3 +2073,91 @@ rviz_integration:
 - Multi-RViz support (multiple viewports)
 - Custom display plugins for ROS Weaver-specific visualizations
 
+## Example Projects
+
+### Overview
+
+ROS Weaver should include a set of example projects that demonstrate its capabilities and help users learn how to use the tool effectively. These examples should cover common ROS2 use cases and progressively increase in complexity.
+
+### Example 1: Turtlesim Teleop (Basic)
+
+**Status:** Implemented
+
+A simple introductory example using the ROS2 turtlesim package:
+- `turtlesim_node` for the turtle simulation
+- `turtle_teleop_key` for keyboard control
+- `mimic` node demonstrating topic remapping
+- Demonstrates basic node connections and topic flow
+
+**Location:** `examples/turtlesim_teleop/`
+
+### Example 2: TurtleBot3 Simulation with Teleop (Intermediate)
+
+**Status:** Planned
+
+A more comprehensive example demonstrating TurtleBot3 simulation with multiple input methods:
+
+**Components:**
+- TurtleBot3 Gazebo simulation (`turtlebot3_gazebo`)
+- Keyboard teleop (`teleop_twist_keyboard`)
+- Xbox/Game controller teleop (`joy` + `teleop_twist_joy`)
+- Robot state publisher and TF tree
+- LaserScan visualization
+
+**Features Demonstrated:**
+- Multiple input sources publishing to same topic (`/cmd_vel`)
+- Sensor data flow (LaserScan, Odometry, IMU)
+- TF frame hierarchy visualization
+- Integration with Gazebo simulation
+- RViz2 visualization configuration
+
+**Prerequisites:**
+- TurtleBot3 packages (`turtlebot3`, `turtlebot3_gazebo`, `turtlebot3_description`)
+- Gazebo simulation environment
+- Joy package for gamepad support
+- Teleop packages (`teleop_twist_keyboard`, `teleop_twist_joy`)
+
+**Canvas Layout:**
+```
+┌─────────────────┐     ┌─────────────────┐
+│ teleop_keyboard │────►│                 │
+└─────────────────┘     │                 │     ┌─────────────────┐
+                        │   TurtleBot3    │────►│  LaserScan      │
+┌─────────────────┐     │   Simulation    │     └─────────────────┘
+│ joy_node        │────►│   (Gazebo)      │     ┌─────────────────┐
+└────────┬────────┘     │                 │────►│  Odometry       │
+         │              │                 │     └─────────────────┘
+         ▼              │                 │     ┌─────────────────┐
+┌─────────────────┐     │                 │────►│  Camera         │
+│ teleop_twist_joy│────►│                 │     └─────────────────┘
+└─────────────────┘     └─────────────────┘
+```
+
+**Learning Objectives:**
+1. Connecting multiple publishers to a single subscriber
+2. Understanding sensor topic data flow
+3. Configuring gamepad/joystick input
+4. Launching Gazebo simulation from ROS Weaver
+5. Visualizing robot state with RViz2 integration
+
+**Location:** `examples/turtlebot3_teleop/`
+
+### Example 3: Navigation Stack (Advanced)
+
+**Status:** Planned
+
+Full Nav2 navigation stack example with SLAM and autonomous navigation:
+- TurtleBot3 with Nav2
+- SLAM Toolbox for mapping
+- Path planning and obstacle avoidance
+- Goal setting interface
+
+**Location:** `examples/turtlebot3_navigation/`
+
+### Future Examples
+
+- **Multi-Robot Coordination**: Multiple TurtleBot3 robots with namespacing
+- **Manipulation**: Robot arm with MoveIt2 integration
+- **Custom Nodes**: Example showing code generation and custom node development
+- **Sensor Fusion**: Combining multiple sensor inputs with message filters
+
