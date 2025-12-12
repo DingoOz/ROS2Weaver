@@ -50,6 +50,7 @@ set(SOURCES
   src/core/ros_package_index.cpp
   src/core/code_generator.cpp
   src/widgets/param_dashboard.cpp
+  src/widgets/output_panel.cpp
 )
 
 # Header files (for MOC)
@@ -63,6 +64,7 @@ set(HEADERS
   include/ros_weaver/core/ros_package_index.hpp
   include/ros_weaver/core/code_generator.hpp
   include/ros_weaver/widgets/param_dashboard.hpp
+  include/ros_weaver/widgets/output_panel.hpp
 )
 
 # Create executable

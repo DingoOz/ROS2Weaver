@@ -20,6 +20,7 @@ class ParamDashboard;
 class RosPackageIndex;
 class CodeGenerator;
 class PackageBlock;
+class OutputPanel;
 
 class MainWindow : public QMainWindow {
   Q_OBJECT
@@ -82,9 +83,8 @@ private:
   QTabWidget* propertiesTab_;
   ParamDashboard* paramDashboard_;
 
-  // Output text
-  QTextEdit* outputText_;
-  QProgressBar* progressBar_;
+  // Output panel with tabs (Build, ROS Logs, Terminal)
+  OutputPanel* outputPanel_;
 
   // Core components
   RosPackageIndex* packageIndex_;
