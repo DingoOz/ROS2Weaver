@@ -347,6 +347,23 @@ void MainWindow::setupMenuBar() {
     }
   });
 
+  QAction* showRosLogsAction = ros2Menu->addAction(tr("Show ROS &Logs"));
+  showRosLogsAction->setShortcut(tr("Ctrl+Shift+L"));
+  connect(showRosLogsAction, &QAction::triggered, this, [this]() {
+    // Show Output dock and switch to ROS Logs tab
+    if (outputDock_) {
+      outputDock_->show();
+      outputDock_->raise();
+    }
+    if (outputPanel_) {
+      outputPanel_->showRosLogTab();
+      // Start listening if not already
+      if (outputPanel_->rosLogViewer() && !outputPanel_->rosLogViewer()->isListening()) {
+        outputPanel_->rosLogViewer()->startListening();
+      }
+    }
+  });
+
   // Help menu
   QMenu* helpMenu = menuBar()->addMenu(tr("&Help"));
 

@@ -156,6 +156,7 @@ ros2 run ros_weaver ros_weaver
 | Ctrl+G | Generate Code |
 | Ctrl+T | Show TF Tree |
 | Ctrl+Shift+T | Show Topic Viewer |
+| Ctrl+Shift+L | Show ROS Logs |
 | Ctrl+M | Toggle Live Monitoring |
 | F5 | Scan System |
 
