@@ -61,6 +61,9 @@ private slots:
   void onLaunchTurtlesim();
   void onLaunchTurtleBot3Gazebo();
 
+  // External tools
+  void onLaunchRviz2();
+
   // Package search
   void onSearchPackages();
   void onPackageSearchResults(const QList<struct RosPackageInfo>& packages);
