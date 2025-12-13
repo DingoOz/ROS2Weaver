@@ -1,5 +1,6 @@
 #include "ros_weaver/widgets/plot_panel.hpp"
 #include "ros_weaver/canvas/weaver_canvas.hpp"
+#include "ros_weaver/core/theme_manager.hpp"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -15,6 +16,7 @@
 #include <QDialogButtonBox>
 #include <QTreeWidget>
 #include <QScreen>
+#include <QSettings>
 
 #include <std_msgs/msg/float32.hpp>
 #include <std_msgs/msg/float64.hpp>
@@ -34,6 +36,7 @@
 #include <cmath>
 #include <numeric>
 #include <fstream>
+#include <functional>
 
 namespace ros_weaver {
 
@@ -63,6 +66,7 @@ PlotPanel::PlotPanel(QWidget* parent)
   , paused_(false)
   , updateTimer_(nullptr)
   , colorIndex_(0)
+  , lineThickness_(DEFAULT_LINE_THICKNESS)
 {
   // Register meta type for cross-thread signals
   static bool typeRegistered = false;
@@ -71,7 +75,7 @@ PlotPanel::PlotPanel(QWidget* parent)
     typeRegistered = true;
   }
 
-  // Initialize color palette
+  // Initialize color palette with defaults
   colorPalette_ = {
     QColor(0, 114, 189),    // Blue
     QColor(217, 83, 25),    // Orange
@@ -82,6 +86,9 @@ PlotPanel::PlotPanel(QWidget* parent)
     QColor(162, 20, 47),    // Red
     QColor(0, 128, 128),    // Teal
   };
+
+  // Load saved settings (may override defaults)
+  loadSettings();
 
   setupUi();
   setupConnections();
@@ -117,26 +124,21 @@ void PlotPanel::setupUi() {
   setupSeriesList();
   mainSplitter_->addWidget(seriesList_);
 
-  // Right: Chart and details
-  QWidget* rightWidget = new QWidget();
-  QVBoxLayout* rightLayout = new QVBoxLayout(rightWidget);
-  rightLayout->setContentsMargins(0, 0, 0, 0);
-  rightLayout->setSpacing(4);
-
+  // Right: Chart (fills available space)
   setupChart();
-  rightLayout->addWidget(chartView_, 3);
-
-  setupDetailsPanel();
-  rightLayout->addWidget(detailsPanel_, 1);
-
-  mainSplitter_->addWidget(rightWidget);
+  applyChartTheme();  // Apply theme to chart
+  mainSplitter_->addWidget(chartView_);
 
   // Set splitter proportions
   mainSplitter_->setStretchFactor(0, 1);  // Series list
-  mainSplitter_->setStretchFactor(1, 4);  // Chart area
-  mainSplitter_->setSizes({150, 600});
+  mainSplitter_->setStretchFactor(1, 5);  // Chart area (more space for chart)
+  mainSplitter_->setSizes({150, 650});
 
-  mainLayout->addWidget(mainSplitter_);
+  mainLayout->addWidget(mainSplitter_, 1);  // Splitter takes all available space
+
+  // Compact details bar at bottom (horizontal layout for stats)
+  setupDetailsPanel();
+  mainLayout->addWidget(detailsPanel_);
 
   // Status bar
   statusLabel_ = new QLabel(tr("Ready. Click '+ Add Topic' to start plotting."), this);
@@ -156,8 +158,8 @@ QWidget* PlotPanel::createToolbar() {
   layout->addWidget(addTopicButton_);
 
   // Clear button
-  clearButton_ = new QPushButton(tr("Clear"));
-  clearButton_->setToolTip(tr("Clear all data (keep subscriptions)"));
+  clearButton_ = new QPushButton(tr("Clear All"));
+  clearButton_->setToolTip(tr("Remove all plots and subscriptions"));
   layout->addWidget(clearButton_);
 
   layout->addStretch();
@@ -235,12 +237,13 @@ void PlotPanel::setupSeriesList() {
 
 void PlotPanel::setupDetailsPanel() {
   detailsPanel_ = new QWidget();
-  QVBoxLayout* layout = new QVBoxLayout(detailsPanel_);
-  layout->setContentsMargins(4, 4, 4, 4);
-  layout->setSpacing(2);
+  detailsPanel_->setFixedHeight(28);  // Compact height
+  QHBoxLayout* layout = new QHBoxLayout(detailsPanel_);
+  layout->setContentsMargins(4, 2, 4, 2);
+  layout->setSpacing(12);
 
-  selectedSeriesLabel_ = new QLabel(tr("Select a series to view statistics"));
-  selectedSeriesLabel_->setStyleSheet("font-weight: bold; font-size: 11px;");
+  selectedSeriesLabel_ = new QLabel(tr("Select a series"));
+  selectedSeriesLabel_->setStyleSheet("font-weight: bold; font-size: 10px;");
   layout->addWidget(selectedSeriesLabel_);
 
   statsLabel_ = new QLabel();
@@ -248,7 +251,7 @@ void PlotPanel::setupDetailsPanel() {
   layout->addWidget(statsLabel_);
 
   rateLabel_ = new QLabel();
-  rateLabel_->setStyleSheet("font-size: 10px; color: #666;");
+  rateLabel_->setStyleSheet("font-size: 10px;");
   layout->addWidget(rateLabel_);
 
   layout->addStretch();
@@ -257,7 +260,7 @@ void PlotPanel::setupDetailsPanel() {
 void PlotPanel::setupConnections() {
   // Toolbar buttons
   connect(addTopicButton_, &QPushButton::clicked, this, &PlotPanel::onAddTopicClicked);
-  connect(clearButton_, &QPushButton::clicked, this, &PlotPanel::clearData);
+  connect(clearButton_, &QPushButton::clicked, this, &PlotPanel::clearAllPlots);
   connect(pauseButton_, &QToolButton::toggled, [this](bool checked) {
     if (checked) {
       pause();
@@ -281,6 +284,10 @@ void PlotPanel::setupConnections() {
   // Cross-thread data signal
   connect(this, &PlotPanel::dataReceived,
           this, &PlotPanel::onDataReceived, Qt::QueuedConnection);
+
+  // Theme changes
+  connect(&ThemeManager::instance(), &ThemeManager::themeChanged,
+          this, &PlotPanel::onThemeChanged);
 }
 
 void PlotPanel::initializeRosNode() {
@@ -347,18 +354,45 @@ void PlotPanel::showAddTopicDialog() {
 
   // Create selection dialog
   QDialog dialog(this);
-  dialog.setWindowTitle(tr("Select Topic and Field"));
-  dialog.resize(500, 400);
+  dialog.setWindowTitle(tr("Select Topics and Fields"));
+  dialog.resize(550, 450);
 
   QVBoxLayout* layout = new QVBoxLayout(&dialog);
 
-  QLabel* instructionLabel = new QLabel(tr("Select a topic and field to plot:"));
+  QLabel* instructionLabel = new QLabel(tr("Double-click to toggle selection. Double-click a topic to toggle all its fields:"));
   layout->addWidget(instructionLabel);
 
   // Tree widget for topic/field selection
   QTreeWidget* tree = new QTreeWidget();
   tree->setHeaderLabels({tr("Topic / Field"), tr("Type")});
-  tree->setColumnWidth(0, 300);
+  tree->setColumnWidth(0, 350);
+
+  // Helper function to toggle an item's check state
+  auto toggleItemCheck = [](QTreeWidgetItem* item) {
+    if (item->flags() & Qt::ItemIsUserCheckable) {
+      Qt::CheckState newState = (item->checkState(0) == Qt::Checked) ? Qt::Unchecked : Qt::Checked;
+      item->setCheckState(0, newState);
+    }
+  };
+
+  // Helper function to toggle all children of a parent
+  auto toggleAllChildren = [&toggleItemCheck](QTreeWidgetItem* parent) {
+    if (parent->childCount() == 0) return;
+
+    // Determine new state: if any child is unchecked, check all; otherwise uncheck all
+    bool anyUnchecked = false;
+    for (int i = 0; i < parent->childCount(); ++i) {
+      if (parent->child(i)->checkState(0) != Qt::Checked) {
+        anyUnchecked = true;
+        break;
+      }
+    }
+
+    Qt::CheckState newState = anyUnchecked ? Qt::Checked : Qt::Unchecked;
+    for (int i = 0; i < parent->childCount(); ++i) {
+      parent->child(i)->setCheckState(0, newState);
+    }
+  };
 
   // Populate tree with topics and their plottable fields
   for (const auto& [topicName, types] : topicNamesAndTypes) {
@@ -381,17 +415,57 @@ void PlotPanel::showAddTopicDialog() {
       fieldItem->setText(1, field.fieldType);
       fieldItem->setData(0, Qt::UserRole, field.fieldPath);
       fieldItem->setData(1, Qt::UserRole + 1, true);  // Mark as field item
+      fieldItem->setFlags(fieldItem->flags() | Qt::ItemIsUserCheckable);
+      fieldItem->setCheckState(0, Qt::Unchecked);
     }
 
     if (fields.isEmpty()) {
       // If we couldn't detect fields, allow selecting the topic directly
       // (for simple numeric types)
       topicItem->setData(1, Qt::UserRole + 1, true);
+      topicItem->setFlags(topicItem->flags() | Qt::ItemIsUserCheckable);
+      topicItem->setCheckState(0, Qt::Unchecked);
     }
   }
 
   tree->expandAll();
   layout->addWidget(tree);
+
+  // Connect double-click handler
+  connect(tree, &QTreeWidget::itemDoubleClicked, [&toggleItemCheck, &toggleAllChildren](QTreeWidgetItem* item, int /* column */) {
+    if (!item) return;
+
+    if (item->childCount() > 0) {
+      // Parent item with children - toggle all children
+      toggleAllChildren(item);
+    } else {
+      // Leaf item - toggle its own check state
+      toggleItemCheck(item);
+    }
+  });
+
+  // Status label showing selection count
+  QLabel* statusLabel = new QLabel(tr("0 fields selected"));
+  layout->addWidget(statusLabel);
+
+  // Update status when checkboxes change
+  connect(tree, &QTreeWidget::itemChanged, [tree, statusLabel]() {
+    int count = 0;
+    std::function<void(QTreeWidgetItem*)> countChecked = [&count, &countChecked](QTreeWidgetItem* item) {
+      if ((item->flags() & Qt::ItemIsUserCheckable) && item->checkState(0) == Qt::Checked) {
+        count++;
+      }
+      for (int i = 0; i < item->childCount(); ++i) {
+        countChecked(item->child(i));
+      }
+    };
+
+    for (int i = 0; i < tree->topLevelItemCount(); ++i) {
+      countChecked(tree->topLevelItem(i));
+    }
+
+    statusLabel->setText(QObject::tr("%1 field(s) selected").arg(count));
+  });
 
   // Buttons
   QDialogButtonBox* buttons = new QDialogButtonBox(
@@ -401,35 +475,42 @@ void PlotPanel::showAddTopicDialog() {
   layout->addWidget(buttons);
 
   if (dialog.exec() == QDialog::Accepted) {
-    QTreeWidgetItem* selectedItem = tree->currentItem();
-    if (!selectedItem) return;
+    // Collect all checked items and add them
+    std::function<void(QTreeWidgetItem*)> processItem = [this, &processItem](QTreeWidgetItem* item) {
+      // Check if this item is checked and is a selectable field
+      if ((item->flags() & Qt::ItemIsUserCheckable) &&
+          item->checkState(0) == Qt::Checked &&
+          item->data(1, Qt::UserRole + 1).toBool()) {
 
-    QString topicName;
-    QString fieldPath;
-    QString msgType;
+        QString topicName;
+        QString fieldPath;
+        QString msgType;
 
-    // Check if this is a field item or topic item
-    if (selectedItem->data(1, Qt::UserRole + 1).toBool()) {
-      if (selectedItem->parent()) {
-        // Field under topic
-        topicName = selectedItem->parent()->data(0, Qt::UserRole).toString();
-        msgType = selectedItem->parent()->data(1, Qt::UserRole).toString();
-        fieldPath = selectedItem->data(0, Qt::UserRole).toString();
-      } else {
-        // Topic item directly selectable (simple numeric type)
-        topicName = selectedItem->data(0, Qt::UserRole).toString();
-        msgType = selectedItem->data(1, Qt::UserRole).toString();
-        fieldPath = "";
+        if (item->parent()) {
+          // Field under topic
+          topicName = item->parent()->data(0, Qt::UserRole).toString();
+          msgType = item->parent()->data(1, Qt::UserRole).toString();
+          fieldPath = item->data(0, Qt::UserRole).toString();
+        } else {
+          // Topic item directly selectable (simple numeric type)
+          topicName = item->data(0, Qt::UserRole).toString();
+          msgType = item->data(1, Qt::UserRole).toString();
+          fieldPath = "";
+        }
+
+        addPlot(topicName, fieldPath);
+        subscribeToTopic(topicName, msgType, fieldPath);
       }
-    } else {
-      // Topic selected but not a simple type - show warning
-      QMessageBox::information(this, tr("Select Field"),
-        tr("Please expand the topic and select a specific field to plot."));
-      return;
-    }
 
-    addPlot(topicName, fieldPath);
-    subscribeToTopic(topicName, msgType, fieldPath);
+      // Process children
+      for (int i = 0; i < item->childCount(); ++i) {
+        processItem(item->child(i));
+      }
+    };
+
+    for (int i = 0; i < tree->topLevelItemCount(); ++i) {
+      processItem(tree->topLevelItem(i));
+    }
   }
 }
 
@@ -555,7 +636,11 @@ void PlotPanel::addPlot(const QString& topicName, const QString& fieldPath) {
     info.color = generateSeriesColor();
     info.series = new QLineSeries();
     info.series->setName(fullPath);
-    info.series->setColor(info.color);
+
+    // Apply color and line thickness
+    QPen pen(info.color);
+    pen.setWidth(lineThickness_);
+    info.series->setPen(pen);
 
     // Add to chart
     chart_->addSeries(info.series);
@@ -884,16 +969,17 @@ void PlotPanel::updateDetailsPanel() {
 
   selectedSeriesLabel_->setText(info.fullPath);
   selectedSeriesLabel_->setStyleSheet(
-    QString("font-weight: bold; font-size: 11px; color: %1;").arg(info.color.name()));
+    QString("font-weight: bold; font-size: 10px; color: %1;").arg(info.color.name()));
 
-  QString stats = tr("Current: %1\nMin: %2  |  Max: %3  |  Mean: %4")
-    .arg(info.currentValue, 0, 'f', 4)
-    .arg(info.minValue, 0, 'f', 4)
-    .arg(info.maxValue, 0, 'f', 4)
-    .arg(info.meanValue, 0, 'f', 4);
+  // Compact horizontal stats format
+  QString stats = tr("Val: %1 | Min: %2 | Max: %3 | Avg: %4")
+    .arg(info.currentValue, 0, 'f', 2)
+    .arg(info.minValue, 0, 'f', 2)
+    .arg(info.maxValue, 0, 'f', 2)
+    .arg(info.meanValue, 0, 'f', 2);
   statsLabel_->setText(stats);
 
-  QString rate = tr("Messages: %1  |  Rate: %2 Hz")
+  QString rate = tr("Msgs: %1 | %2 Hz")
     .arg(info.messageCount)
     .arg(info.publishRate, 0, 'f', 1);
   rateLabel_->setText(rate);
@@ -916,7 +1002,10 @@ void PlotPanel::onSeriesListContextMenu(const QPoint& pos) {
       QColor newColor = QColorDialog::getColor(it->second.color, this, tr("Select Color"));
       if (newColor.isValid()) {
         it->second.color = newColor;
-        it->second.series->setColor(newColor);
+        // Update pen with new color while preserving line thickness
+        QPen pen = it->second.series->pen();
+        pen.setColor(newColor);
+        it->second.series->setPen(pen);
         item->setForeground(newColor);
       }
     }
@@ -1107,6 +1196,123 @@ QColor PlotPanel::generateSeriesColor() {
   QColor color = colorPalette_[colorIndex_ % colorPalette_.size()];
   colorIndex_++;
   return color;
+}
+
+void PlotPanel::onThemeChanged(Theme /* newTheme */) {
+  applyChartTheme();
+}
+
+void PlotPanel::applyChartTheme() {
+  if (!chart_) return;
+
+  Theme theme = ThemeManager::instance().currentTheme();
+  bool isDark = (theme == Theme::Dark);
+
+  // Chart background and plot area
+  QColor backgroundColor = isDark ? QColor(42, 42, 42) : QColor(255, 255, 255);
+  QColor plotAreaColor = isDark ? QColor(35, 35, 35) : QColor(250, 250, 250);
+  QColor textColor = isDark ? QColor(220, 220, 220) : QColor(30, 30, 30);
+  QColor gridColor = isDark ? QColor(70, 70, 70) : QColor(200, 200, 200);
+  QColor axisColor = isDark ? QColor(150, 150, 150) : QColor(80, 80, 80);
+
+  // Set chart background
+  chart_->setBackgroundBrush(QBrush(backgroundColor));
+  chart_->setPlotAreaBackgroundBrush(QBrush(plotAreaColor));
+  chart_->setPlotAreaBackgroundVisible(true);
+
+  // Set title color
+  chart_->setTitleBrush(QBrush(textColor));
+
+  // Set legend colors
+  chart_->legend()->setLabelColor(textColor);
+  chart_->legend()->setBrush(QBrush(backgroundColor));
+
+  // Configure X axis
+  if (axisX_) {
+    axisX_->setLabelsColor(textColor);
+    axisX_->setTitleBrush(QBrush(textColor));
+    axisX_->setGridLineColor(gridColor);
+    axisX_->setLinePenColor(axisColor);
+  }
+
+  // Configure Y axis
+  if (axisY_) {
+    axisY_->setLabelsColor(textColor);
+    axisY_->setTitleBrush(QBrush(textColor));
+    axisY_->setGridLineColor(gridColor);
+    axisY_->setLinePenColor(axisColor);
+  }
+
+  // Update chart view background
+  if (chartView_) {
+    chartView_->setBackgroundBrush(QBrush(backgroundColor));
+  }
+}
+
+void PlotPanel::setLineThickness(int thickness) {
+  if (thickness < 1) thickness = 1;
+  if (thickness > 10) thickness = 10;
+
+  lineThickness_ = thickness;
+
+  // Update existing series
+  std::lock_guard<std::mutex> lock(dataMutex_);
+  for (auto& [path, info] : plotSeries_) {
+    QPen pen = info.series->pen();
+    pen.setWidth(lineThickness_);
+    info.series->setPen(pen);
+  }
+
+  saveSettings();
+}
+
+void PlotPanel::setColorPalette(const QList<QColor>& colors) {
+  if (!colors.isEmpty()) {
+    colorPalette_ = colors;
+    saveSettings();
+  }
+}
+
+void PlotPanel::loadSettings() {
+  QSettings settings("ROS Weaver", "ROS Weaver");
+  settings.beginGroup("PlotPanel");
+
+  lineThickness_ = settings.value("lineThickness", DEFAULT_LINE_THICKNESS).toInt();
+  if (lineThickness_ < 1) lineThickness_ = 1;
+  if (lineThickness_ > 10) lineThickness_ = 10;
+
+  // Load custom color palette if saved
+  int colorCount = settings.beginReadArray("colorPalette");
+  if (colorCount > 0) {
+    colorPalette_.clear();
+    for (int i = 0; i < colorCount; ++i) {
+      settings.setArrayIndex(i);
+      QColor color = settings.value("color").value<QColor>();
+      if (color.isValid()) {
+        colorPalette_.append(color);
+      }
+    }
+  }
+  settings.endArray();
+
+  settings.endGroup();
+}
+
+void PlotPanel::saveSettings() {
+  QSettings settings("ROS Weaver", "ROS Weaver");
+  settings.beginGroup("PlotPanel");
+
+  settings.setValue("lineThickness", lineThickness_);
+
+  // Save color palette
+  settings.beginWriteArray("colorPalette", colorPalette_.size());
+  for (int i = 0; i < colorPalette_.size(); ++i) {
+    settings.setArrayIndex(i);
+    settings.setValue("color", colorPalette_[i]);
+  }
+  settings.endArray();
+
+  settings.endGroup();
 }
 
 }  // namespace ros_weaver

@@ -34,6 +34,7 @@ QT_CHARTS_USE_NAMESPACE
 namespace ros_weaver {
 
 class WeaverCanvas;
+enum class Theme;
 
 // Data point for plotting
 struct PlotDataPoint {
@@ -80,6 +81,18 @@ public:
   // Set canvas for integration
   void setCanvas(WeaverCanvas* canvas) { canvas_ = canvas; }
 
+  // Line thickness settings
+  int lineThickness() const { return lineThickness_; }
+  void setLineThickness(int thickness);
+
+  // Color palette access
+  QList<QColor> colorPalette() const { return colorPalette_; }
+  void setColorPalette(const QList<QColor>& colors);
+
+  // Settings persistence
+  void loadSettings();
+  void saveSettings();
+
 public slots:
   // Add a topic/field to plot
   void addPlot(const QString& topicName, const QString& fieldPath);
@@ -117,6 +130,7 @@ private slots:
   void onSeriesListContextMenu(const QPoint& pos);
   void onSeriesSelectionChanged();
   void onTimeWindowChanged(int index);
+  void onThemeChanged(Theme newTheme);
 
 private:
   void setupUi();
@@ -155,6 +169,9 @@ private:
 
   // Show topic/field selection dialog
   void showAddTopicDialog();
+
+  // Apply theme styling to the chart
+  void applyChartTheme();
 
   // UI Components
   QSplitter* mainSplitter_;
@@ -210,6 +227,10 @@ private:
   // Color palette for series
   QList<QColor> colorPalette_;
   int colorIndex_;
+
+  // Line thickness (default 2)
+  int lineThickness_;
+  static constexpr int DEFAULT_LINE_THICKNESS = 2;
 
   // Selected series for details
   QString selectedSeriesPath_;
