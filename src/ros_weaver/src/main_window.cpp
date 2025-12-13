@@ -366,6 +366,14 @@ void MainWindow::setupMenuBar() {
     }
   });
 
+  ros2Menu->addSeparator();
+
+  // External tools
+  QAction* launchRviz2Action = ros2Menu->addAction(tr("Launch R&Viz2"));
+  launchRviz2Action->setShortcut(tr("Ctrl+Shift+V"));
+  launchRviz2Action->setToolTip(tr("Launch RViz2 visualization tool"));
+  connect(launchRviz2Action, &QAction::triggered, this, &MainWindow::onLaunchRviz2);
+
   // Help menu
   QMenu* helpMenu = menuBar()->addMenu(tr("&Help"));
 
@@ -1281,6 +1289,181 @@ void MainWindow::onLaunchTurtleBot3Gazebo() {
 
     statusBar()->showMessage(tr("TurtleBot3 Gazebo simulation launched"), 10000);
   });
+}
+
+void MainWindow::onLaunchRviz2() {
+  // Check if rviz2 is available
+  QProcess checkProcess;
+  checkProcess.start("which", QStringList() << "rviz2");
+  checkProcess.waitForFinished(5000);
+
+  if (checkProcess.exitCode() != 0) {
+    // Try checking via ros2 pkg
+    checkProcess.start("ros2", QStringList() << "pkg" << "list");
+    checkProcess.waitForFinished(5000);
+    QString output = checkProcess.readAllStandardOutput();
+    if (!output.contains("rviz2")) {
+      QMessageBox::warning(this, tr("RViz2 Not Found"),
+        tr("RViz2 does not appear to be installed.\n\n"
+           "Please install it using:\n"
+           "  sudo apt install ros-${ROS_DISTRO}-rviz2"));
+      return;
+    }
+  }
+
+  // Create a dialog for launch options
+  QDialog dialog(this);
+  dialog.setWindowTitle(tr("Launch RViz2"));
+  dialog.setMinimumWidth(400);
+
+  QVBoxLayout* layout = new QVBoxLayout(&dialog);
+
+  // Description
+  QLabel* descLabel = new QLabel(tr("Choose how to launch RViz2:"));
+  layout->addWidget(descLabel);
+
+  // Options group
+  QGroupBox* optionsGroup = new QGroupBox(tr("Launch Options"));
+  QVBoxLayout* optionsLayout = new QVBoxLayout(optionsGroup);
+
+  QRadioButton* defaultOption = new QRadioButton(tr("Default configuration"));
+  defaultOption->setToolTip(tr("Launch RViz2 with its default configuration"));
+  defaultOption->setChecked(true);
+  optionsLayout->addWidget(defaultOption);
+
+  QRadioButton* emptyOption = new QRadioButton(tr("Empty configuration"));
+  emptyOption->setToolTip(tr("Launch RViz2 with no displays configured"));
+  optionsLayout->addWidget(emptyOption);
+
+  QRadioButton* customOption = new QRadioButton(tr("Load custom .rviz file"));
+  customOption->setToolTip(tr("Launch RViz2 with a custom configuration file"));
+  optionsLayout->addWidget(customOption);
+
+  // Custom file selection
+  QHBoxLayout* fileLayout = new QHBoxLayout();
+  QLineEdit* fileEdit = new QLineEdit();
+  fileEdit->setPlaceholderText(tr("Select a .rviz configuration file..."));
+  fileEdit->setEnabled(false);
+  QPushButton* browseButton = new QPushButton(tr("Browse..."));
+  browseButton->setEnabled(false);
+  fileLayout->addWidget(fileEdit);
+  fileLayout->addWidget(browseButton);
+  optionsLayout->addLayout(fileLayout);
+
+  layout->addWidget(optionsGroup);
+
+  // Enable/disable file selection based on custom option
+  connect(customOption, &QRadioButton::toggled, [fileEdit, browseButton](bool checked) {
+    fileEdit->setEnabled(checked);
+    browseButton->setEnabled(checked);
+  });
+
+  // Browse button action
+  connect(browseButton, &QPushButton::clicked, [this, fileEdit]() {
+    QString fileName = QFileDialog::getOpenFileName(this,
+      tr("Select RViz2 Configuration"),
+      QDir::homePath(),
+      tr("RViz2 Config Files (*.rviz);;All Files (*)"));
+    if (!fileName.isEmpty()) {
+      fileEdit->setText(fileName);
+    }
+  });
+
+  // Dialog buttons
+  QDialogButtonBox* buttonBox = new QDialogButtonBox(
+    QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+  connect(buttonBox, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  connect(buttonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  layout->addWidget(buttonBox);
+
+  if (dialog.exec() != QDialog::Accepted) {
+    return;
+  }
+
+  // Validate custom file if selected
+  QString configFile;
+  if (customOption->isChecked()) {
+    configFile = fileEdit->text();
+    if (configFile.isEmpty()) {
+      QMessageBox::warning(this, tr("No File Selected"),
+        tr("Please select a .rviz configuration file."));
+      return;
+    }
+    if (!QFile::exists(configFile)) {
+      QMessageBox::warning(this, tr("File Not Found"),
+        tr("The selected configuration file does not exist:\n%1").arg(configFile));
+      return;
+    }
+  }
+
+  // Build the launch command
+  QString rosDistro = qEnvironmentVariable("ROS_DISTRO", "jazzy");
+  QString rvizCmd;
+
+  if (emptyOption->isChecked()) {
+    // Launch with empty config
+    rvizCmd = QString("source /opt/ros/%1/setup.bash && rviz2").arg(rosDistro);
+  } else if (customOption->isChecked()) {
+    // Launch with custom config
+    rvizCmd = QString("source /opt/ros/%1/setup.bash && rviz2 -d \"%2\"")
+      .arg(rosDistro, configFile);
+  } else {
+    // Default - just launch rviz2
+    rvizCmd = QString("source /opt/ros/%1/setup.bash && rviz2").arg(rosDistro);
+  }
+
+  // Launch RViz2 as a separate process
+  QProcess* rvizProc = new QProcess(this);
+  rvizProc->setProcessChannelMode(QProcess::MergedChannels);
+
+  connect(rvizProc, &QProcess::readyReadStandardOutput, [this, rvizProc]() {
+    QString output = QString::fromUtf8(rvizProc->readAllStandardOutput());
+    // Filter out excessive Qt/Ogre debug messages to keep output clean
+    if (!output.contains("[DEBUG]") && !output.contains("Ogre")) {
+      outputPanel_->appendBuildOutput(output);
+    }
+  });
+
+  connect(rvizProc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+          [this, rvizProc](int exitCode, QProcess::ExitStatus) {
+    outputPanel_->appendBuildOutput(tr("\nRViz2 process exited with code %1\n").arg(exitCode));
+    rvizProc->deleteLater();
+    statusBar()->showMessage(tr("RViz2 closed"), 3000);
+  });
+
+  connect(rvizProc, &QProcess::errorOccurred, [this, rvizProc](QProcess::ProcessError error) {
+    QString errorMsg;
+    switch (error) {
+      case QProcess::FailedToStart:
+        errorMsg = tr("Failed to start RViz2. Make sure it is installed.");
+        break;
+      case QProcess::Crashed:
+        errorMsg = tr("RViz2 crashed unexpectedly.");
+        break;
+      default:
+        errorMsg = tr("RViz2 encountered an error.");
+        break;
+    }
+    outputPanel_->appendBuildOutput(tr("\nError: %1\n").arg(errorMsg));
+    rvizProc->deleteLater();
+  });
+
+  // Start the process
+  rvizProc->start("bash", QStringList() << "-c" << rvizCmd);
+
+  // Show output panel and update status
+  if (outputDock_) {
+    outputDock_->show();
+    outputDock_->raise();
+  }
+  outputPanel_->showBuildTab();
+  outputPanel_->appendBuildOutput(tr("\n=== Launching RViz2 ===\n"));
+  if (!configFile.isEmpty()) {
+    outputPanel_->appendBuildOutput(tr("Configuration: %1\n").arg(configFile));
+  }
+  outputPanel_->appendBuildOutput(tr("Command: %1\n\n").arg(rvizCmd));
+
+  statusBar()->showMessage(tr("RViz2 launched"), 5000);
 }
 
 void MainWindow::loadProjectYamlFiles(const QString& projectDir) {
