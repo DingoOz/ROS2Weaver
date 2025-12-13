@@ -144,9 +144,14 @@ void RosLogViewer::startListening() {
     // Create node for log subscription
     rosNode_ = std::make_shared<rclcpp::Node>("ros_weaver_log_viewer");
 
-    // Subscribe to /rosout
+    // Create QoS profile compatible with /rosout (uses TRANSIENT_LOCAL durability)
+    rclcpp::QoS qos(1000);
+    qos.reliability(rclcpp::ReliabilityPolicy::Reliable);
+    qos.durability(rclcpp::DurabilityPolicy::TransientLocal);
+
+    // Subscribe to /rosout with compatible QoS
     logSubscription_ = rosNode_->create_subscription<rcl_interfaces::msg::Log>(
-      "/rosout", 1000,
+      "/rosout", qos,
       [this](const rcl_interfaces::msg::Log::SharedPtr msg) {
         LogEntry entry;
         entry.timestamp = QDateTime::currentDateTime();
