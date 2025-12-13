@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build_and_test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ros-distro: [jazzy, rolling]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup ROS2
+        uses: ros-tooling/setup-ros@0.7
+        with:
+          required-ros-distributions: ${{ matrix.ros-distro }}
+
+      - name: Build and test
+        uses: ros-tooling/action-ros-ci@0.4
+        with:
+          target-ros2-distro: ${{ matrix.ros-distro }}
+          package-name: ros_weaver
