@@ -22,8 +22,12 @@
 #include "ros_weaver/core/ollama_manager.hpp"
 #include "ros_weaver/wizards/package_wizard.hpp"
 #include "ros_weaver/widgets/ollama_settings_widget.hpp"
+#include "ros_weaver/widgets/help_browser.hpp"
+#include "ros_weaver/widgets/keyboard_shortcuts_dialog.hpp"
+#include "ros_weaver/core/context_help.hpp"
 
 #include <QApplication>
+#include <QDesktopServices>
 #include <QMessageBox>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -126,6 +130,9 @@ MainWindow::MainWindow(QWidget* parent)
   setupToolBar();
   setupDockWidgets();
   setupStatusBar();
+
+  // Initialize context-sensitive help system (F1 key support)
+  ContextHelp::instance();
 }
 
 MainWindow::~MainWindow() = default;
@@ -385,6 +392,40 @@ void MainWindow::setupMenuBar() {
 
   // Help menu
   QMenu* helpMenu = menuBar()->addMenu(tr("&Help"));
+
+  QAction* gettingStartedAction = helpMenu->addAction(tr("&Getting Started"));
+  gettingStartedAction->setShortcut(tr("Ctrl+F1"));
+  gettingStartedAction->setToolTip(tr("Quick start guide for new users"));
+  connect(gettingStartedAction, &QAction::triggered, this, &MainWindow::onShowGettingStarted);
+
+  QAction* userManualAction = helpMenu->addAction(tr("&User Manual..."));
+  userManualAction->setToolTip(tr("Browse the full documentation"));
+  connect(userManualAction, &QAction::triggered, this, &MainWindow::onShowUserManual);
+
+  QAction* shortcutsAction = helpMenu->addAction(tr("&Keyboard Shortcuts..."));
+  shortcutsAction->setShortcut(tr("Ctrl+/"));
+  shortcutsAction->setToolTip(tr("View all keyboard shortcuts"));
+  connect(shortcutsAction, &QAction::triggered, this, &MainWindow::onShowKeyboardShortcuts);
+
+  helpMenu->addSeparator();
+
+  QAction* whatsNewAction = helpMenu->addAction(tr("What's &New"));
+  whatsNewAction->setToolTip(tr("See recent changes and new features"));
+  connect(whatsNewAction, &QAction::triggered, this, &MainWindow::onShowWhatsNew);
+
+  QAction* videoTutorialsAction = helpMenu->addAction(tr("&Video Tutorials"));
+  videoTutorialsAction->setToolTip(tr("Open video tutorials (external browser)"));
+  connect(videoTutorialsAction, &QAction::triggered, this, []() {
+    QDesktopServices::openUrl(QUrl("https://github.com/DingoOz/ROS2Weaver/wiki/Tutorials"));
+  });
+
+  helpMenu->addSeparator();
+
+  QAction* reportIssueAction = helpMenu->addAction(tr("&Report Issue..."));
+  reportIssueAction->setToolTip(tr("Report a bug or request a feature"));
+  connect(reportIssueAction, &QAction::triggered, this, &MainWindow::onReportIssue);
+
+  helpMenu->addSeparator();
 
   QAction* aboutAction = helpMenu->addAction(tr("&About ROS Weaver"));
   connect(aboutAction, &QAction::triggered, this, &MainWindow::onAbout);
@@ -1557,6 +1598,38 @@ void MainWindow::onAbout() {
        "<hr>"
        "<p><b>Developed by:</b> Nigel Hungerford-Symes</p>")
   );
+}
+
+void MainWindow::onShowGettingStarted() {
+  HelpBrowser* browser = HelpBrowser::instance(this);
+  browser->showTopic("getting-started");
+  browser->show();
+  browser->raise();
+  browser->activateWindow();
+}
+
+void MainWindow::onShowUserManual() {
+  HelpBrowser* browser = HelpBrowser::instance(this);
+  browser->show();
+  browser->raise();
+  browser->activateWindow();
+}
+
+void MainWindow::onShowKeyboardShortcuts() {
+  KeyboardShortcutsDialog dialog(this);
+  dialog.exec();
+}
+
+void MainWindow::onShowWhatsNew() {
+  HelpBrowser* browser = HelpBrowser::instance(this);
+  browser->showTopic("whats-new");
+  browser->show();
+  browser->raise();
+  browser->activateWindow();
+}
+
+void MainWindow::onReportIssue() {
+  QDesktopServices::openUrl(QUrl("https://github.com/DingoOz/ROS2Weaver/issues/new"));
 }
 
 void MainWindow::onSearchPackages() {

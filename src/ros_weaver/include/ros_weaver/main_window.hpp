@@ -56,6 +56,13 @@ private slots:
   void onExit();
   void onAbout();
 
+  // Help menu
+  void onShowGettingStarted();
+  void onShowUserManual();
+  void onShowKeyboardShortcuts();
+  void onShowWhatsNew();
+  void onReportIssue();
+
   // Example projects
   void onLoadTurtleBotExample();
   void onLoadTurtlesimExample();
