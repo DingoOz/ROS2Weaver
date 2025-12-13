@@ -7,6 +7,8 @@
 #include <QStyle>
 #include <QDesktopServices>
 #include <QUrl>
+#include <QColorDialog>
+#include <QGridLayout>
 
 namespace ros_weaver {
 
@@ -218,6 +220,84 @@ void OllamaSettingsWidget::setupUi() {
 
   mainLayout->addWidget(systemPromptGroup_);
 
+  // Chat Appearance Group
+  appearanceGroup_ = new QGroupBox(tr("Chat Appearance"), this);
+  QVBoxLayout* appearanceLayout = new QVBoxLayout(appearanceGroup_);
+
+  // Font selection row
+  QHBoxLayout* fontLayout = new QHBoxLayout();
+  fontLayout->addWidget(new QLabel(tr("Font:"), this));
+  fontFamilyCombo_ = new QFontComboBox(this);
+  fontFamilyCombo_->setCurrentFont(OllamaManager::defaultChatFont());
+  fontLayout->addWidget(fontFamilyCombo_, 1);
+
+  fontLayout->addWidget(new QLabel(tr("Size:"), this));
+  fontSizeSpin_ = new QSpinBox(this);
+  fontSizeSpin_->setRange(8, 24);
+  fontSizeSpin_->setValue(OllamaManager::defaultChatFontSize());
+  fontSizeSpin_->setFixedWidth(60);
+  fontLayout->addWidget(fontSizeSpin_);
+
+  fontBoldCheck_ = new QCheckBox(tr("Bold"), this);
+  fontLayout->addWidget(fontBoldCheck_);
+
+  fontItalicCheck_ = new QCheckBox(tr("Italic"), this);
+  fontLayout->addWidget(fontItalicCheck_);
+
+  appearanceLayout->addLayout(fontLayout);
+
+  // Color buttons in a grid
+  QGridLayout* colorGrid = new QGridLayout();
+
+  colorGrid->addWidget(new QLabel(tr("Your Messages:"), this), 0, 0);
+  userTextColorBtn_ = new QPushButton(tr("Text Color"), this);
+  userTextColorBtn_->setFixedWidth(100);
+  connect(userTextColorBtn_, &QPushButton::clicked, this, &OllamaSettingsWidget::onUserTextColorClicked);
+  colorGrid->addWidget(userTextColorBtn_, 0, 1);
+
+  userBgColorBtn_ = new QPushButton(tr("Background"), this);
+  userBgColorBtn_->setFixedWidth(100);
+  connect(userBgColorBtn_, &QPushButton::clicked, this, &OllamaSettingsWidget::onUserBgColorClicked);
+  colorGrid->addWidget(userBgColorBtn_, 0, 2);
+
+  colorGrid->addWidget(new QLabel(tr("AI Messages:"), this), 1, 0);
+  assistantTextColorBtn_ = new QPushButton(tr("Text Color"), this);
+  assistantTextColorBtn_->setFixedWidth(100);
+  connect(assistantTextColorBtn_, &QPushButton::clicked, this, &OllamaSettingsWidget::onAssistantTextColorClicked);
+  colorGrid->addWidget(assistantTextColorBtn_, 1, 1);
+
+  assistantBgColorBtn_ = new QPushButton(tr("Background"), this);
+  assistantBgColorBtn_->setFixedWidth(100);
+  connect(assistantBgColorBtn_, &QPushButton::clicked, this, &OllamaSettingsWidget::onAssistantBgColorClicked);
+  colorGrid->addWidget(assistantBgColorBtn_, 1, 2);
+
+  colorGrid->addWidget(new QLabel(tr("Code Blocks:"), this), 2, 0);
+  codeBgColorBtn_ = new QPushButton(tr("Background"), this);
+  codeBgColorBtn_->setFixedWidth(100);
+  connect(codeBgColorBtn_, &QPushButton::clicked, this, &OllamaSettingsWidget::onCodeBgColorClicked);
+  colorGrid->addWidget(codeBgColorBtn_, 2, 1);
+
+  colorGrid->setColumnStretch(3, 1);
+  appearanceLayout->addLayout(colorGrid);
+
+  // Preview label
+  previewLabel_ = new QLabel(this);
+  previewLabel_->setMinimumHeight(60);
+  previewLabel_->setWordWrap(true);
+  previewLabel_->setAlignment(Qt::AlignCenter);
+  previewLabel_->setText(tr("Preview: The quick brown fox jumps over the lazy dog."));
+  appearanceLayout->addWidget(previewLabel_);
+
+  // Reset button
+  QHBoxLayout* resetAppearanceLayout = new QHBoxLayout();
+  resetAppearanceBtn_ = new QPushButton(tr("Reset to Defaults"), this);
+  connect(resetAppearanceBtn_, &QPushButton::clicked, this, &OllamaSettingsWidget::onResetAppearanceClicked);
+  resetAppearanceLayout->addWidget(resetAppearanceBtn_);
+  resetAppearanceLayout->addStretch();
+  appearanceLayout->addLayout(resetAppearanceLayout);
+
+  mainLayout->addWidget(appearanceGroup_);
+
   mainLayout->addStretch();
 
   // Initial state
@@ -264,6 +344,24 @@ void OllamaSettingsWidget::connectSignals() {
   connect(systemPromptEdit_, &QTextEdit::textChanged, this, &OllamaSettingsWidget::settingsChanged);
   connect(resetPromptBtn_, &QPushButton::clicked, this, [this]() {
     systemPromptEdit_->setPlainText(OllamaManager::defaultSystemPrompt());
+  });
+
+  // Appearance settings
+  connect(fontFamilyCombo_, &QFontComboBox::currentFontChanged, this, [this]() {
+    updatePreview();
+    emit settingsChanged();
+  });
+  connect(fontSizeSpin_, QOverload<int>::of(&QSpinBox::valueChanged), this, [this]() {
+    updatePreview();
+    emit settingsChanged();
+  });
+  connect(fontBoldCheck_, &QCheckBox::toggled, this, [this]() {
+    updatePreview();
+    emit settingsChanged();
+  });
+  connect(fontItalicCheck_, &QCheckBox::toggled, this, [this]() {
+    updatePreview();
+    emit settingsChanged();
   });
 }
 
@@ -514,6 +612,19 @@ void OllamaSettingsWidget::applySettings() {
     localAIStatusWidget_->setShowStatus(showStatusCheck_->isChecked());
     localAIStatusWidget_->setShowModelName(showModelNameCheck_->isChecked());
   }
+
+  // Apply chat appearance settings
+  QFont chatFont = fontFamilyCombo_->currentFont();
+  chatFont.setPointSize(fontSizeSpin_->value());
+  chatFont.setBold(fontBoldCheck_->isChecked());
+  chatFont.setItalic(fontItalicCheck_->isChecked());
+  mgr.setChatFont(chatFont);
+  mgr.setChatFontSize(fontSizeSpin_->value());
+  mgr.setUserMessageColor(currentUserTextColor_);
+  mgr.setUserBackgroundColor(currentUserBgColor_);
+  mgr.setAssistantMessageColor(currentAssistantTextColor_);
+  mgr.setAssistantBackgroundColor(currentAssistantBgColor_);
+  mgr.setCodeBackgroundColor(currentCodeBgColor_);
 }
 
 void OllamaSettingsWidget::resetToSaved() {
@@ -542,7 +653,130 @@ void OllamaSettingsWidget::resetToSaved() {
     showModelNameCheck_->setChecked(localAIStatusWidget_->isModelNameVisible());
   }
 
+  // Load chat appearance settings
+  QFont chatFont = mgr.chatFont();
+  fontFamilyCombo_->setCurrentFont(chatFont);
+  fontSizeSpin_->setValue(mgr.chatFontSize());
+  fontBoldCheck_->setChecked(chatFont.bold());
+  fontItalicCheck_->setChecked(chatFont.italic());
+
+  currentUserTextColor_ = mgr.userMessageColor();
+  currentUserBgColor_ = mgr.userBackgroundColor();
+  currentAssistantTextColor_ = mgr.assistantMessageColor();
+  currentAssistantBgColor_ = mgr.assistantBackgroundColor();
+  currentCodeBgColor_ = mgr.codeBackgroundColor();
+
+  setButtonColor(userTextColorBtn_, currentUserTextColor_);
+  setButtonColor(userBgColorBtn_, currentUserBgColor_);
+  setButtonColor(assistantTextColorBtn_, currentAssistantTextColor_);
+  setButtonColor(assistantBgColorBtn_, currentAssistantBgColor_);
+  setButtonColor(codeBgColorBtn_, currentCodeBgColor_);
+
+  updatePreview();
   updateUiState();
+}
+
+void OllamaSettingsWidget::setButtonColor(QPushButton* button, const QColor& color) {
+  QString textColor = (color.lightness() > 128) ? "black" : "white";
+  button->setStyleSheet(QString(
+      "QPushButton {"
+      "  background-color: %1;"
+      "  color: %2;"
+      "  border: 1px solid #606060;"
+      "  border-radius: 4px;"
+      "  padding: 4px 8px;"
+      "}"
+      "QPushButton:hover { border-color: #808080; }"
+  ).arg(color.name(), textColor));
+}
+
+void OllamaSettingsWidget::onUserTextColorClicked() {
+  QColor color = QColorDialog::getColor(currentUserTextColor_, this, tr("Select User Text Color"));
+  if (color.isValid()) {
+    currentUserTextColor_ = color;
+    setButtonColor(userTextColorBtn_, color);
+    updatePreview();
+    emit settingsChanged();
+  }
+}
+
+void OllamaSettingsWidget::onUserBgColorClicked() {
+  QColor color = QColorDialog::getColor(currentUserBgColor_, this, tr("Select User Background Color"));
+  if (color.isValid()) {
+    currentUserBgColor_ = color;
+    setButtonColor(userBgColorBtn_, color);
+    updatePreview();
+    emit settingsChanged();
+  }
+}
+
+void OllamaSettingsWidget::onAssistantTextColorClicked() {
+  QColor color = QColorDialog::getColor(currentAssistantTextColor_, this, tr("Select AI Text Color"));
+  if (color.isValid()) {
+    currentAssistantTextColor_ = color;
+    setButtonColor(assistantTextColorBtn_, color);
+    updatePreview();
+    emit settingsChanged();
+  }
+}
+
+void OllamaSettingsWidget::onAssistantBgColorClicked() {
+  QColor color = QColorDialog::getColor(currentAssistantBgColor_, this, tr("Select AI Background Color"));
+  if (color.isValid()) {
+    currentAssistantBgColor_ = color;
+    setButtonColor(assistantBgColorBtn_, color);
+    updatePreview();
+    emit settingsChanged();
+  }
+}
+
+void OllamaSettingsWidget::onCodeBgColorClicked() {
+  QColor color = QColorDialog::getColor(currentCodeBgColor_, this, tr("Select Code Background Color"));
+  if (color.isValid()) {
+    currentCodeBgColor_ = color;
+    setButtonColor(codeBgColorBtn_, color);
+    updatePreview();
+    emit settingsChanged();
+  }
+}
+
+void OllamaSettingsWidget::onResetAppearanceClicked() {
+  fontFamilyCombo_->setCurrentFont(OllamaManager::defaultChatFont());
+  fontSizeSpin_->setValue(OllamaManager::defaultChatFontSize());
+  fontBoldCheck_->setChecked(false);
+  fontItalicCheck_->setChecked(false);
+
+  currentUserTextColor_ = OllamaManager::defaultUserMessageColor();
+  currentUserBgColor_ = OllamaManager::defaultUserBackgroundColor();
+  currentAssistantTextColor_ = OllamaManager::defaultAssistantMessageColor();
+  currentAssistantBgColor_ = OllamaManager::defaultAssistantBackgroundColor();
+  currentCodeBgColor_ = OllamaManager::defaultCodeBackgroundColor();
+
+  setButtonColor(userTextColorBtn_, currentUserTextColor_);
+  setButtonColor(userBgColorBtn_, currentUserBgColor_);
+  setButtonColor(assistantTextColorBtn_, currentAssistantTextColor_);
+  setButtonColor(assistantBgColorBtn_, currentAssistantBgColor_);
+  setButtonColor(codeBgColorBtn_, currentCodeBgColor_);
+
+  updatePreview();
+  emit settingsChanged();
+}
+
+void OllamaSettingsWidget::updatePreview() {
+  QFont previewFont = fontFamilyCombo_->currentFont();
+  previewFont.setPointSize(fontSizeSpin_->value());
+  previewFont.setBold(fontBoldCheck_->isChecked());
+  previewFont.setItalic(fontItalicCheck_->isChecked());
+
+  previewLabel_->setFont(previewFont);
+  previewLabel_->setStyleSheet(QString(
+      "QLabel {"
+      "  background-color: %1;"
+      "  color: %2;"
+      "  border-radius: 8px;"
+      "  padding: 10px;"
+      "}"
+  ).arg(currentAssistantBgColor_.name(), currentAssistantTextColor_.name()));
 }
 
 }  // namespace ros_weaver

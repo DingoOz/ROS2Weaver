@@ -9,6 +9,8 @@
 #include <QVBoxLayout>
 #include <QScrollArea>
 #include <QFrame>
+#include <QComboBox>
+#include <QElapsedTimer>
 
 namespace ros_weaver {
 
@@ -56,6 +58,10 @@ public:
 signals:
   void messageSent(const QString& message);
 
+protected:
+  // Override to handle paste events for images
+  bool eventFilter(QObject* obj, QEvent* event) override;
+
 private slots:
   void onSendClicked();
   void onStopClicked();
@@ -67,13 +73,18 @@ private slots:
   void onCompletionFinished(const QString& fullResponse);
   void onCompletionError(const QString& error);
   void onSettingsChanged();
+  void onQuickQuestionSelected(int index);
+  void handleClipboardPaste();
 
 private:
   void setupUi();
+  void setupQuickQuestions();
   ChatMessageWidget* addMessage(ChatMessageWidget::Role role, const QString& message);
   void updateStatusDisplay();
   void setInputEnabled(bool enabled);
   void scrollToBottom();
+  QString gatherROSContext();
+  void attachImageFromClipboard(const QImage& image);
 
   // UI components
   QWidget* chatContainer_;
@@ -85,6 +96,8 @@ private:
   QPushButton* clearBtn_;
   QPushButton* attachBtn_;
   QLabel* statusLabel_;
+  QComboBox* quickQuestionsCombo_;
+  QWidget* bottomSpacer_;  // Buffer at bottom for scrolling
 
   // Attachment UI
   QFrame* attachmentBar_;
@@ -96,6 +109,10 @@ private:
 
   // State
   bool isWaitingForResponse_ = false;
+
+  // Token generation tracking
+  QElapsedTimer tokenTimer_;
+  int tokenCount_ = 0;
 
   // Attachment state
   QString attachedFilePath_;

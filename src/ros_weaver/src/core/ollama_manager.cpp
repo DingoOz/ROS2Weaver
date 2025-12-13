@@ -381,6 +381,92 @@ void OllamaManager::setNumThreads(int threads) {
   }
 }
 
+// Chat appearance setters
+void OllamaManager::setChatFont(const QFont& font) {
+  if (chatFont_ != font) {
+    chatFont_ = font;
+    saveSettings();
+    emit settingsChanged();
+  }
+}
+
+void OllamaManager::setChatFontSize(int size) {
+  if (chatFontSize_ != size) {
+    chatFontSize_ = size;
+    saveSettings();
+    emit settingsChanged();
+  }
+}
+
+void OllamaManager::setUserMessageColor(const QColor& color) {
+  if (userMessageColor_ != color) {
+    userMessageColor_ = color;
+    saveSettings();
+    emit settingsChanged();
+  }
+}
+
+void OllamaManager::setUserBackgroundColor(const QColor& color) {
+  if (userBackgroundColor_ != color) {
+    userBackgroundColor_ = color;
+    saveSettings();
+    emit settingsChanged();
+  }
+}
+
+void OllamaManager::setAssistantMessageColor(const QColor& color) {
+  if (assistantMessageColor_ != color) {
+    assistantMessageColor_ = color;
+    saveSettings();
+    emit settingsChanged();
+  }
+}
+
+void OllamaManager::setAssistantBackgroundColor(const QColor& color) {
+  if (assistantBackgroundColor_ != color) {
+    assistantBackgroundColor_ = color;
+    saveSettings();
+    emit settingsChanged();
+  }
+}
+
+void OllamaManager::setCodeBackgroundColor(const QColor& color) {
+  if (codeBackgroundColor_ != color) {
+    codeBackgroundColor_ = color;
+    saveSettings();
+    emit settingsChanged();
+  }
+}
+
+// Default appearance values
+QFont OllamaManager::defaultChatFont() {
+  return QFont("Sans Serif", 13);
+}
+
+int OllamaManager::defaultChatFontSize() {
+  return 13;
+}
+
+QColor OllamaManager::defaultUserMessageColor() {
+  return QColor("#e0e0e0");
+}
+
+QColor OllamaManager::defaultUserBackgroundColor() {
+  return QColor("#1e3a5f");
+}
+
+QColor OllamaManager::defaultAssistantMessageColor() {
+  return QColor("#e0e0e0");
+}
+
+QColor OllamaManager::defaultAssistantBackgroundColor() {
+  return QColor("#2d2d2d");
+}
+
+QColor OllamaManager::defaultCodeBackgroundColor() {
+  return QColor("#1a1a1a");
+}
+
 QString OllamaManager::defaultSystemPrompt() {
   return QStringLiteral(
     "You are a ROS2 robotics assistant running locally with limited resources.\n\n"
@@ -411,6 +497,22 @@ void OllamaManager::loadSettings() {
   autoLoadModel_ = settings.value(KEY_AUTO_LOAD, true).toBool();
   systemPrompt_ = settings.value(KEY_SYSTEM_PROMPT, defaultSystemPrompt()).toString();
   numThreads_ = settings.value(KEY_NUM_THREADS, 0).toInt();
+
+  // Load chat appearance settings
+  QString fontFamily = settings.value(KEY_CHAT_FONT_FAMILY, defaultChatFont().family()).toString();
+  chatFontSize_ = settings.value(KEY_CHAT_FONT_SIZE, defaultChatFontSize()).toInt();
+  bool fontBold = settings.value(KEY_CHAT_FONT_BOLD, false).toBool();
+  bool fontItalic = settings.value(KEY_CHAT_FONT_ITALIC, false).toBool();
+  chatFont_ = QFont(fontFamily, chatFontSize_);
+  chatFont_.setBold(fontBold);
+  chatFont_.setItalic(fontItalic);
+
+  userMessageColor_ = QColor(settings.value(KEY_USER_MESSAGE_COLOR, defaultUserMessageColor().name()).toString());
+  userBackgroundColor_ = QColor(settings.value(KEY_USER_BACKGROUND_COLOR, defaultUserBackgroundColor().name()).toString());
+  assistantMessageColor_ = QColor(settings.value(KEY_ASSISTANT_MESSAGE_COLOR, defaultAssistantMessageColor().name()).toString());
+  assistantBackgroundColor_ = QColor(settings.value(KEY_ASSISTANT_BACKGROUND_COLOR, defaultAssistantBackgroundColor().name()).toString());
+  codeBackgroundColor_ = QColor(settings.value(KEY_CODE_BACKGROUND_COLOR, defaultCodeBackgroundColor().name()).toString());
+
   settings.endGroup();
 }
 
@@ -423,6 +525,18 @@ void OllamaManager::saveSettings() {
   settings.setValue(KEY_AUTO_LOAD, autoLoadModel_);
   settings.setValue(KEY_SYSTEM_PROMPT, systemPrompt_);
   settings.setValue(KEY_NUM_THREADS, numThreads_);
+
+  // Save chat appearance settings
+  settings.setValue(KEY_CHAT_FONT_FAMILY, chatFont_.family());
+  settings.setValue(KEY_CHAT_FONT_SIZE, chatFontSize_);
+  settings.setValue(KEY_CHAT_FONT_BOLD, chatFont_.bold());
+  settings.setValue(KEY_CHAT_FONT_ITALIC, chatFont_.italic());
+  settings.setValue(KEY_USER_MESSAGE_COLOR, userMessageColor_.name());
+  settings.setValue(KEY_USER_BACKGROUND_COLOR, userBackgroundColor_.name());
+  settings.setValue(KEY_ASSISTANT_MESSAGE_COLOR, assistantMessageColor_.name());
+  settings.setValue(KEY_ASSISTANT_BACKGROUND_COLOR, assistantBackgroundColor_.name());
+  settings.setValue(KEY_CODE_BACKGROUND_COLOR, codeBackgroundColor_.name());
+
   settings.endGroup();
 }
 

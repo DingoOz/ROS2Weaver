@@ -10,6 +10,11 @@
 #include <QFileInfo>
 #include <QMimeDatabase>
 #include <QImageReader>
+#include <QClipboard>
+#include <QMimeData>
+#include <QBuffer>
+#include <QKeyEvent>
+#include <QColor>
 
 namespace ros_weaver {
 
@@ -38,6 +43,23 @@ void ChatMessageWidget::setupUi(Role role) {
   // Role label
   QLabel* roleLabel = new QLabel(contentWidget);
 
+  // Get appearance settings from OllamaManager
+  OllamaManager& mgr = OllamaManager::instance();
+  QFont chatFont = mgr.chatFont();
+  int fontSize = mgr.chatFontSize();
+  QColor userTextColor = mgr.userMessageColor();
+  QColor userBgColor = mgr.userBackgroundColor();
+  QColor assistantTextColor = mgr.assistantMessageColor();
+  QColor assistantBgColor = mgr.assistantBackgroundColor();
+  QColor codeBgColor = mgr.codeBackgroundColor();
+
+  // Use defaults if colors are invalid
+  if (!userTextColor.isValid()) userTextColor = OllamaManager::defaultUserMessageColor();
+  if (!userBgColor.isValid()) userBgColor = OllamaManager::defaultUserBackgroundColor();
+  if (!assistantTextColor.isValid()) assistantTextColor = OllamaManager::defaultAssistantMessageColor();
+  if (!assistantBgColor.isValid()) assistantBgColor = OllamaManager::defaultAssistantBackgroundColor();
+  if (!codeBgColor.isValid()) codeBgColor = OllamaManager::defaultCodeBackgroundColor();
+
   // Style and alignment based on role
   QString bgColor, textColor;
   switch (role) {
@@ -45,17 +67,17 @@ void ChatMessageWidget::setupUi(Role role) {
       roleLabel->setText(tr("You"));
       roleLabel->setStyleSheet("font-weight: bold; font-size: 11px; color: #2a82da; margin-bottom: 2px;");
       roleLabel->setAlignment(Qt::AlignRight);
-      bgColor = "#1e3a5f";
-      textColor = "#e0e0e0";
-      // User: 50% width, right-aligned (spacer on left)
+      bgColor = userBgColor.name();
+      textColor = userTextColor.name();
+      // User: 80% width, right-aligned (spacer on left)
       outerLayout->addStretch(1);
-      outerLayout->addWidget(contentWidget, 1);
+      outerLayout->addWidget(contentWidget, 4);
       break;
     case Role::Assistant:
       roleLabel->setText(tr("AI Assistant"));
       roleLabel->setStyleSheet("font-weight: bold; font-size: 11px; color: #4CAF50; margin-bottom: 2px;");
-      bgColor = "#2d2d2d";
-      textColor = "#e0e0e0";
+      bgColor = assistantBgColor.name();
+      textColor = assistantTextColor.name();
       // Assistant: 80% width, left-aligned (spacer on right)
       outerLayout->addWidget(contentWidget, 4);
       outerLayout->addStretch(1);
@@ -81,19 +103,26 @@ void ChatMessageWidget::setupUi(Role role) {
   textBrowser_->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   textBrowser_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
+  // Apply custom font
+  if (chatFont.family().isEmpty()) {
+    chatFont = OllamaManager::defaultChatFont();
+  }
+  chatFont.setPointSize(fontSize > 0 ? fontSize : OllamaManager::defaultChatFontSize());
+  textBrowser_->setFont(chatFont);
+
   textBrowser_->setStyleSheet(QString(
       "QTextBrowser {"
       "  background-color: %1;"
       "  color: %2;"
       "  border-radius: 8px;"
       "  padding: 10px 14px;"
-      "  font-size: 13px;"
+      "  font-size: %3px;"
       "  line-height: 1.4;"
       "}"
       "QTextBrowser a { color: #5dade2; }"
-      "QTextBrowser code { background-color: #1a1a1a; padding: 2px 4px; border-radius: 3px; font-family: monospace; }"
-      "QTextBrowser pre { background-color: #1a1a1a; padding: 10px; border-radius: 5px; font-family: monospace; }"
-  ).arg(bgColor, textColor));
+      "QTextBrowser code { background-color: %4; padding: 2px 4px; border-radius: 3px; font-family: monospace; }"
+      "QTextBrowser pre { background-color: %4; padding: 10px; border-radius: 5px; font-family: monospace; }"
+  ).arg(bgColor, textColor, QString::number(fontSize), codeBgColor.name()));
 
   contentLayout->addWidget(textBrowser_);
 }
@@ -176,8 +205,14 @@ QString ChatMessageWidget::convertMarkdownToHtml(const QString& markdown) {
 // ============== LLMChatWidget ==============
 
 LLMChatWidget::LLMChatWidget(QWidget* parent)
-    : QWidget(parent) {
+    : QWidget(parent)
+    , quickQuestionsCombo_(nullptr)
+    , bottomSpacer_(nullptr)
+    , tokenCount_(0) {
   setupUi();
+
+  // Install event filter for paste handling
+  inputEdit_->installEventFilter(this);
 
   // Connect to OllamaManager signals
   OllamaManager& mgr = OllamaManager::instance();
@@ -222,6 +257,37 @@ void LLMChatWidget::setupUi() {
 
   mainLayout->addWidget(statusBar);
 
+  // Quick questions dropdown
+  QWidget* quickQuestionsBar = new QWidget(this);
+  QHBoxLayout* quickQuestionsLayout = new QHBoxLayout(quickQuestionsBar);
+  quickQuestionsLayout->setContentsMargins(8, 4, 8, 4);
+
+  QLabel* quickLabel = new QLabel(tr("Quick:"), this);
+  quickLabel->setStyleSheet("color: gray; font-size: 11px;");
+  quickQuestionsLayout->addWidget(quickLabel);
+
+  quickQuestionsCombo_ = new QComboBox(this);
+  quickQuestionsCombo_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+  quickQuestionsCombo_->setStyleSheet(
+      "QComboBox {"
+      "  background-color: #3a3a3a;"
+      "  border: 1px solid #505050;"
+      "  border-radius: 4px;"
+      "  padding: 4px 8px;"
+      "  color: white;"
+      "  font-size: 11px;"
+      "}"
+      "QComboBox:hover { border-color: #606060; }"
+      "QComboBox::drop-down { border: none; width: 20px; }"
+      "QComboBox::down-arrow { image: none; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid #888; }"
+      "QComboBox QAbstractItemView { background-color: #3a3a3a; color: white; selection-background-color: #2a82da; }");
+  setupQuickQuestions();
+  connect(quickQuestionsCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
+          this, &LLMChatWidget::onQuickQuestionSelected);
+  quickQuestionsLayout->addWidget(quickQuestionsCombo_);
+
+  mainLayout->addWidget(quickQuestionsBar);
+
   // Separator
   QFrame* separator = new QFrame(this);
   separator->setFrameShape(QFrame::HLine);
@@ -240,6 +306,12 @@ void LLMChatWidget::setupUi() {
   chatLayout_->setContentsMargins(8, 8, 8, 8);
   chatLayout_->setSpacing(12);
   chatLayout_->addStretch();  // Push messages to top initially
+
+  // Add bottom spacer to prevent text from sitting too low during streaming
+  bottomSpacer_ = new QWidget(chatContainer_);
+  bottomSpacer_->setFixedHeight(60);
+  bottomSpacer_->setStyleSheet("background-color: transparent;");
+  chatLayout_->addWidget(bottomSpacer_);
 
   scrollArea_->setWidget(chatContainer_);
   mainLayout->addWidget(scrollArea_, 1);
@@ -359,15 +431,18 @@ void LLMChatWidget::setupUi() {
 }
 
 ChatMessageWidget* LLMChatWidget::addMessage(ChatMessageWidget::Role role, const QString& message) {
-  // Remove the stretch from the layout temporarily
-  QLayoutItem* stretch = chatLayout_->takeAt(chatLayout_->count() - 1);
+  // Remove the bottom spacer and stretch from the layout temporarily
+  // Layout order: [stretch, messages..., bottomSpacer]
+  QLayoutItem* spacerItem = chatLayout_->takeAt(chatLayout_->count() - 1);  // bottomSpacer
+  QLayoutItem* stretch = chatLayout_->takeAt(chatLayout_->count() - 1);      // stretch
 
   // Add the new message widget
   ChatMessageWidget* msgWidget = new ChatMessageWidget(role, message, chatContainer_);
   chatLayout_->addWidget(msgWidget);
 
-  // Re-add the stretch to push messages up
+  // Re-add the stretch and bottom spacer
   chatLayout_->addStretch();
+  chatLayout_->addItem(spacerItem);
 
   // Scroll to bottom
   scrollToBottom();
@@ -384,10 +459,12 @@ void LLMChatWidget::scrollToBottom() {
 }
 
 void LLMChatWidget::clearChat() {
-  // Remove all widgets except the stretch
-  while (chatLayout_->count() > 1) {
-    QLayoutItem* item = chatLayout_->takeAt(0);
-    if (item->widget()) {
+  // Remove all widgets except the stretch and bottom spacer
+  // Layout order: [stretch, messages..., bottomSpacer]
+  while (chatLayout_->count() > 2) {
+    // Remove items between stretch (index 0) and bottomSpacer (last item)
+    QLayoutItem* item = chatLayout_->takeAt(1);
+    if (item->widget() && item->widget() != bottomSpacer_) {
       delete item->widget();
     }
     delete item;
@@ -709,6 +786,163 @@ void LLMChatWidget::setInputEnabled(bool enabled) {
   inputEdit_->setEnabled(enabled);
   sendBtn_->setEnabled(enabled);
   attachBtn_->setEnabled(enabled);
+  if (quickQuestionsCombo_) {
+    quickQuestionsCombo_->setEnabled(enabled);
+  }
+}
+
+void LLMChatWidget::setupQuickQuestions() {
+  quickQuestionsCombo_->clear();
+  quickQuestionsCombo_->addItem(tr("-- Select a quick question --"));
+
+  // Diagnostics
+  quickQuestionsCombo_->addItem(tr("🔍 What ROS2 topics are active?"));
+  quickQuestionsCombo_->addItem(tr("🔍 What ROS2 nodes are running?"));
+  quickQuestionsCombo_->addItem(tr("🔍 Show the TF tree structure"));
+  quickQuestionsCombo_->addItem(tr("🔍 Are there any unconnected topics?"));
+  quickQuestionsCombo_->addItem(tr("🔍 Analyze my robot's current state"));
+
+  // Help & Learning
+  quickQuestionsCombo_->addItem(tr("📚 Explain ROS2 topics vs services"));
+  quickQuestionsCombo_->addItem(tr("📚 How do I create a launch file?"));
+  quickQuestionsCombo_->addItem(tr("📚 What is tf2 and how does it work?"));
+  quickQuestionsCombo_->addItem(tr("📚 Best practices for ROS2 node design"));
+
+  // Code Generation
+  quickQuestionsCombo_->addItem(tr("💻 Generate a simple publisher node"));
+  quickQuestionsCombo_->addItem(tr("💻 Generate a subscriber node"));
+  quickQuestionsCombo_->addItem(tr("💻 Create a service server example"));
+  quickQuestionsCombo_->addItem(tr("💻 Write a basic launch file"));
+
+  // Debugging
+  quickQuestionsCombo_->addItem(tr("🐛 Why might my robot not be moving?"));
+  quickQuestionsCombo_->addItem(tr("🐛 Common TF tree issues and fixes"));
+  quickQuestionsCombo_->addItem(tr("🐛 Debug nav2 navigation problems"));
+}
+
+void LLMChatWidget::onQuickQuestionSelected(int index) {
+  if (index <= 0) return;  // Skip placeholder
+
+  QString question = quickQuestionsCombo_->itemText(index);
+
+  // Remove emoji prefix if present (first 2-4 characters before space)
+  int spaceIdx = question.indexOf(' ');
+  if (spaceIdx > 0 && spaceIdx <= 4) {
+    question = question.mid(spaceIdx + 1);
+  }
+
+  // Check if this is a diagnostics question that should include ROS context
+  bool includeContext = question.contains("topics") ||
+                        question.contains("nodes") ||
+                        question.contains("TF tree") ||
+                        question.contains("robot's current state") ||
+                        question.contains("unconnected");
+
+  if (includeContext) {
+    QString context = gatherROSContext();
+    if (!context.isEmpty()) {
+      question = context + "\n\n" + question;
+    }
+  }
+
+  inputEdit_->setText(question);
+  inputEdit_->setFocus();
+
+  // Reset combo to placeholder
+  quickQuestionsCombo_->setCurrentIndex(0);
+}
+
+bool LLMChatWidget::eventFilter(QObject* obj, QEvent* event) {
+  if (obj == inputEdit_ && event->type() == QEvent::KeyPress) {
+    QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
+
+    // Check for Ctrl+V (paste)
+    if (keyEvent->matches(QKeySequence::Paste)) {
+      handleClipboardPaste();
+      return true;  // Event handled
+    }
+  }
+  return QWidget::eventFilter(obj, event);
+}
+
+void LLMChatWidget::handleClipboardPaste() {
+  QClipboard* clipboard = QApplication::clipboard();
+  const QMimeData* mimeData = clipboard->mimeData();
+
+  if (mimeData->hasImage()) {
+    // Paste image from clipboard
+    QImage image = qvariant_cast<QImage>(mimeData->imageData());
+    if (!image.isNull()) {
+      attachImageFromClipboard(image);
+      return;
+    }
+  }
+
+  // Fall back to default text paste behavior
+  if (mimeData->hasText()) {
+    inputEdit_->insert(mimeData->text());
+  }
+}
+
+void LLMChatWidget::attachImageFromClipboard(const QImage& image) {
+  // Check if current model supports vision
+  OllamaManager& mgr = OllamaManager::instance();
+  if (!OllamaManager::isVisionModel(mgr.selectedModel())) {
+    addMessage(ChatMessageWidget::Role::System,
+               tr("Note: Current model '%1' may not support images. Consider using a vision model like 'llava' or 'llama3.2-vision'.").arg(mgr.selectedModel()));
+  }
+
+  // Clear previous attachment
+  onRemoveAttachment();
+
+  // Convert image to base64 PNG
+  QByteArray imageData;
+  QBuffer buffer(&imageData);
+  buffer.open(QIODevice::WriteOnly);
+  image.save(&buffer, "PNG");
+  buffer.close();
+
+  attachedImageBase64_ = QString::fromLatin1(imageData.toBase64());
+  attachedFilePath_ = tr("Clipboard Image");
+  attachedIsImage_ = true;
+  attachedFileContent_.clear();
+
+  // Calculate size
+  QString sizeStr;
+  if (imageData.size() < 1024) {
+    sizeStr = QString::number(imageData.size()) + " B";
+  } else if (imageData.size() < 1024 * 1024) {
+    sizeStr = QString::number(imageData.size() / 1024.0, 'f', 1) + " KB";
+  } else {
+    sizeStr = QString::number(imageData.size() / (1024.0 * 1024.0), 'f', 1) + " MB";
+  }
+
+  // Update UI
+  attachmentLabel_->setText(tr("Pasted Image (%1x%2, %3)")
+                                .arg(image.width())
+                                .arg(image.height())
+                                .arg(sizeStr));
+  attachmentBar_->setVisible(true);
+}
+
+QString LLMChatWidget::gatherROSContext() {
+  // This function gathers available ROS2 system information
+  // to provide context to the AI for diagnostics questions
+
+  QString context;
+  context += "=== Current ROS2 System State ===\n";
+
+  // Note: In a full implementation, this would query the ROS2 system
+  // For now, we provide a placeholder that can be expanded
+  // The actual data would come from the ROS2 node integration
+
+  // TODO: Integrate with the existing ROS2 scanning functionality
+  // to get actual topics, nodes, and TF tree information
+
+  context += "\n[ROS2 context data would be gathered here from the running system]\n";
+  context += "Please provide general ROS2 assistance based on the question.\n";
+
+  return context;
 }
 
 }  // namespace ros_weaver

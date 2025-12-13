@@ -68,6 +68,9 @@ Create complete robot description packages with ros2_control support:
 - Ollama integration for local LLM support
 - AI chat panel for ROS2 development assistance
 - Status indicator showing AI availability
+- Customizable chat appearance (fonts, colors, styles)
+
+Users can paste screenshots, use the Local AI to automatically analyse ROS logs, upload files, or chat to gain insights about the current project. All processing happens locally without sending data to the cloud.
 
 ### In-Program Help
 - Interactive guided tour for new users
