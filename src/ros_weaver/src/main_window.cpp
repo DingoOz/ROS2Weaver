@@ -17,7 +17,10 @@
 #include "ros_weaver/widgets/plot_panel.hpp"
 #include "ros_weaver/core/system_discovery.hpp"
 #include "ros_weaver/core/canvas_mapper.hpp"
+#include "ros_weaver/core/theme_manager.hpp"
+#include "ros_weaver/core/ollama_manager.hpp"
 #include "ros_weaver/wizards/package_wizard.hpp"
+#include "ros_weaver/widgets/ollama_settings_widget.hpp"
 
 #include <QApplication>
 #include <QMessageBox>
@@ -38,6 +41,7 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QCheckBox>
+#include <QComboBox>
 #include <QRadioButton>
 #include <QGroupBox>
 #include <QFormLayout>
@@ -1991,12 +1995,38 @@ void MainWindow::onRosStatusTitleBarUpdate(const QString& suffix) {
 void MainWindow::onOpenSettings() {
   QDialog dialog(this);
   dialog.setWindowTitle(tr("Settings"));
-  dialog.setMinimumWidth(400);
+  dialog.setMinimumSize(500, 550);
 
   QVBoxLayout* mainLayout = new QVBoxLayout(&dialog);
 
+  // Create tab widget for settings pages
+  QTabWidget* settingsTabs = new QTabWidget(&dialog);
+
+  // ==================== General Settings Tab ====================
+  QWidget* generalTab = new QWidget();
+  QVBoxLayout* generalLayout = new QVBoxLayout(generalTab);
+
+  // Appearance group
+  QGroupBox* appearanceGroup = new QGroupBox(tr("Appearance"), generalTab);
+  QHBoxLayout* appearanceLayout = new QHBoxLayout(appearanceGroup);
+
+  QLabel* themeLabel = new QLabel(tr("Theme:"), appearanceGroup);
+  QComboBox* themeCombo = new QComboBox(appearanceGroup);
+  themeCombo->addItem(ThemeManager::themeName(Theme::Dark), static_cast<int>(Theme::Dark));
+  themeCombo->addItem(ThemeManager::themeName(Theme::Light), static_cast<int>(Theme::Light));
+
+  // Set current theme
+  Theme currentTheme = ThemeManager::instance().currentTheme();
+  themeCombo->setCurrentIndex(themeCombo->findData(static_cast<int>(currentTheme)));
+
+  appearanceLayout->addWidget(themeLabel);
+  appearanceLayout->addWidget(themeCombo);
+  appearanceLayout->addStretch();
+
+  generalLayout->addWidget(appearanceGroup);
+
   // ROS2 Status Display group
-  QGroupBox* ros2Group = new QGroupBox(tr("ROS2 Status Display"), &dialog);
+  QGroupBox* ros2Group = new QGroupBox(tr("ROS2 Status Display"), generalTab);
   QVBoxLayout* ros2Layout = new QVBoxLayout(ros2Group);
 
   // Show ROS2 connection status checkbox
@@ -2033,10 +2063,10 @@ void MainWindow::onOpenSettings() {
   ros2Layout->addWidget(titleBarOnlyRadio);
   ros2Layout->addWidget(bothRadio);
 
-  mainLayout->addWidget(ros2Group);
+  generalLayout->addWidget(ros2Group);
 
   // System Discovery group
-  QGroupBox* discoveryGroup = new QGroupBox(tr("System Discovery"), &dialog);
+  QGroupBox* discoveryGroup = new QGroupBox(tr("System Discovery"), generalTab);
   QVBoxLayout* discoveryLayout = new QVBoxLayout(discoveryGroup);
 
   // Scan timeout setting
@@ -2063,10 +2093,10 @@ void MainWindow::onOpenSettings() {
   intervalLayout->addStretch();
   discoveryLayout->addLayout(intervalLayout);
 
-  mainLayout->addWidget(discoveryGroup);
+  generalLayout->addWidget(discoveryGroup);
 
   // ROS Logger Colors group
-  QGroupBox* logColorGroup = new QGroupBox(tr("ROS Logger Colors"), &dialog);
+  QGroupBox* logColorGroup = new QGroupBox(tr("ROS Logger Colors"), generalTab);
   QGridLayout* colorLayout = new QGridLayout(logColorGroup);
 
   // Get current colors from the ROS log viewer
@@ -2134,10 +2164,19 @@ void MainWindow::onOpenSettings() {
   });
   colorLayout->addWidget(resetColorsBtn, row, 0, 1, 2);
 
-  mainLayout->addWidget(logColorGroup);
+  generalLayout->addWidget(logColorGroup);
 
-  // Add stretch to push buttons to bottom
-  mainLayout->addStretch();
+  // Add stretch to push remaining space to bottom
+  generalLayout->addStretch();
+
+  settingsTabs->addTab(generalTab, tr("General"));
+
+  // ==================== Local LLM Settings Tab ====================
+  OllamaSettingsWidget* ollamaSettingsWidget = new OllamaSettingsWidget();
+  settingsTabs->addTab(ollamaSettingsWidget, tr("Local LLM"));
+
+  // Add tabs to main layout
+  mainLayout->addWidget(settingsTabs);
 
   // Dialog buttons
   QDialogButtonBox* buttonBox = new QDialogButtonBox(
@@ -2147,6 +2186,10 @@ void MainWindow::onOpenSettings() {
   mainLayout->addWidget(buttonBox);
 
   if (dialog.exec() == QDialog::Accepted) {
+    // Apply theme setting
+    Theme selectedTheme = static_cast<Theme>(themeCombo->currentData().toInt());
+    ThemeManager::instance().setTheme(selectedTheme);
+
     // Apply settings
     rosStatusWidget_->setShowRos2Status(showStatusCheck->isChecked());
     rosStatusWidget_->setShowDomainId(showDomainCheck->isChecked());
@@ -2176,6 +2219,9 @@ void MainWindow::onOpenSettings() {
       newColors.fatalColor = selectedColors["FATAL"];
       outputPanel_->rosLogViewer()->setLogLevelColors(newColors);
     }
+
+    // Apply Ollama/Local LLM settings
+    ollamaSettingsWidget->applySettings();
   }
 }
 
