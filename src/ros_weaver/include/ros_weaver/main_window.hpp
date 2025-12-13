@@ -31,6 +31,7 @@ class TopicMonitor;
 class TopicInspectorPopup;
 class ConnectionLine;
 class RosStatusWidget;
+class LocalAIStatusWidget;
 class SystemDiscovery;
 class CanvasMapper;
 class SystemMappingPanel;
@@ -156,6 +157,7 @@ private:
 
   // ROS2 status display
   RosStatusWidget* rosStatusWidget_;
+  LocalAIStatusWidget* localAIStatusWidget_;
   QString baseWindowTitle_;
 
   // System discovery
