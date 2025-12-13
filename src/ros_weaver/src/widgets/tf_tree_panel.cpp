@@ -131,17 +131,21 @@ QWidget* TFTreePanel::createToolbar() {
 
 void TFTreePanel::setupTreeWidget() {
   treeWidget_ = new QTreeWidget(this);
-  treeWidget_->setHeaderLabels({tr("Frame"), tr("Rate"), tr("Status")});
-  treeWidget_->setColumnCount(3);
+  treeWidget_->setHeaderLabels({tr("Frame"), tr("Parent"), tr("Rate"), tr("Status")});
+  treeWidget_->setColumnCount(4);
   treeWidget_->setAlternatingRowColors(true);
   treeWidget_->setContextMenuPolicy(Qt::CustomContextMenu);
   treeWidget_->setSelectionMode(QAbstractItemView::SingleSelection);
 
   // Column widths
   treeWidget_->header()->setStretchLastSection(true);
-  treeWidget_->setColumnWidth(0, 180);
-  treeWidget_->setColumnWidth(1, 70);
-  treeWidget_->setColumnWidth(2, 80);
+  treeWidget_->setColumnWidth(0, 150);
+  treeWidget_->setColumnWidth(1, 120);
+  treeWidget_->setColumnWidth(2, 60);
+  treeWidget_->setColumnWidth(3, 70);
+
+  // Hide Parent column by default (Tree View mode)
+  treeWidget_->setColumnHidden(1, true);
 }
 
 void TFTreePanel::setupDetailsPanel() {
@@ -210,6 +214,19 @@ void TFTreePanel::setupConnections() {
     } else {
       stopListening();
     }
+  });
+
+  // View mode switching
+  connect(viewModeCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
+          this, [this](int index) {
+    // Show/hide Parent column based on view mode
+    // index 0 = Tree View (hide parent column), index 1 = Flat List (show parent column)
+    treeWidget_->setColumnHidden(1, index == 0);
+
+    // Clear existing items and rebuild with new view mode
+    treeWidget_->clear();
+    frameItems_.clear();
+    rebuildTree();
   });
 
   connect(treeWidget_, &QTreeWidget::itemClicked, this, &TFTreePanel::onFrameSelected);
@@ -424,71 +441,104 @@ void TFTreePanel::onUpdateTimer() {
 void TFTreePanel::rebuildTree() {
   std::lock_guard<std::mutex> lock(framesMutex_);
 
-  // Build parent-child relationships
-  QMap<QString, QStringList> children;
-  QSet<QString> allFrames;
+  // Check view mode: 0 = Tree View, 1 = Flat List
+  bool flatMode = (viewModeCombo_->currentIndex() == 1);
 
-  for (auto it = frames_.begin(); it != frames_.end(); ++it) {
-    allFrames.insert(it.key());
-    if (!it.value().parentName.isEmpty()) {
-      children[it.value().parentName].append(it.key());
-    }
-  }
+  if (flatMode) {
+    // Flat list mode: all frames as top-level items, sorted alphabetically
+    QStringList frameNames = frames_.keys();
+    frameNames.sort(Qt::CaseInsensitive);
 
-  // Find root frames (frames with no parent or parent not in set)
-  QStringList roots;
-  for (const QString& frame : allFrames) {
-    const TFFrameInfo& info = frames_[frame];
-    if (info.parentName.isEmpty() || !allFrames.contains(info.parentName)) {
-      roots.append(frame);
-    }
-  }
-
-  // Build tree recursively
-  std::function<void(QTreeWidgetItem*, const QString&, int)> buildSubtree =
-    [&](QTreeWidgetItem* parent, const QString& frameName, int depth) {
+    for (const QString& frameName : frameNames) {
       QTreeWidgetItem* item = findOrCreateFrameItem(frameName);
 
       if (frames_.contains(frameName)) {
         TFFrameInfo& frame = frames_[frameName];
-        frame.depth = depth;
-        frame.childNames = children[frameName];
+        frame.depth = 0;
         updateFrameItem(item, frame);
+
+        // In flat mode, show parent in a different way
+        if (!frame.parentName.isEmpty()) {
+          item->setToolTip(0, tr("Parent: %1").arg(frame.parentName));
+        }
       }
 
-      // Move to correct parent
-      if (parent) {
-        if (item->parent() != parent) {
+      // Ensure item is at top level
+      if (item->parent()) {
+        item->parent()->removeChild(item);
+      }
+      if (treeWidget_->indexOfTopLevelItem(item) < 0) {
+        treeWidget_->addTopLevelItem(item);
+      }
+    }
+  } else {
+    // Tree view mode: hierarchical parent-child structure
+    // Build parent-child relationships
+    QMap<QString, QStringList> children;
+    QSet<QString> allFrames;
+
+    for (auto it = frames_.begin(); it != frames_.end(); ++it) {
+      allFrames.insert(it.key());
+      if (!it.value().parentName.isEmpty()) {
+        children[it.value().parentName].append(it.key());
+      }
+    }
+
+    // Find root frames (frames with no parent or parent not in set)
+    QStringList roots;
+    for (const QString& frame : allFrames) {
+      const TFFrameInfo& info = frames_[frame];
+      if (info.parentName.isEmpty() || !allFrames.contains(info.parentName)) {
+        roots.append(frame);
+      }
+    }
+
+    // Build tree recursively
+    std::function<void(QTreeWidgetItem*, const QString&, int)> buildSubtree =
+      [&](QTreeWidgetItem* parent, const QString& frameName, int depth) {
+        QTreeWidgetItem* item = findOrCreateFrameItem(frameName);
+
+        if (frames_.contains(frameName)) {
+          TFFrameInfo& frame = frames_[frameName];
+          frame.depth = depth;
+          frame.childNames = children[frameName];
+          updateFrameItem(item, frame);
+        }
+
+        // Move to correct parent
+        if (parent) {
+          if (item->parent() != parent) {
+            if (item->parent()) {
+              item->parent()->removeChild(item);
+            } else {
+              int idx = treeWidget_->indexOfTopLevelItem(item);
+              if (idx >= 0) treeWidget_->takeTopLevelItem(idx);
+            }
+            parent->addChild(item);
+          }
+        } else {
           if (item->parent()) {
             item->parent()->removeChild(item);
-          } else {
-            int idx = treeWidget_->indexOfTopLevelItem(item);
-            if (idx >= 0) treeWidget_->takeTopLevelItem(idx);
+            treeWidget_->addTopLevelItem(item);
+          } else if (treeWidget_->indexOfTopLevelItem(item) < 0) {
+            treeWidget_->addTopLevelItem(item);
           }
-          parent->addChild(item);
         }
-      } else {
-        if (item->parent()) {
-          item->parent()->removeChild(item);
-          treeWidget_->addTopLevelItem(item);
-        } else if (treeWidget_->indexOfTopLevelItem(item) < 0) {
-          treeWidget_->addTopLevelItem(item);
+
+        // Build children
+        for (const QString& child : children[frameName]) {
+          buildSubtree(item, child, depth + 1);
         }
-      }
+      };
 
-      // Build children
-      for (const QString& child : children[frameName]) {
-        buildSubtree(item, child, depth + 1);
-      }
-    };
+    // Build from roots
+    for (const QString& root : roots) {
+      buildSubtree(nullptr, root, 0);
+    }
 
-  // Build from roots
-  for (const QString& root : roots) {
-    buildSubtree(nullptr, root, 0);
+    // Expand all by default
+    treeWidget_->expandAll();
   }
-
-  // Expand all by default
-  treeWidget_->expandAll();
 }
 
 QTreeWidgetItem* TFTreePanel::findOrCreateFrameItem(const QString& frameName) {
@@ -504,24 +554,28 @@ QTreeWidgetItem* TFTreePanel::findOrCreateFrameItem(const QString& frameName) {
 }
 
 void TFTreePanel::updateFrameItem(QTreeWidgetItem* item, const TFFrameInfo& frame) {
+  // Column indices: 0=Frame, 1=Parent, 2=Rate, 3=Status
   item->setText(0, frame.name);
+
+  // Parent column (for flat list mode)
+  item->setText(1, frame.parentName.isEmpty() ? tr("(root)") : frame.parentName);
 
   // Rate column
   if (frame.isStatic) {
-    item->setText(1, tr("Static"));
+    item->setText(2, tr("Static"));
   } else if (frame.updateRateHz > 0) {
-    item->setText(1, QString("%1 Hz").arg(frame.updateRateHz, 0, 'f', 1));
+    item->setText(2, QString("%1 Hz").arg(frame.updateRateHz, 0, 'f', 1));
   } else {
-    item->setText(1, "-");
+    item->setText(2, "-");
   }
 
   // Status column
-  item->setText(2, getStatusText(frame.status));
+  item->setText(3, getStatusText(frame.status));
 
   // Color coding
   QColor color = getStatusColor(frame.status);
   item->setForeground(0, color);
-  item->setForeground(2, color);
+  item->setForeground(3, color);
 
   // Icon based on status
   if (frame.status == FrameStatus::Orphan) {
