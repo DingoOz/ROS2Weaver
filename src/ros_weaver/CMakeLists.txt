@@ -64,6 +64,8 @@ set(SOURCES
   src/core/ollama_manager.cpp
   src/widgets/param_dashboard.cpp
   src/widgets/ollama_settings_widget.cpp
+  src/widgets/local_ai_status_widget.cpp
+  src/widgets/llm_chat_widget.cpp
   src/widgets/output_panel.cpp
   src/widgets/topic_inspector.cpp
   src/widgets/ros_status_widget.cpp
@@ -93,6 +95,8 @@ set(HEADERS
   include/ros_weaver/core/ollama_manager.hpp
   include/ros_weaver/widgets/param_dashboard.hpp
   include/ros_weaver/widgets/ollama_settings_widget.hpp
+  include/ros_weaver/widgets/local_ai_status_widget.hpp
+  include/ros_weaver/widgets/llm_chat_widget.hpp
   include/ros_weaver/widgets/output_panel.hpp
   include/ros_weaver/widgets/topic_inspector.hpp
   include/ros_weaver/widgets/ros_status_widget.hpp

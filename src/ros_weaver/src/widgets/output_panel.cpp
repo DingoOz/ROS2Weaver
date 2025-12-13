@@ -1,4 +1,5 @@
 #include "ros_weaver/widgets/output_panel.hpp"
+#include "ros_weaver/widgets/llm_chat_widget.hpp"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -758,6 +759,10 @@ void OutputPanel::setupUi() {
   terminalWidget_ = new TerminalWidget();
   tabWidget_->addTab(terminalWidget_, tr("Terminal"));
 
+  // LLM Chat tab
+  llmChatWidget_ = new LLMChatWidget();
+  tabWidget_->addTab(llmChatWidget_, tr("LocalLLM"));
+
   layout->addWidget(tabWidget_);
 
   // Connect tab change signal
@@ -801,6 +806,10 @@ void OutputPanel::showRosLogTab() {
 
 void OutputPanel::showTerminalTab() {
   tabWidget_->setCurrentIndex(2);
+}
+
+void OutputPanel::showLLMChatTab() {
+  tabWidget_->setCurrentIndex(3);
 }
 
 }  // namespace ros_weaver

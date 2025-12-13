@@ -11,6 +11,7 @@
 #include "ros_weaver/widgets/output_panel.hpp"
 #include "ros_weaver/widgets/topic_inspector.hpp"
 #include "ros_weaver/widgets/ros_status_widget.hpp"
+#include "ros_weaver/widgets/local_ai_status_widget.hpp"
 #include "ros_weaver/widgets/system_mapping_panel.hpp"
 #include "ros_weaver/widgets/topic_viewer_panel.hpp"
 #include "ros_weaver/widgets/tf_tree_panel.hpp"
@@ -74,6 +75,7 @@ MainWindow::MainWindow(QWidget* parent)
   , liveMonitoringAction_(nullptr)
   , liveMonitoringEnabled_(false)
   , rosStatusWidget_(nullptr)
+  , localAIStatusWidget_(nullptr)
   , baseWindowTitle_("ROS Weaver - Visual ROS2 Package Editor")
   , systemDiscovery_(nullptr)
   , canvasMapper_(nullptr)
@@ -667,6 +669,10 @@ void MainWindow::setupStatusBar() {
 
   // Add ROS status widget to the right side of status bar
   statusBar()->addPermanentWidget(rosStatusWidget_);
+
+  // Add LocalAI status widget next to ROS status
+  localAIStatusWidget_ = new LocalAIStatusWidget(this);
+  statusBar()->addPermanentWidget(localAIStatusWidget_);
 
   statusBar()->showMessage(tr("Ready"));
 }
@@ -2173,6 +2179,7 @@ void MainWindow::onOpenSettings() {
 
   // ==================== Local LLM Settings Tab ====================
   OllamaSettingsWidget* ollamaSettingsWidget = new OllamaSettingsWidget();
+  ollamaSettingsWidget->setLocalAIStatusWidget(localAIStatusWidget_);
   settingsTabs->addTab(ollamaSettingsWidget, tr("Local LLM"));
 
   // Add tabs to main layout

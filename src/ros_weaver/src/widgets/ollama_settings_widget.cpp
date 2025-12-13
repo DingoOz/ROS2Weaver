@@ -1,16 +1,25 @@
 #include "ros_weaver/widgets/ollama_settings_widget.hpp"
+#include "ros_weaver/widgets/local_ai_status_widget.hpp"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
 #include <QMessageBox>
 #include <QStyle>
+#include <QDesktopServices>
+#include <QUrl>
 
 namespace ros_weaver {
 
 OllamaSettingsWidget::OllamaSettingsWidget(QWidget* parent)
-    : QWidget(parent) {
+    : QWidget(parent)
+    , connectionTestTimer_(new QTimer(this)) {
   setupUi();
   connectSignals();
+
+  // Setup connection test timeout timer
+  connectionTestTimer_->setSingleShot(true);
+  connect(connectionTestTimer_, &QTimer::timeout,
+          this, &OllamaSettingsWidget::onTestConnectionTimeout);
 
   // Initialize state from manager
   resetToSaved();
@@ -142,6 +151,22 @@ void OllamaSettingsWidget::setupUi() {
 
   mainLayout->addWidget(downloadGroup_);
 
+  // Status Bar Display Group
+  statusBarGroup_ = new QGroupBox(tr("Status Bar Display"), this);
+  QVBoxLayout* statusBarLayout = new QVBoxLayout(statusBarGroup_);
+
+  showStatusCheck_ = new QCheckBox(tr("Show LocalAI status in status bar"), this);
+  showStatusCheck_->setToolTip(tr("Display the Local AI connection status in the application status bar"));
+  showStatusCheck_->setChecked(true);
+  statusBarLayout->addWidget(showStatusCheck_);
+
+  showModelNameCheck_ = new QCheckBox(tr("Show model name in status bar"), this);
+  showModelNameCheck_->setToolTip(tr("Display the selected model name in the status bar when connected"));
+  showModelNameCheck_->setChecked(true);
+  statusBarLayout->addWidget(showModelNameCheck_);
+
+  mainLayout->addWidget(statusBarGroup_);
+
   mainLayout->addStretch();
 
   // Initial state
@@ -175,6 +200,10 @@ void OllamaSettingsWidget::connectSignals() {
   connect(installedModelsList_, &QListWidget::itemSelectionChanged, this, [this]() {
     deleteModelBtn_->setEnabled(installedModelsList_->currentItem() != nullptr);
   });
+
+  // Status bar display settings
+  connect(showStatusCheck_, &QCheckBox::toggled, this, &OllamaSettingsWidget::settingsChanged);
+  connect(showModelNameCheck_, &QCheckBox::toggled, this, &OllamaSettingsWidget::settingsChanged);
 }
 
 void OllamaSettingsWidget::updateUiState() {
@@ -203,8 +232,22 @@ void OllamaSettingsWidget::updateUiState() {
 }
 
 void OllamaSettingsWidget::onOllamaStatusChanged(bool running) {
-  Q_UNUSED(running);
+  // If we were testing connection and it succeeded, stop the timer
+  if (isTestingConnection_ && running) {
+    connectionTestTimer_->stop();
+    isTestingConnection_ = false;
+    testConnectionBtn_->setEnabled(true);
+
+    QMessageBox::information(this, tr("Connection Successful"),
+                             tr("Successfully connected to Ollama at:\n%1")
+                                 .arg(OllamaManager::instance().endpoint()));
+  }
+
   updateUiState();
+}
+
+void OllamaSettingsWidget::setLocalAIStatusWidget(LocalAIStatusWidget* widget) {
+  localAIStatusWidget_ = widget;
 }
 
 void OllamaSettingsWidget::onLocalModelsUpdated(const QList<OllamaModel>& models) {
@@ -334,10 +377,59 @@ void OllamaSettingsWidget::onTestConnectionClicked() {
     endpoint = "http://localhost:11434";
   }
 
+  isTestingConnection_ = true;
+  testConnectionBtn_->setEnabled(false);
+  statusLabel_->setText(tr("Testing connection..."));
+  statusIcon_->setStyleSheet("background-color: #2196F3; border-radius: 8px;");  // Blue for testing
+
   OllamaManager::instance().setEndpoint(endpoint);
   OllamaManager::instance().checkOllamaStatus();
 
-  statusLabel_->setText(tr("Testing..."));
+  // Start timeout timer
+  connectionTestTimer_->start(CONNECTION_TEST_TIMEOUT_MS);
+}
+
+void OllamaSettingsWidget::onTestConnectionTimeout() {
+  if (!isTestingConnection_) return;
+
+  isTestingConnection_ = false;
+  testConnectionBtn_->setEnabled(true);
+
+  // Check if connection succeeded in the meantime
+  if (OllamaManager::instance().isOllamaRunning()) {
+    updateUiState();
+    return;
+  }
+
+  // Connection failed - show helpful dialog
+  statusLabel_->setText(tr("Connection Failed"));
+  statusIcon_->setStyleSheet("background-color: #f44336; border-radius: 8px;");
+
+  QMessageBox msgBox(this);
+  msgBox.setWindowTitle(tr("Ollama Connection Failed"));
+  msgBox.setIcon(QMessageBox::Warning);
+  msgBox.setText(tr("Could not connect to Ollama at:\n%1")
+                     .arg(OllamaManager::instance().endpoint()));
+  msgBox.setInformativeText(
+      tr("<b>Possible solutions:</b><br><br>"
+         "1. <b>Install Ollama</b> if not already installed:<br>"
+         "&nbsp;&nbsp;&nbsp;Visit <a href='https://ollama.ai'>ollama.ai</a> to download<br>"
+         "&nbsp;&nbsp;&nbsp;Or run: <code>curl -fsSL https://ollama.ai/install.sh | sh</code><br><br>"
+         "2. <b>Start the Ollama service</b>:<br>"
+         "&nbsp;&nbsp;&nbsp;Run: <code>ollama serve</code> in a terminal<br><br>"
+         "3. <b>Check the endpoint URL</b>:<br>"
+         "&nbsp;&nbsp;&nbsp;Default is http://localhost:11434<br><br>"
+         "4. <b>Check firewall settings</b> if using a remote server"));
+  msgBox.setTextFormat(Qt::RichText);
+
+  QPushButton* openWebsiteBtn = msgBox.addButton(tr("Open Ollama Website"), QMessageBox::ActionRole);
+  msgBox.addButton(QMessageBox::Ok);
+
+  msgBox.exec();
+
+  if (msgBox.clickedButton() == openWebsiteBtn) {
+    QDesktopServices::openUrl(QUrl("https://ollama.ai"));
+  }
 }
 
 void OllamaSettingsWidget::onEndpointChanged() {
@@ -353,6 +445,12 @@ void OllamaSettingsWidget::applySettings() {
                       : endpointEdit_->text().trimmed());
   mgr.setSelectedModel(modelCombo_->currentText());
   mgr.setAutoLoadModel(autoLoadCheck_->isChecked());
+
+  // Apply status bar display settings
+  if (localAIStatusWidget_) {
+    localAIStatusWidget_->setShowStatus(showStatusCheck_->isChecked());
+    localAIStatusWidget_->setShowModelName(showModelNameCheck_->isChecked());
+  }
 }
 
 void OllamaSettingsWidget::resetToSaved() {
@@ -367,6 +465,12 @@ void OllamaSettingsWidget::resetToSaved() {
   int idx = modelCombo_->findText(savedModel);
   if (idx >= 0) {
     modelCombo_->setCurrentIndex(idx);
+  }
+
+  // Load status bar display settings
+  if (localAIStatusWidget_) {
+    showStatusCheck_->setChecked(localAIStatusWidget_->isStatusVisible());
+    showModelNameCheck_->setChecked(localAIStatusWidget_->isModelNameVisible());
   }
 
   updateUiState();

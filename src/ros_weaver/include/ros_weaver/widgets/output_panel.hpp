@@ -27,6 +27,8 @@
 
 namespace ros_weaver {
 
+class LLMChatWidget;
+
 // Log entry structure
 struct LogEntry {
   QDateTime timestamp;
@@ -192,6 +194,7 @@ public:
   QTextEdit* buildOutput() const { return buildOutput_; }
   RosLogViewer* rosLogViewer() const { return rosLogViewer_; }
   TerminalWidget* terminalWidget() const { return terminalWidget_; }
+  LLMChatWidget* llmChatWidget() const { return llmChatWidget_; }
 
   // Progress bar access
   QProgressBar* progressBar() const { return progressBar_; }
@@ -206,6 +209,7 @@ public:
   void showBuildTab();
   void showRosLogTab();
   void showTerminalTab();
+  void showLLMChatTab();
 
 signals:
   void tabChanged(int index);
@@ -224,6 +228,9 @@ private:
 
   // Terminal tab
   TerminalWidget* terminalWidget_;
+
+  // LLM Chat tab
+  LLMChatWidget* llmChatWidget_;
 };
 
 }  // namespace ros_weaver

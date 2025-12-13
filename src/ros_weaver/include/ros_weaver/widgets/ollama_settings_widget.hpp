@@ -10,7 +10,12 @@
 #include <QLabel>
 #include <QListWidget>
 #include <QGroupBox>
+#include <QTimer>
 #include "ros_weaver/core/ollama_manager.hpp"
+
+namespace ros_weaver {
+class LocalAIStatusWidget;
+}
 
 namespace ros_weaver {
 
@@ -27,6 +32,9 @@ public:
   // Reset to current saved values
   void resetToSaved();
 
+  // Set reference to status widget for applying settings
+  void setLocalAIStatusWidget(LocalAIStatusWidget* widget);
+
 signals:
   void settingsChanged();
 
@@ -40,6 +48,7 @@ private slots:
   void onDeleteClicked();
   void onRefreshClicked();
   void onTestConnectionClicked();
+  void onTestConnectionTimeout();
   void onEndpointChanged();
 
 private:
@@ -77,8 +86,23 @@ private:
   // Enable/Disable
   QCheckBox* enableOllamaCheck_;
 
+  // Status Bar Display Group
+  QGroupBox* statusBarGroup_;
+  QCheckBox* showStatusCheck_;
+  QCheckBox* showModelNameCheck_;
+
+  // Connection test timeout
+  QTimer* connectionTestTimer_;
+  bool isTestingConnection_ = false;
+
+  // Reference to status widget
+  LocalAIStatusWidget* localAIStatusWidget_ = nullptr;
+
   // State
   bool isPulling_ = false;
+
+  // Connection test timeout in ms
+  static constexpr int CONNECTION_TEST_TIMEOUT_MS = 5000;
 };
 
 }  // namespace ros_weaver
