@@ -14,6 +14,7 @@
 #include <QMimeData>
 #include <QBuffer>
 #include <QKeyEvent>
+#include <QColor>
 
 namespace ros_weaver {
 
@@ -42,6 +43,23 @@ void ChatMessageWidget::setupUi(Role role) {
   // Role label
   QLabel* roleLabel = new QLabel(contentWidget);
 
+  // Get appearance settings from OllamaManager
+  OllamaManager& mgr = OllamaManager::instance();
+  QFont chatFont = mgr.chatFont();
+  int fontSize = mgr.chatFontSize();
+  QColor userTextColor = mgr.userMessageColor();
+  QColor userBgColor = mgr.userBackgroundColor();
+  QColor assistantTextColor = mgr.assistantMessageColor();
+  QColor assistantBgColor = mgr.assistantBackgroundColor();
+  QColor codeBgColor = mgr.codeBackgroundColor();
+
+  // Use defaults if colors are invalid
+  if (!userTextColor.isValid()) userTextColor = OllamaManager::defaultUserMessageColor();
+  if (!userBgColor.isValid()) userBgColor = OllamaManager::defaultUserBackgroundColor();
+  if (!assistantTextColor.isValid()) assistantTextColor = OllamaManager::defaultAssistantMessageColor();
+  if (!assistantBgColor.isValid()) assistantBgColor = OllamaManager::defaultAssistantBackgroundColor();
+  if (!codeBgColor.isValid()) codeBgColor = OllamaManager::defaultCodeBackgroundColor();
+
   // Style and alignment based on role
   QString bgColor, textColor;
   switch (role) {
@@ -49,8 +67,8 @@ void ChatMessageWidget::setupUi(Role role) {
       roleLabel->setText(tr("You"));
       roleLabel->setStyleSheet("font-weight: bold; font-size: 11px; color: #2a82da; margin-bottom: 2px;");
       roleLabel->setAlignment(Qt::AlignRight);
-      bgColor = "#1e3a5f";
-      textColor = "#e0e0e0";
+      bgColor = userBgColor.name();
+      textColor = userTextColor.name();
       // User: 80% width, right-aligned (spacer on left)
       outerLayout->addStretch(1);
       outerLayout->addWidget(contentWidget, 4);
@@ -58,8 +76,8 @@ void ChatMessageWidget::setupUi(Role role) {
     case Role::Assistant:
       roleLabel->setText(tr("AI Assistant"));
       roleLabel->setStyleSheet("font-weight: bold; font-size: 11px; color: #4CAF50; margin-bottom: 2px;");
-      bgColor = "#2d2d2d";
-      textColor = "#e0e0e0";
+      bgColor = assistantBgColor.name();
+      textColor = assistantTextColor.name();
       // Assistant: 80% width, left-aligned (spacer on right)
       outerLayout->addWidget(contentWidget, 4);
       outerLayout->addStretch(1);
@@ -85,19 +103,26 @@ void ChatMessageWidget::setupUi(Role role) {
   textBrowser_->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   textBrowser_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
+  // Apply custom font
+  if (chatFont.family().isEmpty()) {
+    chatFont = OllamaManager::defaultChatFont();
+  }
+  chatFont.setPointSize(fontSize > 0 ? fontSize : OllamaManager::defaultChatFontSize());
+  textBrowser_->setFont(chatFont);
+
   textBrowser_->setStyleSheet(QString(
       "QTextBrowser {"
       "  background-color: %1;"
       "  color: %2;"
       "  border-radius: 8px;"
       "  padding: 10px 14px;"
-      "  font-size: 13px;"
+      "  font-size: %3px;"
       "  line-height: 1.4;"
       "}"
       "QTextBrowser a { color: #5dade2; }"
-      "QTextBrowser code { background-color: #1a1a1a; padding: 2px 4px; border-radius: 3px; font-family: monospace; }"
-      "QTextBrowser pre { background-color: #1a1a1a; padding: 10px; border-radius: 5px; font-family: monospace; }"
-  ).arg(bgColor, textColor));
+      "QTextBrowser code { background-color: %4; padding: 2px 4px; border-radius: 3px; font-family: monospace; }"
+      "QTextBrowser pre { background-color: %4; padding: 10px; border-radius: 5px; font-family: monospace; }"
+  ).arg(bgColor, textColor, QString::number(fontSize), codeBgColor.name()));
 
   contentLayout->addWidget(textBrowser_);
 }

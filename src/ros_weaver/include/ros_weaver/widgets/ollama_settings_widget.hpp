@@ -13,6 +13,7 @@
 #include <QGroupBox>
 #include <QTimer>
 #include <QSpinBox>
+#include <QFontComboBox>
 #include "ros_weaver/core/ollama_manager.hpp"
 
 namespace ros_weaver {
@@ -53,11 +54,21 @@ private slots:
   void onTestConnectionTimeout();
   void onEndpointChanged();
 
+  // Appearance slots
+  void onUserTextColorClicked();
+  void onUserBgColorClicked();
+  void onAssistantTextColorClicked();
+  void onAssistantBgColorClicked();
+  void onCodeBgColorClicked();
+  void onResetAppearanceClicked();
+  void updatePreview();
+
 private:
   void setupUi();
   void connectSignals();
   void updateUiState();
   void populateModelCombo();
+  void setButtonColor(QPushButton* button, const QColor& color);
 
   // Connection Group
   QGroupBox* connectionGroup_;
@@ -101,6 +112,27 @@ private:
   // Performance Group
   QGroupBox* performanceGroup_;
   QSpinBox* cpuThreadsSpin_;
+
+  // Chat Appearance Group
+  QGroupBox* appearanceGroup_;
+  QFontComboBox* fontFamilyCombo_;
+  QSpinBox* fontSizeSpin_;
+  QCheckBox* fontBoldCheck_;
+  QCheckBox* fontItalicCheck_;
+  QPushButton* userTextColorBtn_;
+  QPushButton* userBgColorBtn_;
+  QPushButton* assistantTextColorBtn_;
+  QPushButton* assistantBgColorBtn_;
+  QPushButton* codeBgColorBtn_;
+  QPushButton* resetAppearanceBtn_;
+  QLabel* previewLabel_;
+
+  // Current color values for display
+  QColor currentUserTextColor_;
+  QColor currentUserBgColor_;
+  QColor currentAssistantTextColor_;
+  QColor currentAssistantBgColor_;
+  QColor currentCodeBgColor_;
 
   // Connection test timeout
   QTimer* connectionTestTimer_;

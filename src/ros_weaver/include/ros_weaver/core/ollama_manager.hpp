@@ -7,6 +7,8 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QTimer>
+#include <QFont>
+#include <QColor>
 
 namespace ros_weaver {
 
@@ -55,6 +57,37 @@ public:
   // CPU threads for inference (0 = auto/default)
   int numThreads() const { return numThreads_; }
   void setNumThreads(int threads);
+
+  // Chat appearance settings
+  QFont chatFont() const { return chatFont_; }
+  void setChatFont(const QFont& font);
+
+  int chatFontSize() const { return chatFontSize_; }
+  void setChatFontSize(int size);
+
+  QColor userMessageColor() const { return userMessageColor_; }
+  void setUserMessageColor(const QColor& color);
+
+  QColor userBackgroundColor() const { return userBackgroundColor_; }
+  void setUserBackgroundColor(const QColor& color);
+
+  QColor assistantMessageColor() const { return assistantMessageColor_; }
+  void setAssistantMessageColor(const QColor& color);
+
+  QColor assistantBackgroundColor() const { return assistantBackgroundColor_; }
+  void setAssistantBackgroundColor(const QColor& color);
+
+  QColor codeBackgroundColor() const { return codeBackgroundColor_; }
+  void setCodeBackgroundColor(const QColor& color);
+
+  // Default appearance values
+  static QFont defaultChatFont();
+  static int defaultChatFontSize();
+  static QColor defaultUserMessageColor();
+  static QColor defaultUserBackgroundColor();
+  static QColor defaultAssistantMessageColor();
+  static QColor defaultAssistantBackgroundColor();
+  static QColor defaultCodeBackgroundColor();
 
   // API operations - streaming completion
   // images parameter accepts base64-encoded image data for multimodal models (llava, etc.)
@@ -119,6 +152,15 @@ private:
   bool autoLoadModel_ = true;
   int numThreads_ = 0;  // 0 = auto/default
 
+  // Chat appearance settings
+  QFont chatFont_;
+  int chatFontSize_ = 13;
+  QColor userMessageColor_;
+  QColor userBackgroundColor_;
+  QColor assistantMessageColor_;
+  QColor assistantBackgroundColor_;
+  QColor codeBackgroundColor_;
+
   // Settings keys
   static constexpr const char* SETTINGS_GROUP = "Ollama";
   static constexpr const char* KEY_ENDPOINT = "endpoint";
@@ -127,6 +169,15 @@ private:
   static constexpr const char* KEY_AUTO_LOAD = "autoLoadModel";
   static constexpr const char* KEY_SYSTEM_PROMPT = "systemPrompt";
   static constexpr const char* KEY_NUM_THREADS = "numThreads";
+  static constexpr const char* KEY_CHAT_FONT_FAMILY = "chatFontFamily";
+  static constexpr const char* KEY_CHAT_FONT_SIZE = "chatFontSize";
+  static constexpr const char* KEY_CHAT_FONT_BOLD = "chatFontBold";
+  static constexpr const char* KEY_CHAT_FONT_ITALIC = "chatFontItalic";
+  static constexpr const char* KEY_USER_MESSAGE_COLOR = "userMessageColor";
+  static constexpr const char* KEY_USER_BACKGROUND_COLOR = "userBackgroundColor";
+  static constexpr const char* KEY_ASSISTANT_MESSAGE_COLOR = "assistantMessageColor";
+  static constexpr const char* KEY_ASSISTANT_BACKGROUND_COLOR = "assistantBackgroundColor";
+  static constexpr const char* KEY_CODE_BACKGROUND_COLOR = "codeBackgroundColor";
 };
 
 }  // namespace ros_weaver
