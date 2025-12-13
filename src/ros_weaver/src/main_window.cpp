@@ -1553,7 +1553,9 @@ void MainWindow::onAbout() {
        "<p>A visual tool for assembling, extending, and iterating on "
        "ROS2 packages and nodes.</p>"
        "<p>Inspired by visual programming tools like Unreal Engine's "
-       "Blueprint and Houdini's node-based workflow.</p>")
+       "Blueprint and Houdini's node-based workflow.</p>"
+       "<hr>"
+       "<p><b>Developed by:</b> Nigel Hungerford-Symes</p>")
   );
 }
 
