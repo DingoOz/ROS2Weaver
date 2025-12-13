@@ -50,6 +50,9 @@ public:
   // Clear chat history
   void clearChat();
 
+  // Send a message programmatically (useful for automated analysis)
+  void sendMessage(const QString& message);
+
 signals:
   void messageSent(const QString& message);
 

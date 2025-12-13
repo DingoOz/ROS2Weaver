@@ -78,11 +78,19 @@ public:
   // Get available log levels for settings
   static QStringList logLevels() { return {"DEBUG", "INFO", "WARN", "ERROR", "FATAL"}; }
 
+  // Get current error logs as formatted text
+  QString getErrorLogs() const;
+
+  // Check if there are any errors
+  bool hasErrors() const;
+
 signals:
   void logReceived(const LogEntry& entry);
   void connectionStatusChanged(bool connected);
+  void analyzeErrorsRequested(const QString& errorLogs);
 
 private slots:
+  void onAnalyzeErrorsClicked();
   void onLogReceived(const LogEntry& entry);
   void onFilterChanged();
   void onClearClicked();
@@ -119,6 +127,7 @@ private:
   QPushButton* startStopButton_;
   QPushButton* clearButton_;
   QPushButton* exportButton_;
+  QPushButton* analyzeErrorsButton_;
   QLabel* statusLabel_;
 
   // Settings
@@ -213,6 +222,9 @@ public:
 
 signals:
   void tabChanged(int index);
+
+private slots:
+  void onAnalyzeErrorsRequested(const QString& errorLogs);
 
 private:
   void setupUi();

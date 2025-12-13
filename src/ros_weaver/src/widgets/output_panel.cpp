@@ -118,6 +118,19 @@ void RosLogViewer::setupUi() {
   exportButton_ = new QPushButton(tr("Export..."));
   connect(exportButton_, &QPushButton::clicked, this, &RosLogViewer::onExportClicked);
 
+  analyzeErrorsButton_ = new QPushButton(tr("Analyze Errors"));
+  analyzeErrorsButton_->setToolTip(tr("Send current errors to LocalLLM for analysis"));
+  analyzeErrorsButton_->setStyleSheet(
+      "QPushButton {"
+      "  background-color: #c0392b;"
+      "  color: white;"
+      "  border-radius: 3px;"
+      "  padding: 4px 8px;"
+      "}"
+      "QPushButton:hover { background-color: #e74c3c; }"
+      "QPushButton:disabled { background-color: #555555; color: #888888; }");
+  connect(analyzeErrorsButton_, &QPushButton::clicked, this, &RosLogViewer::onAnalyzeErrorsClicked);
+
   autoScrollCheck_ = new QCheckBox(tr("Auto-scroll"));
   autoScrollCheck_->setChecked(true);
 
@@ -127,6 +140,7 @@ void RosLogViewer::setupUi() {
   controlLayout->addWidget(startStopButton_);
   controlLayout->addWidget(clearButton_);
   controlLayout->addWidget(exportButton_);
+  controlLayout->addWidget(analyzeErrorsButton_);
   controlLayout->addWidget(autoScrollCheck_);
   controlLayout->addStretch();
   controlLayout->addWidget(statusLabel_);
@@ -486,6 +500,50 @@ QString RosLogViewer::exportToText() const {
   return output;
 }
 
+QString RosLogViewer::getErrorLogs() const {
+  QString output;
+  QTextStream stream(&output);
+
+  int errorCount = 0;
+  for (const LogEntry& entry : allLogEntries_) {
+    if (entry.level == "ERROR" || entry.level == "FATAL") {
+      errorCount++;
+      stream << entry.timestamp.toString("hh:mm:ss.zzz") << " [" << entry.level << "] "
+             << entry.nodeName << ": " << entry.message;
+      if (!entry.file.isEmpty()) {
+        stream << " (File: " << entry.file << ":" << entry.line << ")";
+      }
+      stream << "\n";
+    }
+  }
+
+  if (errorCount == 0) {
+    return QString();
+  }
+
+  return output;
+}
+
+bool RosLogViewer::hasErrors() const {
+  for (const LogEntry& entry : allLogEntries_) {
+    if (entry.level == "ERROR" || entry.level == "FATAL") {
+      return true;
+    }
+  }
+  return false;
+}
+
+void RosLogViewer::onAnalyzeErrorsClicked() {
+  QString errorLogs = getErrorLogs();
+  if (errorLogs.isEmpty()) {
+    QMessageBox::information(this, tr("No Errors"),
+                             tr("There are no ERROR or FATAL level logs to analyze."));
+    return;
+  }
+
+  emit analyzeErrorsRequested(errorLogs);
+}
+
 // =============================================================================
 // TerminalWidget
 // =============================================================================
@@ -767,6 +825,27 @@ void OutputPanel::setupUi() {
 
   // Connect tab change signal
   connect(tabWidget_, &QTabWidget::currentChanged, this, &OutputPanel::tabChanged);
+
+  // Connect analyze errors signal
+  connect(rosLogViewer_, &RosLogViewer::analyzeErrorsRequested,
+          this, &OutputPanel::onAnalyzeErrorsRequested);
+}
+
+void OutputPanel::onAnalyzeErrorsRequested(const QString& errorLogs) {
+  // Build the analysis request prompt
+  QString prompt = QString(
+      "Please analyze the following ROS2 error logs and explain what might be going wrong. "
+      "Provide:\n"
+      "1. A summary of the errors\n"
+      "2. Likely causes for each error\n"
+      "3. Suggested solutions or troubleshooting steps\n\n"
+      "Error Logs:\n```\n%1\n```").arg(errorLogs);
+
+  // Switch to the LLM chat tab
+  showLLMChatTab();
+
+  // Send the analysis request to the LLM
+  llmChatWidget_->sendMessage(prompt);
 }
 
 void OutputPanel::showProgress(bool show) {
