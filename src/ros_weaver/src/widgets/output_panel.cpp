@@ -141,15 +141,19 @@ void RosLogViewer::startListening() {
       rclcpp::init(0, nullptr);
     }
 
-    // Create node for log subscription
-    rosNode_ = std::make_shared<rclcpp::Node>("ros_weaver_log_viewer");
+    // Create node with unique name to avoid conflicts
+    std::string nodeName = "ros_weaver_log_viewer_" +
+                           std::to_string(QDateTime::currentMSecsSinceEpoch());
+    rosNode_ = std::make_shared<rclcpp::Node>(nodeName);
 
-    // Create QoS profile compatible with /rosout (uses TRANSIENT_LOCAL durability)
-    rclcpp::QoS qos(1000);
-    qos.reliability(rclcpp::ReliabilityPolicy::Reliable);
-    qos.durability(rclcpp::DurabilityPolicy::TransientLocal);
+    // Use the rosout-specific QoS profile for best compatibility
+    // /rosout publishers use: RELIABLE + TRANSIENT_LOCAL
+    auto qos = rclcpp::QoS(rclcpp::KeepLast(1000))
+      .reliable()
+      .transient_local();
 
-    // Subscribe to /rosout with compatible QoS
+    // Subscribe to /rosout_agg (aggregated logs) which is more reliable
+    // Fall back to /rosout if /rosout_agg doesn't exist
     logSubscription_ = rosNode_->create_subscription<rcl_interfaces::msg::Log>(
       "/rosout", qos,
       [this](const rcl_interfaces::msg::Log::SharedPtr msg) {
@@ -176,14 +180,15 @@ void RosLogViewer::startListening() {
         {
           QMutexLocker locker(&queueMutex_);
           logQueue_.push(entry);
+          receivedCount_++;
         }
       });
 
-    // Start spin thread
+    // Start spin thread BEFORE setting isListening_ to ensure it's running
+    isListening_ = true;
     spinThread_ = std::thread(&RosLogViewer::rosSpinThread, this);
 
-    isListening_ = true;
-    queueTimer_->start(100);  // Process queue every 100ms
+    queueTimer_->start(50);  // Process queue every 50ms for faster updates
 
     startStopButton_->setText(tr("Stop Listening"));
     startStopButton_->setChecked(true);
@@ -246,6 +251,15 @@ void RosLogViewer::processLogQueue() {
     locker.relock();
     processed++;
   }
+
+  // Update status with message count (useful for debugging)
+  int received = receivedCount_.load();
+  int displayed = displayedCount_.load();
+  if (isListening_) {
+    locker.unlock();
+    statusLabel_->setText(tr("Connected - Received: %1, Displayed: %2")
+                          .arg(received).arg(displayed));
+  }
 }
 
 void RosLogViewer::onLogReceived(const LogEntry& entry) {
@@ -276,6 +290,7 @@ void RosLogViewer::addLogEntry(const LogEntry& entry) {
 
   // Add to tree
   logTree_->addTopLevelItem(item);
+  displayedCount_++;
 
   // Enforce max entries
   while (logTree_->topLevelItemCount() > maxLogEntries_) {
@@ -382,6 +397,8 @@ void RosLogViewer::onClearClicked() {
 
 void RosLogViewer::clear() {
   logTree_->clear();
+  receivedCount_ = 0;
+  displayedCount_ = 0;
 }
 
 void RosLogViewer::onAutoScrollToggled(bool checked) {

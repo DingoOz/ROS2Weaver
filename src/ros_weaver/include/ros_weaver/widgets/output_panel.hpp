@@ -122,6 +122,10 @@ private:
   // Settings
   int maxLogEntries_ = 10000;
   LogLevelColors logColors_;
+
+  // Debug counters
+  std::atomic<int> receivedCount_{0};
+  std::atomic<int> displayedCount_{0};
 };
 
 // Terminal Widget for running commands
