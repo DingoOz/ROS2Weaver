@@ -41,6 +41,8 @@
 #include <QGroupBox>
 #include <QFormLayout>
 #include <QSpinBox>
+#include <QColorDialog>
+#include <QGridLayout>
 
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <yaml-cpp/yaml.h>
@@ -962,6 +964,11 @@ void MainWindow::onLaunchTurtlesim() {
   outputPanel_->clearBuildOutput();
   outputPanel_->appendBuildOutput(tr("Launching Turtlesim nodes...\n\n"));
 
+  // Auto-start ROS Logger to capture log messages
+  if (outputPanel_->rosLogViewer() && !outputPanel_->rosLogViewer()->isListening()) {
+    outputPanel_->rosLogViewer()->startListening();
+  }
+
   // Launch turtlesim_node
   QProcess* turtlesimProc = new QProcess(this);
   turtlesimProc->setProcessChannelMode(QProcess::MergedChannels);
@@ -1142,6 +1149,11 @@ void MainWindow::onLaunchTurtleBot3Gazebo() {
   outputPanel_->appendBuildOutput(tr("Launching TurtleBot3 Gazebo Simulation...\n"));
   outputPanel_->appendBuildOutput(tr("Model: %1\n").arg(tbModel));
   outputPanel_->appendBuildOutput(tr("World: %1\n\n").arg(worldArg));
+
+  // Auto-start ROS Logger to capture log messages
+  if (outputPanel_->rosLogViewer() && !outputPanel_->rosLogViewer()->isListening()) {
+    outputPanel_->rosLogViewer()->startListening();
+  }
 
   QString rosDistro = qgetenv("ROS_DISTRO");
   if (rosDistro.isEmpty()) rosDistro = "jazzy";
@@ -1862,6 +1874,77 @@ void MainWindow::onOpenSettings() {
 
   mainLayout->addWidget(discoveryGroup);
 
+  // ROS Logger Colors group
+  QGroupBox* logColorGroup = new QGroupBox(tr("ROS Logger Colors"), &dialog);
+  QGridLayout* colorLayout = new QGridLayout(logColorGroup);
+
+  // Get current colors from the ROS log viewer
+  LogLevelColors currentColors;
+  if (outputPanel_ && outputPanel_->rosLogViewer()) {
+    currentColors = outputPanel_->rosLogViewer()->logLevelColors();
+  }
+
+  // Create color buttons for each log level
+  std::map<QString, QPushButton*> colorButtons;
+  std::map<QString, QColor> selectedColors;
+  QStringList levels = RosLogViewer::logLevels();
+
+  auto createColorButton = [](const QColor& color) -> QPushButton* {
+    QPushButton* btn = new QPushButton();
+    btn->setFixedSize(60, 24);
+    btn->setStyleSheet(QString("background-color: %1; border: 1px solid #555;").arg(color.name()));
+    return btn;
+  };
+
+  int row = 0;
+  for (const QString& level : levels) {
+    QColor initialColor;
+    if (level == "DEBUG") initialColor = currentColors.debugColor;
+    else if (level == "INFO") initialColor = currentColors.infoColor;
+    else if (level == "WARN") initialColor = currentColors.warnColor;
+    else if (level == "ERROR") initialColor = currentColors.errorColor;
+    else if (level == "FATAL") initialColor = currentColors.fatalColor;
+
+    selectedColors[level] = initialColor;
+
+    QLabel* label = new QLabel(level, logColorGroup);
+    QPushButton* colorBtn = createColorButton(initialColor);
+    colorButtons[level] = colorBtn;
+
+    connect(colorBtn, &QPushButton::clicked, [colorBtn, level, &selectedColors]() {
+      QColor newColor = QColorDialog::getColor(selectedColors[level], colorBtn,
+        QObject::tr("Select color for %1").arg(level));
+      if (newColor.isValid()) {
+        selectedColors[level] = newColor;
+        colorBtn->setStyleSheet(QString("background-color: %1; border: 1px solid #555;").arg(newColor.name()));
+      }
+    });
+
+    colorLayout->addWidget(label, row, 0);
+    colorLayout->addWidget(colorBtn, row, 1);
+    row++;
+  }
+
+  // Reset to defaults button
+  QPushButton* resetColorsBtn = new QPushButton(tr("Reset to Defaults"), logColorGroup);
+  connect(resetColorsBtn, &QPushButton::clicked, [&selectedColors, &colorButtons, &currentColors]() {
+    LogLevelColors defaults;
+    selectedColors["DEBUG"] = defaults.debugColor;
+    selectedColors["INFO"] = defaults.infoColor;
+    selectedColors["WARN"] = defaults.warnColor;
+    selectedColors["ERROR"] = defaults.errorColor;
+    selectedColors["FATAL"] = defaults.fatalColor;
+
+    colorButtons["DEBUG"]->setStyleSheet(QString("background-color: %1; border: 1px solid #555;").arg(defaults.debugColor.name()));
+    colorButtons["INFO"]->setStyleSheet(QString("background-color: %1; border: 1px solid #555;").arg(defaults.infoColor.name()));
+    colorButtons["WARN"]->setStyleSheet(QString("background-color: %1; border: 1px solid #555;").arg(defaults.warnColor.name()));
+    colorButtons["ERROR"]->setStyleSheet(QString("background-color: %1; border: 1px solid #555;").arg(defaults.errorColor.name()));
+    colorButtons["FATAL"]->setStyleSheet(QString("background-color: %1; border: 1px solid #555;").arg(defaults.fatalColor.name()));
+  });
+  colorLayout->addWidget(resetColorsBtn, row, 0, 1, 2);
+
+  mainLayout->addWidget(logColorGroup);
+
   // Add stretch to push buttons to bottom
   mainLayout->addStretch();
 
@@ -1890,6 +1973,17 @@ void MainWindow::onOpenSettings() {
     if (systemDiscovery_) {
       systemDiscovery_->setScanTimeout(timeoutSpinBox->value());
       systemDiscovery_->setAutoScanInterval(intervalSpinBox->value());
+    }
+
+    // Apply log colors
+    if (outputPanel_ && outputPanel_->rosLogViewer()) {
+      LogLevelColors newColors;
+      newColors.debugColor = selectedColors["DEBUG"];
+      newColors.infoColor = selectedColors["INFO"];
+      newColors.warnColor = selectedColors["WARN"];
+      newColors.errorColor = selectedColors["ERROR"];
+      newColors.fatalColor = selectedColors["FATAL"];
+      outputPanel_->rosLogViewer()->setLogLevelColors(newColors);
     }
   }
 }

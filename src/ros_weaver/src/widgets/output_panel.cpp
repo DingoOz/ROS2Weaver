@@ -284,12 +284,47 @@ void RosLogViewer::addLogEntry(const LogEntry& entry) {
 }
 
 QColor RosLogViewer::getColorForLevel(const QString& level) const {
-  if (level == "DEBUG") return QColor(128, 128, 128);  // Gray
-  if (level == "INFO")  return QColor(200, 200, 200);  // Light gray
-  if (level == "WARN")  return QColor(255, 165, 0);    // Orange
-  if (level == "ERROR") return QColor(255, 80, 80);    // Red
-  if (level == "FATAL") return QColor(255, 0, 0);      // Bright red
-  return QColor(200, 200, 200);
+  return colorForLevel(level);
+}
+
+QColor RosLogViewer::colorForLevel(const QString& level) const {
+  if (level == "DEBUG") return logColors_.debugColor;
+  if (level == "INFO")  return logColors_.infoColor;
+  if (level == "WARN")  return logColors_.warnColor;
+  if (level == "ERROR") return logColors_.errorColor;
+  if (level == "FATAL") return logColors_.fatalColor;
+  return logColors_.unknownColor;
+}
+
+void RosLogViewer::setLogLevelColors(const LogLevelColors& colors) {
+  logColors_ = colors;
+  // Refresh existing items with new colors
+  for (int i = 0; i < logTree_->topLevelItemCount(); ++i) {
+    QTreeWidgetItem* item = logTree_->topLevelItem(i);
+    QString level = item->text(1);
+    QColor color = colorForLevel(level);
+    for (int j = 0; j < 4; ++j) {
+      item->setForeground(j, color);
+    }
+  }
+}
+
+void RosLogViewer::setColorForLevel(const QString& level, const QColor& color) {
+  if (level == "DEBUG") logColors_.debugColor = color;
+  else if (level == "INFO") logColors_.infoColor = color;
+  else if (level == "WARN") logColors_.warnColor = color;
+  else if (level == "ERROR") logColors_.errorColor = color;
+  else if (level == "FATAL") logColors_.fatalColor = color;
+
+  // Refresh items of this level
+  for (int i = 0; i < logTree_->topLevelItemCount(); ++i) {
+    QTreeWidgetItem* item = logTree_->topLevelItem(i);
+    if (item->text(1) == level) {
+      for (int j = 0; j < 4; ++j) {
+        item->setForeground(j, color);
+      }
+    }
+  }
 }
 
 QIcon RosLogViewer::getIconForLevel(const QString& level) const {

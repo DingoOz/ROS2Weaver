@@ -23,6 +23,7 @@
 #include <atomic>
 #include <memory>
 #include <queue>
+#include <map>
 
 namespace ros_weaver {
 
@@ -35,6 +36,16 @@ struct LogEntry {
   QString file;
   QString function;
   int line;
+};
+
+// Log level colors configuration
+struct LogLevelColors {
+  QColor debugColor = QColor(100, 149, 237);   // Cornflower blue
+  QColor infoColor = QColor(144, 238, 144);    // Light green
+  QColor warnColor = QColor(255, 165, 0);      // Orange
+  QColor errorColor = QColor(255, 99, 71);     // Tomato red
+  QColor fatalColor = QColor(255, 0, 0);       // Bright red
+  QColor unknownColor = QColor(200, 200, 200); // Light gray
 };
 
 // ROS Log Viewer Widget
@@ -55,6 +66,15 @@ public:
 
   // Export logs
   QString exportToText() const;
+
+  // Log level colors
+  void setLogLevelColors(const LogLevelColors& colors);
+  LogLevelColors logLevelColors() const { return logColors_; }
+  void setColorForLevel(const QString& level, const QColor& color);
+  QColor colorForLevel(const QString& level) const;
+
+  // Get available log levels for settings
+  static QStringList logLevels() { return {"DEBUG", "INFO", "WARN", "ERROR", "FATAL"}; }
 
 signals:
   void logReceived(const LogEntry& entry);
@@ -101,6 +121,7 @@ private:
 
   // Settings
   int maxLogEntries_ = 10000;
+  LogLevelColors logColors_;
 };
 
 // Terminal Widget for running commands
