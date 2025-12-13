@@ -53,11 +53,11 @@ void RosLogViewer::setupUi() {
   QLabel* levelLabel = new QLabel(tr("Level:"));
   levelFilter_ = new QComboBox();
   levelFilter_->addItem(tr("All Levels"), -1);
-  levelFilter_->addItem(tr("DEBUG"), 10);
-  levelFilter_->addItem(tr("INFO"), 20);
-  levelFilter_->addItem(tr("WARN"), 30);
-  levelFilter_->addItem(tr("ERROR"), 40);
   levelFilter_->addItem(tr("FATAL"), 50);
+  levelFilter_->addItem(tr("ERROR"), 40);
+  levelFilter_->addItem(tr("WARN"), 30);
+  levelFilter_->addItem(tr("INFO"), 20);
+  levelFilter_->addItem(tr("DEBUG"), 10);
   levelFilter_->setCurrentIndex(0);
   connect(levelFilter_, QOverload<int>::of(&QComboBox::currentIndexChanged),
           this, &RosLogViewer::onFilterChanged);
