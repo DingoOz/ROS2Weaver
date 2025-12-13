@@ -26,6 +26,7 @@ class CodeGenerator;
 class PackageBlock;
 class ExternalEditor;
 class PackageWizard;
+class RobotWizard;
 class OutputPanel;
 class TopicMonitor;
 class TopicInspectorPopup;
@@ -54,6 +55,7 @@ private slots:
   void onSaveProjectAs();
   void onGenerateCode();
   void onGenerateCodeWizard();
+  void onRobotWizard();
   void onExit();
   void onAbout();
 

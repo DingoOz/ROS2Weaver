@@ -79,6 +79,7 @@ set(SOURCES
   src/widgets/plot_panel.cpp
   src/widgets/guided_tour.cpp
   src/wizards/package_wizard.cpp
+  src/wizards/robot_wizard.cpp
 )
 
 # Header files (for MOC)
@@ -114,6 +115,7 @@ set(HEADERS
   include/ros_weaver/widgets/plot_panel.hpp
   include/ros_weaver/widgets/guided_tour.hpp
   include/ros_weaver/wizards/package_wizard.hpp
+  include/ros_weaver/wizards/robot_wizard.hpp
 )
 
 # Create executable
