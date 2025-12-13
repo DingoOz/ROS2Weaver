@@ -21,6 +21,8 @@ find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
 
 # Qt5 setup
 set(CMAKE_AUTOMOC ON)
@@ -32,6 +34,7 @@ find_package(Qt5 REQUIRED COMPONENTS
   Gui
   Widgets
   Network
+  Charts
 )
 
 # Include directories
@@ -65,6 +68,7 @@ set(SOURCES
   src/widgets/topic_viewer_panel.cpp
   src/widgets/topic_list_model.cpp
   src/widgets/tf_tree_panel.cpp
+  src/widgets/plot_panel.cpp
   src/wizards/package_wizard.cpp
 )
 
@@ -90,6 +94,7 @@ set(HEADERS
   include/ros_weaver/widgets/topic_viewer_panel.hpp
   include/ros_weaver/widgets/topic_list_model.hpp
   include/ros_weaver/widgets/tf_tree_panel.hpp
+  include/ros_weaver/widgets/plot_panel.hpp
   include/ros_weaver/wizards/package_wizard.hpp
 )
 
@@ -105,6 +110,7 @@ target_link_libraries(${PROJECT_NAME}
   Qt5::Gui
   Qt5::Widgets
   Qt5::Network
+  Qt5::Charts
   yaml-cpp
 )
 
@@ -117,6 +123,8 @@ ament_target_dependencies(${PROJECT_NAME}
   tf2_ros
   tf2_msgs
   geometry_msgs
+  nav_msgs
+  sensor_msgs
 )
 
 # Install targets

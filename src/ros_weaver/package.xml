@@ -17,12 +17,16 @@
   <depend>tf2_ros</depend>
   <depend>tf2_msgs</depend>
   <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>sensor_msgs</depend>
 
   <!-- Qt dependencies -->
   <build_depend>qtbase5-dev</build_depend>
+  <build_depend>libqt5charts5-dev</build_depend>
   <exec_depend>libqt5-widgets</exec_depend>
   <exec_depend>libqt5-gui</exec_depend>
   <exec_depend>libqt5-core</exec_depend>
+  <exec_depend>libqt5charts5</exec_depend>
 
   <!-- YAML parsing -->
   <depend>yaml-cpp</depend>
