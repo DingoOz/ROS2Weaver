@@ -56,6 +56,14 @@ Inspired by visual programming tools like Unreal Engine's Blueprint and Houdini'
 - YAML parameter export
 - VS Code integration for generated packages
 
+### Robot Configuration Wizard
+Create complete robot description packages with ros2_control support:
+- **Supported Robot Types**: Differential drive, 2-DOF arm (RRBot), 6-DOF industrial arm, Ackermann steering, tricycle, gripper, and custom configurations
+- **8-Step Configuration**: Robot type selection, joint/wheel setup, hardware interfaces, controllers, sensors, teleop, visualization, and package generation
+- **ros2_control Integration**: Pre-configured controllers for each robot type (diff_drive_controller, joint_trajectory_controller, etc.)
+- **Sensor Configuration**: Add LiDAR, cameras, IMU, GPS with customizable parameters
+- **Generated Package**: Complete ROS2 package with URDF/Xacro, controller configs, launch files, and RViz/Gazebo setup
+
 ### Local AI Assistant
 - Ollama integration for local LLM support
 - AI chat panel for ROS2 development assistance
@@ -144,6 +152,7 @@ ros2 run ros_weaver ros_weaver
 | Ctrl+S | Save Project |
 | Ctrl+Shift+S | Save As |
 | Ctrl+G | Generate Code |
+| Ctrl+R | Robot Configuration Wizard |
 | Ctrl+M | Toggle Live Monitoring |
 | Ctrl+Shift+R | Scan System |
 | Ctrl+Shift+M | Show System Mapping |
@@ -188,17 +197,21 @@ src/ros_weaver/
 │   │   ├── project.hpp
 │   │   ├── system_discovery.hpp
 │   │   └── topic_monitor.hpp
-│   └── widgets/
-│       ├── output_panel.hpp
-│       ├── param_dashboard.hpp
-│       ├── tf_tree_panel.hpp
-│       └── topic_viewer_panel.hpp
+│   ├── widgets/
+│   │   ├── output_panel.hpp
+│   │   ├── param_dashboard.hpp
+│   │   ├── tf_tree_panel.hpp
+│   │   └── topic_viewer_panel.hpp
+│   └── wizards/
+│       ├── package_wizard.hpp
+│       └── robot_wizard.hpp
 └── src/
     ├── main.cpp
     ├── main_window.cpp
     ├── canvas/
     ├── core/
-    └── widgets/
+    ├── widgets/
+    └── wizards/
 ```
 
 ## License
