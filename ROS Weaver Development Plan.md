@@ -2332,6 +2332,143 @@ Full Nav2 navigation stack example with SLAM and autonomous navigation:
 - **Custom Nodes**: Example showing code generation and custom node development
 - **Sensor Fusion**: Combining multiple sensor inputs with message filters
 
+## Feature: ROS2 Controller Lifecycle Status Panel (Planned)
+
+### Overview
+
+Add a dedicated panel for monitoring and managing ros2_control controller lifecycle states. This provides visibility into hardware interfaces and controller status for robot systems using ros2_control.
+
+### Features
+
+1. **Controller Discovery**:
+   - Auto-detect running controller_manager nodes
+   - List all loaded controllers with their types
+   - Show controller chain dependencies
+   - Support multiple controller managers (namespaced)
+
+2. **Lifecycle State Display**:
+   - Visual state indicators for each controller:
+     - 🔴 Unconfigured
+     - 🟡 Inactive
+     - 🟢 Active
+     - 🔵 Finalized
+   - State transition history/timeline
+   - Time since last state change
+
+3. **Controller Information**:
+   - Controller name and type
+   - Claimed interfaces (command/state)
+   - Update rate
+   - Associated hardware interfaces
+   - Parameter values
+
+4. **Lifecycle Management**:
+   - Configure/Cleanup buttons
+   - Activate/Deactivate buttons
+   - Switch controllers (activate one, deactivate another atomically)
+   - Emergency stop all controllers
+
+5. **Hardware Interface Status**:
+   - List all hardware interfaces
+   - Show claimed/available state interfaces
+   - Show claimed/available command interfaces
+   - Hardware component lifecycle states
+
+6. **Integration with Canvas**:
+   - Link controllers to canvas blocks
+   - Highlight blocks using specific controllers
+   - Show controller status on block badges
+
+### UI Layout
+
+```
+┌─ Controller Status ──────────────────────────────────────────────────────────┐
+│ Controller Manager: /controller_manager                              [⟳ Refresh] │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│ Controllers                          │ Details                               │
+│ ─────────────────────────────────   │ ──────────────────────────────────    │
+│ 🟢 joint_state_broadcaster          │ Name: diff_drive_controller           │
+│ 🟢 diff_drive_controller      ●     │ Type: diff_drive_controller/          │
+│ 🟡 gripper_controller               │       DiffDriveController             │
+│ 🔴 arm_controller                   │ State: Active                         │
+│                                      │ Update Rate: 100 Hz                   │
+│                                      │ ────────────────────────────────────  │
+│                                      │ Command Interfaces:                   │
+│                                      │   left_wheel/velocity                 │
+│                                      │   right_wheel/velocity                │
+│                                      │ State Interfaces:                     │
+│                                      │   left_wheel/position                 │
+│                                      │   left_wheel/velocity                 │
+│                                      │   right_wheel/position                │
+│                                      │   right_wheel/velocity                │
+│                                      │ ────────────────────────────────────  │
+│                                      │ [Configure] [Activate] [Deactivate]   │
+│                                      │                                       │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ Hardware Interfaces: 4 state, 2 command │ Status: All systems operational    │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Technical Implementation
+
+```cpp
+class ControllerStatusPanel : public QWidget {
+  Q_OBJECT
+
+public:
+  explicit ControllerStatusPanel(QWidget* parent = nullptr);
+
+  void setControllerManager(const QString& managerNode);
+  void refresh();
+
+signals:
+  void controllerSelected(const QString& controllerName);
+  void controllerStateChanged(const QString& name, const QString& state);
+
+private:
+  // Service clients for controller_manager
+  rclcpp::Client<controller_manager_msgs::srv::ListControllers>::SharedPtr listClient_;
+  rclcpp::Client<controller_manager_msgs::srv::SwitchController>::SharedPtr switchClient_;
+  rclcpp::Client<lifecycle_msgs::srv::ChangeState>::SharedPtr lifecycleClient_;
+
+  // UI
+  QTreeWidget* controllerTree_;
+  QWidget* detailsPanel_;
+  QComboBox* managerCombo_;
+};
+```
+
+### Service Calls
+
+- `controller_manager/list_controllers` - Get controller list and states
+- `controller_manager/list_hardware_interfaces` - Get interface info
+- `controller_manager/switch_controller` - Activate/deactivate controllers
+- `controller_manager/load_controller` - Load new controller
+- `controller_manager/unload_controller` - Unload controller
+- Lifecycle services for state transitions
+
+### Dependencies
+
+- `controller_manager_msgs` - Service/message definitions
+- `lifecycle_msgs` - Lifecycle state messages
+- `hardware_interface` - Interface type definitions
+
+### Menu Integration
+
+- ROS2 > Show Controller Status (Ctrl+Shift+C)
+- Toolbar button for quick access
+- Status indicator in main status bar
+
+### Future Enhancements
+
+- Controller parameter tuning interface
+- Real-time plotting of controller outputs
+- Controller configuration file editor
+- URDF joint/controller mapping visualization
+- Controller performance metrics (jitter, latency)
+- Integration with MoveIt2 for arm controllers
+
 ## Feature: In-Program Help Documentation (Planned)
 
 ### Overview
