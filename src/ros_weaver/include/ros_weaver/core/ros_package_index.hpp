@@ -25,7 +25,7 @@ struct RosPackageInfo {
 
   // For local packages
   bool isLocal = false;
-  QString localPath;
+  QString localPath = {};
 };
 
 // Represents a message type
