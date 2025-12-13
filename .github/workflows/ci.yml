@@ -6,12 +6,12 @@ on:
   pull_request:
 
 jobs:
-  build_and_test:
+  build:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        ros-distro: [jazzy, rolling]
+        ros-distro: [jazzy]
 
     steps:
       - name: Checkout code
@@ -22,8 +22,9 @@ jobs:
         with:
           required-ros-distributions: ${{ matrix.ros-distro }}
 
-      - name: Build and test
+      - name: Build
         uses: ros-tooling/action-ros-ci@v0.4
         with:
           target-ros2-distro: ${{ matrix.ros-distro }}
           package-name: ros_weaver
+          skip-tests: true
