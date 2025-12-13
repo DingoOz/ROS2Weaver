@@ -35,7 +35,7 @@ struct LogEntry {
   QString message;
   QString file;
   QString function;
-  int line;
+  int line = 0;
 };
 
 // Log level colors configuration
@@ -224,5 +224,8 @@ private:
 };
 
 }  // namespace ros_weaver
+
+// Register LogEntry for Qt signal/slot queued connections (must be outside namespace)
+Q_DECLARE_METATYPE(ros_weaver::LogEntry)
 
 #endif  // ROS_WEAVER_WIDGETS_OUTPUT_PANEL_HPP

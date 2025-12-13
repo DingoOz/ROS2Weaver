@@ -23,6 +23,9 @@ RosLogViewer::RosLogViewer(QWidget* parent)
   , isListening_(false)
   , shouldStop_(false)
 {
+  // Register LogEntry type for queued signal/slot connections
+  qRegisterMetaType<LogEntry>("LogEntry");
+
   setupUi();
 
   // Set up queue processing timer
