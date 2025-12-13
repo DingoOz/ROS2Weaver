@@ -4,6 +4,7 @@
 #include <QWidget>
 #include <QComboBox>
 #include <QLineEdit>
+#include <QTextEdit>
 #include <QCheckBox>
 #include <QPushButton>
 #include <QProgressBar>
@@ -11,6 +12,7 @@
 #include <QListWidget>
 #include <QGroupBox>
 #include <QTimer>
+#include <QSpinBox>
 #include "ros_weaver/core/ollama_manager.hpp"
 
 namespace ros_weaver {
@@ -90,6 +92,15 @@ private:
   QGroupBox* statusBarGroup_;
   QCheckBox* showStatusCheck_;
   QCheckBox* showModelNameCheck_;
+
+  // System Prompt Group
+  QGroupBox* systemPromptGroup_;
+  QTextEdit* systemPromptEdit_;
+  QPushButton* resetPromptBtn_;
+
+  // Performance Group
+  QGroupBox* performanceGroup_;
+  QSpinBox* cpuThreadsSpin_;
 
   // Connection test timeout
   QTimer* connectionTestTimer_;

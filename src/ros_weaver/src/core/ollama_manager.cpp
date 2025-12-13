@@ -208,7 +208,8 @@ void OllamaManager::onDeleteFinished(QNetworkReply* reply) {
   reply->deleteLater();
 }
 
-void OllamaManager::generateCompletion(const QString& prompt, const QString& systemPrompt) {
+void OllamaManager::generateCompletion(const QString& prompt, const QString& systemPrompt,
+                                        const QStringList& images) {
   if (!ollamaRunning_ || selectedModel_.isEmpty()) {
     emit completionError(tr("Ollama is not running or no model selected"));
     return;
@@ -233,6 +234,22 @@ void OllamaManager::generateCompletion(const QString& prompt, const QString& sys
     json["system"] = systemPrompt;
   }
 
+  // Add images for multimodal models (base64 encoded)
+  if (!images.isEmpty()) {
+    QJsonArray imagesArray;
+    for (const QString& img : images) {
+      imagesArray.append(img);
+    }
+    json["images"] = imagesArray;
+  }
+
+  // Add options (like num_thread) if configured
+  if (numThreads_ > 0) {
+    QJsonObject options;
+    options["num_thread"] = numThreads_;
+    json["options"] = options;
+  }
+
   currentCompletionReply_ = networkManager_->post(request, QJsonDocument(json).toJson());
 
   connect(currentCompletionReply_, &QNetworkReply::readyRead,
@@ -241,6 +258,18 @@ void OllamaManager::generateCompletion(const QString& prompt, const QString& sys
           this, &OllamaManager::onCompletionFinished);
 
   emit completionStarted();
+}
+
+bool OllamaManager::isVisionModel(const QString& modelName) {
+  // Known vision/multimodal models
+  QString lower = modelName.toLower();
+  return lower.contains("llava") ||
+         lower.contains("bakllava") ||
+         lower.contains("llama3.2-vision") ||
+         lower.contains("minicpm-v") ||
+         lower.contains("moondream") ||
+         lower.contains("cogvlm") ||
+         lower.contains("yi-vl");
 }
 
 void OllamaManager::cancelCompletion() {
@@ -336,6 +365,43 @@ void OllamaManager::setAutoLoadModel(bool autoLoad) {
   }
 }
 
+void OllamaManager::setSystemPrompt(const QString& prompt) {
+  if (systemPrompt_ != prompt) {
+    systemPrompt_ = prompt;
+    saveSettings();
+    emit settingsChanged();
+  }
+}
+
+void OllamaManager::setNumThreads(int threads) {
+  if (numThreads_ != threads) {
+    numThreads_ = threads;
+    saveSettings();
+    emit settingsChanged();
+  }
+}
+
+QString OllamaManager::defaultSystemPrompt() {
+  return QStringLiteral(
+    "You are a ROS2 robotics assistant running locally with limited resources.\n\n"
+    "CRITICAL RULES:\n"
+    "- Keep responses SHORT and DIRECT. No lengthy explanations.\n"
+    "- Answer in 1-3 sentences when possible.\n"
+    "- Use bullet points for lists, not paragraphs.\n"
+    "- Show code only when asked or essential.\n"
+    "- Don't repeat the question or add filler phrases.\n\n"
+    "ROS2 EXPERTISE:\n"
+    "- Focus on ROS2 Humble/Iron/Jazzy patterns.\n"
+    "- Topics: nodes, topics, services, actions, launch files, parameters, tf2, nav2, MoveIt2.\n"
+    "- Prefer Python for quick examples, C++ when performance matters.\n"
+    "- Use standard ROS2 conventions and best practices.\n\n"
+    "FORMAT:\n"
+    "- Use markdown for code blocks.\n"
+    "- One code block per response unless comparing approaches.\n"
+    "- If unsure, ask ONE clarifying question first."
+  );
+}
+
 void OllamaManager::loadSettings() {
   QSettings settings("ROS Weaver", "ROS Weaver");
   settings.beginGroup(SETTINGS_GROUP);
@@ -343,6 +409,8 @@ void OllamaManager::loadSettings() {
   selectedModel_ = settings.value(KEY_SELECTED_MODEL, "").toString();
   enabled_ = settings.value(KEY_ENABLED, false).toBool();
   autoLoadModel_ = settings.value(KEY_AUTO_LOAD, true).toBool();
+  systemPrompt_ = settings.value(KEY_SYSTEM_PROMPT, defaultSystemPrompt()).toString();
+  numThreads_ = settings.value(KEY_NUM_THREADS, 0).toInt();
   settings.endGroup();
 }
 
@@ -353,6 +421,8 @@ void OllamaManager::saveSettings() {
   settings.setValue(KEY_SELECTED_MODEL, selectedModel_);
   settings.setValue(KEY_ENABLED, enabled_);
   settings.setValue(KEY_AUTO_LOAD, autoLoadModel_);
+  settings.setValue(KEY_SYSTEM_PROMPT, systemPrompt_);
+  settings.setValue(KEY_NUM_THREADS, numThreads_);
   settings.endGroup();
 }
 

@@ -8,6 +8,7 @@
 #include <QLabel>
 #include <QVBoxLayout>
 #include <QScrollArea>
+#include <QFrame>
 
 namespace ros_weaver {
 
@@ -54,6 +55,9 @@ signals:
 
 private slots:
   void onSendClicked();
+  void onStopClicked();
+  void onAttachClicked();
+  void onRemoveAttachment();
   void onOllamaStatusChanged(bool running);
   void onCompletionStarted();
   void onCompletionToken(const QString& token);
@@ -76,13 +80,25 @@ private:
   QPushButton* sendBtn_;
   QPushButton* stopBtn_;
   QPushButton* clearBtn_;
+  QPushButton* attachBtn_;
   QLabel* statusLabel_;
+
+  // Attachment UI
+  QFrame* attachmentBar_;
+  QLabel* attachmentLabel_;
+  QPushButton* removeAttachmentBtn_;
 
   // Current streaming message
   ChatMessageWidget* currentStreamingMessage_ = nullptr;
 
   // State
   bool isWaitingForResponse_ = false;
+
+  // Attachment state
+  QString attachedFilePath_;
+  QString attachedFileContent_;  // For text files
+  QString attachedImageBase64_;  // For image files
+  bool attachedIsImage_ = false;
 };
 
 }  // namespace ros_weaver
