@@ -142,6 +142,9 @@ private:
   QTreeWidgetItem* searchResultsItem_;
   QTreeWidgetItem* localPackagesItem_;
 
+  // Browser panel tabs (left side)
+  QTabWidget* browserTab_;
+
   // Properties panel with param dashboard
   QTabWidget* propertiesTab_;
   ParamDashboard* paramDashboard_;
@@ -173,7 +176,6 @@ private:
   SystemDiscovery* systemDiscovery_;
   CanvasMapper* canvasMapper_;
   SystemMappingPanel* systemMappingPanel_;
-  QDockWidget* systemMappingDock_;
   QAction* scanSystemAction_;
   QAction* autoScanAction_;
   QProgressBar* scanProgressBar_;

@@ -70,6 +70,7 @@ MainWindow::MainWindow(QWidget* parent)
   , packageSearchEdit_(nullptr)
   , searchResultsItem_(nullptr)
   , localPackagesItem_(nullptr)
+  , browserTab_(nullptr)
   , propertiesTab_(nullptr)
   , paramDashboard_(nullptr)
   , outputPanel_(nullptr)
@@ -85,7 +86,6 @@ MainWindow::MainWindow(QWidget* parent)
   , systemDiscovery_(nullptr)
   , canvasMapper_(nullptr)
   , systemMappingPanel_(nullptr)
-  , systemMappingDock_(nullptr)
   , scanSystemAction_(nullptr)
   , autoScanAction_(nullptr)
   , scanProgressBar_(nullptr)
@@ -331,9 +331,13 @@ void MainWindow::setupMenuBar() {
   QAction* showMappingPanelAction = ros2Menu->addAction(tr("Show System &Mapping Panel"));
   showMappingPanelAction->setShortcut(tr("Ctrl+Shift+M"));
   connect(showMappingPanelAction, &QAction::triggered, this, [this]() {
-    if (systemMappingDock_) {
-      systemMappingDock_->show();
-      systemMappingDock_->raise();
+    // Show Browser dock and switch to System Mapping tab
+    if (packageBrowserDock_) {
+      packageBrowserDock_->show();
+      packageBrowserDock_->raise();
+    }
+    if (browserTab_ && systemMappingPanel_) {
+      browserTab_->setCurrentWidget(systemMappingPanel_);
     }
   });
 
@@ -460,11 +464,14 @@ void MainWindow::setupToolBar() {
 }
 
 void MainWindow::setupDockWidgets() {
-  // Package Browser Dock (left side)
-  packageBrowserDock_ = new QDockWidget(tr("Package Browser"), this);
+  // Browser Dock (left side) - contains Package Browser and System Mapping tabs
+  packageBrowserDock_ = new QDockWidget(tr("Browser"), this);
   packageBrowserDock_->setObjectName("packageBrowserDock");
   packageBrowserDock_->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
 
+  browserTab_ = new QTabWidget();
+
+  // Package Browser tab
   QWidget* browserWidget = new QWidget();
   QVBoxLayout* browserLayout = new QVBoxLayout(browserWidget);
   browserLayout->setContentsMargins(4, 4, 4, 4);
@@ -522,7 +529,20 @@ void MainWindow::setupDockWidgets() {
   }
 
   browserLayout->addWidget(packageTree_);
-  packageBrowserDock_->setWidget(browserWidget);
+  browserTab_->addTab(browserWidget, tr("Packages"));
+
+  // System Mapping tab
+  systemMappingPanel_ = new SystemMappingPanel();
+  systemMappingPanel_->setSystemDiscovery(systemDiscovery_);
+  systemMappingPanel_->setCanvasMapper(canvasMapper_);
+  browserTab_->addTab(systemMappingPanel_, tr("System Mapping"));
+
+  connect(systemMappingPanel_, &SystemMappingPanel::blockSelected,
+          this, &MainWindow::onMappingBlockSelected);
+  connect(systemMappingPanel_, &SystemMappingPanel::scanRequested,
+          this, &MainWindow::onScanSystem);
+
+  packageBrowserDock_->setWidget(browserTab_);
   addDockWidget(Qt::LeftDockWidgetArea, packageBrowserDock_);
 
   // Properties Dock (right side) with Param Dashboard
@@ -631,26 +651,6 @@ void MainWindow::setupDockWidgets() {
   outputPanel_ = new OutputPanel();
   outputDock_->setWidget(outputPanel_);
   addDockWidget(Qt::BottomDockWidgetArea, outputDock_);
-
-  // System Mapping Dock (right side, tabbed with Properties)
-  systemMappingDock_ = new QDockWidget(tr("System Mapping"), this);
-  systemMappingDock_->setObjectName("systemMappingDock");
-  systemMappingDock_->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-
-  systemMappingPanel_ = new SystemMappingPanel();
-  systemMappingPanel_->setSystemDiscovery(systemDiscovery_);
-  systemMappingPanel_->setCanvasMapper(canvasMapper_);
-
-  connect(systemMappingPanel_, &SystemMappingPanel::blockSelected,
-          this, &MainWindow::onMappingBlockSelected);
-  connect(systemMappingPanel_, &SystemMappingPanel::scanRequested,
-          this, &MainWindow::onScanSystem);
-
-  systemMappingDock_->setWidget(systemMappingPanel_);
-  addDockWidget(Qt::RightDockWidgetArea, systemMappingDock_);
-  tabifyDockWidget(propertiesDock_, systemMappingDock_);
-
-  propertiesDock_->raise();  // Make Properties the default visible tab
 
   // Connect panel visibility toggles from View > Panels menu
   QAction* showPackageBrowserAction = findChild<QAction*>("showPackageBrowserAction");
