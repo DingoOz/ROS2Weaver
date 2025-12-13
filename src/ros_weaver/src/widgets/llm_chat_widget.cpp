@@ -488,6 +488,52 @@ void LLMChatWidget::onStopClicked() {
   inputEdit_->setFocus();
 }
 
+void LLMChatWidget::sendMessage(const QString& message) {
+  if (message.isEmpty()) return;
+
+  OllamaManager& mgr = OllamaManager::instance();
+
+  // Check if we can send
+  if (!mgr.isEnabled()) {
+    addMessage(ChatMessageWidget::Role::System,
+               tr("Local LLM is disabled. Enable it in Settings > Local LLM."));
+    return;
+  }
+
+  if (!mgr.isOllamaRunning()) {
+    addMessage(ChatMessageWidget::Role::System,
+               tr("Ollama is not connected. Check your connection in Settings > Local LLM."));
+    return;
+  }
+
+  if (mgr.selectedModel().isEmpty()) {
+    addMessage(ChatMessageWidget::Role::System,
+               tr("No model selected. Select a model in Settings > Local LLM."));
+    return;
+  }
+
+  if (isWaitingForResponse_) {
+    addMessage(ChatMessageWidget::Role::System,
+               tr("Please wait for the current response to complete."));
+    return;
+  }
+
+  // Add user message to chat
+  addMessage(ChatMessageWidget::Role::User, message);
+
+  // Show waiting state
+  isWaitingForResponse_ = true;
+  setInputEnabled(false);
+  sendBtn_->setVisible(false);
+  stopBtn_->setVisible(true);
+  statusLabel_->setText(tr("Generating..."));
+
+  // Send to Ollama with the configured system prompt
+  mgr.generateCompletion(message, mgr.systemPrompt(), QStringList());
+
+  emit messageSent(message);
+}
+
 void LLMChatWidget::onAttachClicked() {
   // Build file filter
   QString imageFormats;
