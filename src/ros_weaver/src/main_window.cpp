@@ -2172,6 +2172,78 @@ void MainWindow::onOpenSettings() {
 
   generalLayout->addWidget(logColorGroup);
 
+  // ==================== Plot Settings Group ====================
+  QGroupBox* plotGroup = new QGroupBox(tr("Plot Settings"), generalTab);
+  QVBoxLayout* plotLayout = new QVBoxLayout(plotGroup);
+
+  // Line thickness setting
+  QHBoxLayout* thicknessLayout = new QHBoxLayout();
+  QLabel* thicknessLabel = new QLabel(tr("Line thickness:"), plotGroup);
+  QSpinBox* thicknessSpinBox = new QSpinBox(plotGroup);
+  thicknessSpinBox->setRange(1, 10);
+  thicknessSpinBox->setValue(plotPanel_ ? plotPanel_->lineThickness() : 2);
+  thicknessSpinBox->setToolTip(tr("Thickness of plot lines (1-10 pixels)"));
+  thicknessLayout->addWidget(thicknessLabel);
+  thicknessLayout->addWidget(thicknessSpinBox);
+  thicknessLayout->addStretch();
+  plotLayout->addLayout(thicknessLayout);
+
+  // Color palette
+  QLabel* colorPaletteLabel = new QLabel(tr("Default plot colors:"), plotGroup);
+  plotLayout->addWidget(colorPaletteLabel);
+
+  QGridLayout* plotColorLayout = new QGridLayout();
+  QList<QColor> currentPalette = plotPanel_ ? plotPanel_->colorPalette() : QList<QColor>();
+  std::map<int, QPushButton*> plotColorButtons;
+  std::map<int, QColor> plotSelectedColors;
+
+  auto createPlotColorButton = [](const QColor& color) -> QPushButton* {
+    QPushButton* btn = new QPushButton();
+    btn->setFixedSize(40, 24);
+    btn->setStyleSheet(QString("background-color: %1; border: 1px solid #555;").arg(color.name()));
+    return btn;
+  };
+
+  // Show first 8 colors (the default palette size)
+  int numColors = qMin(currentPalette.size(), 8);
+  for (int i = 0; i < numColors; ++i) {
+    plotSelectedColors[i] = currentPalette[i];
+    QPushButton* colorBtn = createPlotColorButton(currentPalette[i]);
+    plotColorButtons[i] = colorBtn;
+
+    connect(colorBtn, &QPushButton::clicked, [colorBtn, i, &plotSelectedColors]() {
+      QColor newColor = QColorDialog::getColor(plotSelectedColors[i], colorBtn,
+        QObject::tr("Select plot color %1").arg(i + 1));
+      if (newColor.isValid()) {
+        plotSelectedColors[i] = newColor;
+        colorBtn->setStyleSheet(QString("background-color: %1; border: 1px solid #555;").arg(newColor.name()));
+      }
+    });
+
+    plotColorLayout->addWidget(colorBtn, i / 4, i % 4);
+  }
+
+  plotLayout->addLayout(plotColorLayout);
+
+  // Reset plot colors button
+  QPushButton* resetPlotColorsBtn = new QPushButton(tr("Reset to Defaults"), plotGroup);
+  connect(resetPlotColorsBtn, &QPushButton::clicked, [&plotSelectedColors, &plotColorButtons]() {
+    QList<QColor> defaults = {
+      QColor(0, 114, 189), QColor(217, 83, 25), QColor(237, 177, 32), QColor(126, 47, 142),
+      QColor(119, 172, 48), QColor(77, 190, 238), QColor(162, 20, 47), QColor(0, 128, 128)
+    };
+    for (int i = 0; i < 8 && i < defaults.size(); ++i) {
+      plotSelectedColors[i] = defaults[i];
+      if (plotColorButtons.count(i)) {
+        plotColorButtons[i]->setStyleSheet(
+          QString("background-color: %1; border: 1px solid #555;").arg(defaults[i].name()));
+      }
+    }
+  });
+  plotLayout->addWidget(resetPlotColorsBtn);
+
+  generalLayout->addWidget(plotGroup);
+
   // Add stretch to push remaining space to bottom
   generalLayout->addStretch();
 
@@ -2225,6 +2297,21 @@ void MainWindow::onOpenSettings() {
       newColors.errorColor = selectedColors["ERROR"];
       newColors.fatalColor = selectedColors["FATAL"];
       outputPanel_->rosLogViewer()->setLogLevelColors(newColors);
+    }
+
+    // Apply plot settings
+    if (plotPanel_) {
+      plotPanel_->setLineThickness(thicknessSpinBox->value());
+
+      QList<QColor> newPalette;
+      for (int i = 0; i < 8; ++i) {
+        if (plotSelectedColors.count(i)) {
+          newPalette.append(plotSelectedColors[i]);
+        }
+      }
+      if (!newPalette.isEmpty()) {
+        plotPanel_->setColorPalette(newPalette);
+      }
     }
 
     // Apply Ollama/Local LLM settings

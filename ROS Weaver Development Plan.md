@@ -1221,3 +1221,48 @@ Real-time plotting of time-series data for tuning and spotting anomalies. Visual
 - Multi-robot TF: Handle namespaced TF trees for multi-robot setups
 - AR overlay: Show TF frames overlaid on camera images
 - Performance profiler: Identify TF-related bottlenecks
+
+# Future Feature: Unit Testing (Planned)
+
+Using gtest and a suite of define tests to perform unit testing where it is most valuable for the app.
+
+
+
+## Planned Feature: Tutorial mode
+
+If selected it will pulse visuals over the UI in sequence to let a new user run an example and be shown all the features
+
+
+
+## Robot Wizard
+
+Wizards for common robot types (e.g., differential drive with camera/LiDAR) that include sample teleop and viz setups.
+
+
+
+## Local AI
+
+* Allow user to Cut and paste images to Local AI
+* Make the streaming in tokens not sit too low and be half un-rendered (add a buffer at the bottom)
+* Add and option token generation speed to the lower bar Local AI status indicated. Only shown when the model is currently rendering tokens in ollama
+* Set up a drop down with predetermined questions
+* link the available data to the context of the local AI
+* Create a system prompt for the Local AI and store it, show it in the setting pages and allow user to update it in the settings page.
+* Make the user and response chats fill only 80% of the width
+
+
+
+## System Mapping
+
+In the System Matching panel, once a scan has been done if the user sees Extra Nodes in System and double clicks on them this should add the node to the canvas.
+
+
+
+## Bugs to fix
+
+* Plot panel is not full height
+* All topics default to being ticked for the topic panel (all start on for visualisation)
+* 
+
+
+
