@@ -2332,3 +2332,118 @@ Full Nav2 navigation stack example with SLAM and autonomous navigation:
 - **Custom Nodes**: Example showing code generation and custom node development
 - **Sensor Fusion**: Combining multiple sensor inputs with message filters
 
+## Feature: In-Program Help Documentation (Planned)
+
+### Overview
+
+Provide comprehensive in-program help documentation accessible via menus, allowing users to learn ROS Weaver features without leaving the application.
+
+### Features
+
+1. **Help Menu Integration**:
+   - Help > Getting Started - Quick start guide for new users
+   - Help > User Manual - Full documentation browser
+   - Help > Keyboard Shortcuts - Complete shortcut reference
+   - Help > What's New - Changelog/release notes
+   - Help > Video Tutorials - Links to tutorial videos (external)
+
+2. **Context-Sensitive Help**:
+   - F1 key shows help for currently focused widget/panel
+   - "?" button on each panel header opens relevant help section
+   - Tooltips with "Learn more..." links to detailed documentation
+   - Right-click context menu "Help on this..." option
+
+3. **Help Browser Window**:
+   - Searchable documentation viewer
+   - Table of contents sidebar navigation
+   - Breadcrumb navigation
+   - Print/export to PDF option
+   - Bookmark favorite topics
+
+4. **Documentation Sections**:
+   - **Canvas Editor**: Block creation, connections, navigation, grouping
+   - **Package Browser**: Searching, adding packages, templates
+   - **Properties Panel**: Parameter editing, topics, TF tree
+   - **Code Generation**: Wizard usage, templates, output options
+   - **ROS2 Integration**: System scanning, topic monitoring, log viewing
+   - **Project Management**: Save/load, examples, settings
+   - **Keyboard Shortcuts**: Complete reference with search
+   - **Troubleshooting**: Common issues and solutions
+
+5. **Interactive Tutorials**:
+   - Step-by-step guided walkthroughs
+   - Highlight UI elements during tutorial
+   - "Try it yourself" interactive exercises
+   - Progress tracking for completed tutorials
+
+6. **Quick Tips System**:
+   - "Tip of the Day" on startup (optional)
+   - Contextual tips based on user actions
+   - Tips can be dismissed or saved for later
+
+### Technical Implementation
+
+```cpp
+class HelpBrowser : public QDialog {
+  Q_OBJECT
+
+public:
+  explicit HelpBrowser(QWidget* parent = nullptr);
+
+  // Navigate to specific topic
+  void showTopic(const QString& topicId);
+
+  // Search documentation
+  void search(const QString& query);
+
+private:
+  QTextBrowser* contentBrowser_;
+  QTreeWidget* tocTree_;
+  QLineEdit* searchEdit_;
+  QListWidget* searchResults_;
+};
+
+class ContextHelp {
+public:
+  // Get help topic ID for a widget
+  static QString getHelpTopic(QWidget* widget);
+
+  // Show context help for widget
+  static void showHelp(QWidget* widget);
+
+  // Register widget with help topic
+  static void registerWidget(QWidget* widget, const QString& topicId);
+};
+```
+
+### Documentation Format
+
+- **Source**: Markdown files in `docs/help/` directory
+- **Build**: Convert to Qt Help format (.qhc/.qch) at build time
+- **Fallback**: Render markdown directly if help files not compiled
+
+### Menu Structure
+
+```
+Help
+├── Getting Started               Ctrl+F1
+├── User Manual...
+├── Keyboard Shortcuts...         Ctrl+/
+├── ─────────────────────
+├── What's New
+├── Video Tutorials               (opens browser)
+├── ─────────────────────
+├── Report Issue...               (opens GitHub)
+├── ─────────────────────
+├── About ROS Weaver
+└── About Qt
+```
+
+### Future Enhancements
+
+- Offline documentation download
+- Multiple language support (i18n)
+- User-contributed tips/documentation
+- Integration with ROS2 documentation (ros.org links)
+- AI-powered help assistant
+
