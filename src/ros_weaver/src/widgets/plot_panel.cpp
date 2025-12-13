@@ -416,7 +416,7 @@ void PlotPanel::showAddTopicDialog() {
       fieldItem->setData(0, Qt::UserRole, field.fieldPath);
       fieldItem->setData(1, Qt::UserRole + 1, true);  // Mark as field item
       fieldItem->setFlags(fieldItem->flags() | Qt::ItemIsUserCheckable);
-      fieldItem->setCheckState(0, Qt::Unchecked);
+      fieldItem->setCheckState(0, Qt::Checked);
     }
 
     if (fields.isEmpty()) {
@@ -424,7 +424,7 @@ void PlotPanel::showAddTopicDialog() {
       // (for simple numeric types)
       topicItem->setData(1, Qt::UserRole + 1, true);
       topicItem->setFlags(topicItem->flags() | Qt::ItemIsUserCheckable);
-      topicItem->setCheckState(0, Qt::Unchecked);
+      topicItem->setCheckState(0, Qt::Checked);
     }
   }
 

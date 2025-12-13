@@ -1260,9 +1260,11 @@ In the System Matching panel, once a scan has been done if the user sees Extra N
 
 ## Bugs to fix
 
-* Plot panel is not full height
-* All topics default to being ticked for the topic panel (all start on for visualisation)
-* 
+- [x] Plot panel is not full height
+- [x] All topics default to being ticked for the topic panel (all start on for visualisation) 
 
 
 
+## Deployment
+
+* write a blog post
