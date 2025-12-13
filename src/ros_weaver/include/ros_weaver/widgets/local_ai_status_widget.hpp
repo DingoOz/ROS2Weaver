@@ -4,6 +4,7 @@
 #include <QWidget>
 #include <QLabel>
 #include <QSettings>
+#include <QElapsedTimer>
 
 namespace ros_weaver {
 
@@ -25,12 +26,18 @@ public slots:
   // Manual refresh
   void refreshStatus();
 
+  // Token generation speed tracking
+  void onGenerationStarted();
+  void onTokenReceived();
+  void onGenerationFinished();
+
 signals:
   void settingsChanged();
 
 private slots:
   void onOllamaStatusChanged(bool running);
   void onOllamaSettingsChanged();
+  void updateTokenSpeed();
 
 private:
   void setupUi();
@@ -42,10 +49,17 @@ private:
   QLabel* statusIconLabel_;
   QLabel* statusTextLabel_;
   QLabel* separatorLabel_;
+  QLabel* tokenSpeedLabel_;
 
   // Settings
   bool showStatus_;
   bool showModelName_;
+
+  // Token generation tracking
+  QElapsedTimer tokenTimer_;
+  int tokenCount_ = 0;
+  bool isGenerating_ = false;
+  double currentTokenSpeed_ = 0.0;
 
   // Settings key constants
   static constexpr const char* SETTINGS_GROUP = "LocalAIStatusDisplay";

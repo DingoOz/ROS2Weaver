@@ -2,6 +2,7 @@
 #include "ros_weaver/core/ollama_manager.hpp"
 
 #include <QHBoxLayout>
+#include <QTimer>
 
 namespace ros_weaver {
 
@@ -10,8 +11,12 @@ LocalAIStatusWidget::LocalAIStatusWidget(QWidget* parent)
     , statusIconLabel_(nullptr)
     , statusTextLabel_(nullptr)
     , separatorLabel_(nullptr)
+    , tokenSpeedLabel_(nullptr)
     , showStatus_(true)
-    , showModelName_(true) {
+    , showModelName_(true)
+    , tokenCount_(0)
+    , isGenerating_(false)
+    , currentTokenSpeed_(0.0) {
   setupUi();
   loadSettings();
 
@@ -23,6 +28,16 @@ LocalAIStatusWidget::LocalAIStatusWidget(QWidget* parent)
           this, &LocalAIStatusWidget::onOllamaSettingsChanged);
   connect(&mgr, &OllamaManager::localModelsUpdated,
           this, [this](const QList<OllamaModel>&) { updateDisplay(); });
+
+  // Connect to generation signals for token speed tracking
+  connect(&mgr, &OllamaManager::completionStarted,
+          this, &LocalAIStatusWidget::onGenerationStarted);
+  connect(&mgr, &OllamaManager::completionToken,
+          this, &LocalAIStatusWidget::onTokenReceived);
+  connect(&mgr, &OllamaManager::completionFinished,
+          this, [this](const QString&) { onGenerationFinished(); });
+  connect(&mgr, &OllamaManager::completionError,
+          this, [this](const QString&) { onGenerationFinished(); });
 
   // Initial display update
   updateDisplay();
@@ -52,6 +67,13 @@ void LocalAIStatusWidget::setupUi() {
   statusTextLabel_ = new QLabel(tr("LocalAI: Checking..."), this);
   statusTextLabel_->setToolTip(tr("Local AI (Ollama) connection status"));
   layout->addWidget(statusTextLabel_);
+
+  // Token speed label (shown during generation)
+  tokenSpeedLabel_ = new QLabel(this);
+  tokenSpeedLabel_->setStyleSheet("color: #4CAF50; font-size: 11px;");
+  tokenSpeedLabel_->setToolTip(tr("Token generation speed"));
+  tokenSpeedLabel_->setVisible(false);
+  layout->addWidget(tokenSpeedLabel_);
 
   setLayout(layout);
 }
@@ -160,6 +182,53 @@ void LocalAIStatusWidget::updateDisplay() {
   statusTextLabel_->setText(statusText);
   statusIconLabel_->setToolTip(tooltip);
   statusTextLabel_->setToolTip(tooltip);
+}
+
+void LocalAIStatusWidget::onGenerationStarted() {
+  isGenerating_ = true;
+  tokenCount_ = 0;
+  currentTokenSpeed_ = 0.0;
+  tokenTimer_.start();
+  tokenSpeedLabel_->setVisible(true);
+  tokenSpeedLabel_->setText(tr("0 tok/s"));
+}
+
+void LocalAIStatusWidget::onTokenReceived() {
+  if (!isGenerating_) return;
+
+  tokenCount_++;
+  updateTokenSpeed();
+}
+
+void LocalAIStatusWidget::updateTokenSpeed() {
+  if (!isGenerating_ || !tokenTimer_.isValid()) return;
+
+  qint64 elapsedMs = tokenTimer_.elapsed();
+  if (elapsedMs > 0) {
+    currentTokenSpeed_ = (tokenCount_ * 1000.0) / elapsedMs;
+    tokenSpeedLabel_->setText(tr("%1 tok/s").arg(currentTokenSpeed_, 0, 'f', 1));
+  }
+}
+
+void LocalAIStatusWidget::onGenerationFinished() {
+  isGenerating_ = false;
+
+  // Show final speed briefly before hiding
+  if (tokenCount_ > 0 && tokenTimer_.elapsed() > 0) {
+    currentTokenSpeed_ = (tokenCount_ * 1000.0) / tokenTimer_.elapsed();
+    tokenSpeedLabel_->setText(tr("%1 tok/s (done)").arg(currentTokenSpeed_, 0, 'f', 1));
+
+    // Hide after 3 seconds
+    QTimer::singleShot(3000, this, [this]() {
+      if (!isGenerating_) {
+        tokenSpeedLabel_->setVisible(false);
+      }
+    });
+  } else {
+    tokenSpeedLabel_->setVisible(false);
+  }
+
+  tokenCount_ = 0;
 }
 
 }  // namespace ros_weaver
