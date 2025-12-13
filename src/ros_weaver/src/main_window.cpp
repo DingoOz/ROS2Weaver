@@ -21,6 +21,7 @@
 #include "ros_weaver/core/theme_manager.hpp"
 #include "ros_weaver/core/ollama_manager.hpp"
 #include "ros_weaver/wizards/package_wizard.hpp"
+#include "ros_weaver/wizards/robot_wizard.hpp"
 #include "ros_weaver/widgets/ollama_settings_widget.hpp"
 #include "ros_weaver/widgets/help_browser.hpp"
 #include "ros_weaver/widgets/keyboard_shortcuts_dialog.hpp"
@@ -191,6 +192,11 @@ void MainWindow::setupMenuBar() {
   generateWizardAction->setShortcut(tr("Ctrl+Shift+G"));
   generateWizardAction->setToolTip(tr("Step-by-step wizard for generating ROS2 packages with full customization"));
   connect(generateWizardAction, &QAction::triggered, this, &MainWindow::onGenerateCodeWizard);
+
+  QAction* robotWizardAction = fileMenu->addAction(tr("&Robot Configuration Wizard..."));
+  robotWizardAction->setShortcut(tr("Ctrl+R"));
+  robotWizardAction->setToolTip(tr("Create a new robot with ros2_control support - configure joints, sensors, and controllers"));
+  connect(robotWizardAction, &QAction::triggered, this, &MainWindow::onRobotWizard);
 
   fileMenu->addSeparator();
 
@@ -1748,6 +1754,47 @@ void MainWindow::onGenerateCodeWizard() {
       externalEditor_->openFolderInVSCode(wizard.generatedPackagePath());
     } else if (msgBox.clickedButton() == openFolderBtn) {
       ExternalEditor::openWithSystemDefault(wizard.generatedPackagePath());
+    }
+  }
+}
+
+void MainWindow::onRobotWizard() {
+  // Create and show the robot configuration wizard
+  RobotWizard wizard(this);
+
+  if (wizard.exec() == QDialog::Accepted) {
+    // Show success dialog with options
+    QString generatedPath = wizard.generatedPackagePath();
+    if (!generatedPath.isEmpty()) {
+      lastGeneratedPackagePath_ = generatedPath;
+      outputPanel_->appendBuildOutput(tr("\nRobot package generated: %1").arg(generatedPath));
+
+      QMessageBox msgBox(this);
+      msgBox.setWindowTitle(tr("Robot Package Generated"));
+      msgBox.setIcon(QMessageBox::Information);
+      msgBox.setText(tr("Robot description package has been generated successfully!"));
+      msgBox.setInformativeText(tr("Package location: %1\n\nThe package includes:\n"
+                                   "- URDF/Xacro robot description\n"
+                                   "- ros2_control configuration\n"
+                                   "- Controller configuration\n"
+                                   "- Launch files").arg(generatedPath));
+
+      QPushButton* openVSCodeBtn = msgBox.addButton(tr("Open in VS Code"), QMessageBox::ActionRole);
+      QPushButton* openFolderBtn = msgBox.addButton(tr("Open Folder"), QMessageBox::ActionRole);
+      msgBox.addButton(QMessageBox::Close);
+
+      if (!ExternalEditor::isVSCodeAvailable()) {
+        openVSCodeBtn->setEnabled(false);
+        openVSCodeBtn->setToolTip(tr("VS Code not found on this system"));
+      }
+
+      msgBox.exec();
+
+      if (msgBox.clickedButton() == openVSCodeBtn) {
+        externalEditor_->openFolderInVSCode(generatedPath);
+      } else if (msgBox.clickedButton() == openFolderBtn) {
+        ExternalEditor::openWithSystemDefault(generatedPath);
+      }
     }
   }
 }

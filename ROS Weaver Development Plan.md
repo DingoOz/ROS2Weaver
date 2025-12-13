@@ -1234,9 +1234,34 @@ If selected it will pulse visuals over the UI in sequence to let a new user run 
 
 
 
-## Robot Wizard
+## Robot Wizard ✓ COMPLETED
 
-Wizards for common robot types (e.g., differential drive with camera/LiDAR) that include sample teleop and viz setups.
+Multi-step wizard for creating robots with ros2_control support. Accessible via File > Robot Configuration Wizard (Ctrl+R).
+
+**Implemented Robot Types** (based on ros2_control_demos):
+- Differential Drive Robot (TurtleBot, DiffBot style)
+- RRBot (2-DOF Revolute-Revolute Manipulator)
+- 6-DOF Industrial Robot Arm
+- Car-like Robot (Ackermann Steering)
+- Tricycle Robot
+- Parallel Gripper
+- Custom Robot (user-defined)
+
+**Wizard Steps**:
+1. **Robot Type Selection**: Choose type with detailed descriptions, set robot name
+2. **Robot Configuration**: Configure joints, wheels, mass, base frame
+3. **Hardware Interfaces**: Set command/state interfaces (position/velocity/effort)
+4. **Controllers Selection**: Select ros2_control controllers with descriptions
+5. **Sensors Configuration**: Add LiDAR, camera, IMU, GPS with parameters
+6. **Teleop Setup**: Configure keyboard, joystick, SpaceMouse teleoperation
+7. **Visualization Setup**: Configure RViz2 and Gazebo world options
+8. **Review & Generate**: Generate complete robot description package
+
+**Generated Package Contents**:
+- URDF/Xacro robot description with ros2_control tags
+- Controller configuration YAML
+- Launch files for display and Gazebo
+- package.xml and CMakeLists.txt
 
 
 
