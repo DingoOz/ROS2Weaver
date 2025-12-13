@@ -167,6 +167,57 @@ void OllamaSettingsWidget::setupUi() {
 
   mainLayout->addWidget(statusBarGroup_);
 
+  // Performance Group
+  performanceGroup_ = new QGroupBox(tr("Performance"), this);
+  QVBoxLayout* perfLayout = new QVBoxLayout(performanceGroup_);
+
+  QHBoxLayout* threadsLayout = new QHBoxLayout();
+  threadsLayout->addWidget(new QLabel(tr("CPU Threads:"), this));
+  cpuThreadsSpin_ = new QSpinBox(this);
+  cpuThreadsSpin_->setRange(0, 64);
+  cpuThreadsSpin_->setSpecialValueText(tr("Auto"));
+  cpuThreadsSpin_->setToolTip(tr("Number of CPU threads for inference (0 = auto)"));
+  cpuThreadsSpin_->setFixedWidth(80);
+  threadsLayout->addWidget(cpuThreadsSpin_);
+  threadsLayout->addStretch();
+  perfLayout->addLayout(threadsLayout);
+
+  QLabel* perfHintLabel = new QLabel(
+      tr("Set to 0 for automatic. Higher values may not improve speed due to memory bandwidth limits. "
+         "Typical optimal range: 4-8 threads."),
+      this);
+  perfHintLabel->setWordWrap(true);
+  perfHintLabel->setStyleSheet("color: gray; font-size: 11px;");
+  perfLayout->addWidget(perfHintLabel);
+
+  mainLayout->addWidget(performanceGroup_);
+
+  // System Prompt Group
+  systemPromptGroup_ = new QGroupBox(tr("System Prompt"), this);
+  QVBoxLayout* promptLayout = new QVBoxLayout(systemPromptGroup_);
+
+  QLabel* promptHintLabel = new QLabel(
+      tr("Customize the AI assistant's behavior. This prompt is sent with every message."),
+      this);
+  promptHintLabel->setWordWrap(true);
+  promptHintLabel->setStyleSheet("color: gray; font-size: 11px;");
+  promptLayout->addWidget(promptHintLabel);
+
+  systemPromptEdit_ = new QTextEdit(this);
+  systemPromptEdit_->setPlaceholderText(tr("Enter system prompt..."));
+  systemPromptEdit_->setMinimumHeight(120);
+  systemPromptEdit_->setMaximumHeight(200);
+  promptLayout->addWidget(systemPromptEdit_);
+
+  QHBoxLayout* promptBtnLayout = new QHBoxLayout();
+  resetPromptBtn_ = new QPushButton(tr("Reset to Default"), this);
+  resetPromptBtn_->setToolTip(tr("Reset the system prompt to the default ROS2-focused prompt"));
+  promptBtnLayout->addWidget(resetPromptBtn_);
+  promptBtnLayout->addStretch();
+  promptLayout->addLayout(promptBtnLayout);
+
+  mainLayout->addWidget(systemPromptGroup_);
+
   mainLayout->addStretch();
 
   // Initial state
@@ -204,6 +255,16 @@ void OllamaSettingsWidget::connectSignals() {
   // Status bar display settings
   connect(showStatusCheck_, &QCheckBox::toggled, this, &OllamaSettingsWidget::settingsChanged);
   connect(showModelNameCheck_, &QCheckBox::toggled, this, &OllamaSettingsWidget::settingsChanged);
+
+  // Performance settings
+  connect(cpuThreadsSpin_, QOverload<int>::of(&QSpinBox::valueChanged),
+          this, &OllamaSettingsWidget::settingsChanged);
+
+  // System prompt
+  connect(systemPromptEdit_, &QTextEdit::textChanged, this, &OllamaSettingsWidget::settingsChanged);
+  connect(resetPromptBtn_, &QPushButton::clicked, this, [this]() {
+    systemPromptEdit_->setPlainText(OllamaManager::defaultSystemPrompt());
+  });
 }
 
 void OllamaSettingsWidget::updateUiState() {
@@ -445,6 +506,8 @@ void OllamaSettingsWidget::applySettings() {
                       : endpointEdit_->text().trimmed());
   mgr.setSelectedModel(modelCombo_->currentText());
   mgr.setAutoLoadModel(autoLoadCheck_->isChecked());
+  mgr.setSystemPrompt(systemPromptEdit_->toPlainText());
+  mgr.setNumThreads(cpuThreadsSpin_->value());
 
   // Apply status bar display settings
   if (localAIStatusWidget_) {
@@ -466,6 +529,12 @@ void OllamaSettingsWidget::resetToSaved() {
   if (idx >= 0) {
     modelCombo_->setCurrentIndex(idx);
   }
+
+  // Load system prompt
+  systemPromptEdit_->setPlainText(mgr.systemPrompt());
+
+  // Load performance settings
+  cpuThreadsSpin_->setValue(mgr.numThreads());
 
   // Load status bar display settings
   if (localAIStatusWidget_) {

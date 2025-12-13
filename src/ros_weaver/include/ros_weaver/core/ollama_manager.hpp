@@ -48,10 +48,23 @@ public:
   bool autoLoadModel() const { return autoLoadModel_; }
   void setAutoLoadModel(bool autoLoad);
 
+  QString systemPrompt() const { return systemPrompt_; }
+  void setSystemPrompt(const QString& prompt);
+  static QString defaultSystemPrompt();
+
+  // CPU threads for inference (0 = auto/default)
+  int numThreads() const { return numThreads_; }
+  void setNumThreads(int threads);
+
   // API operations - streaming completion
-  void generateCompletion(const QString& prompt, const QString& systemPrompt = QString());
+  // images parameter accepts base64-encoded image data for multimodal models (llava, etc.)
+  void generateCompletion(const QString& prompt, const QString& systemPrompt = QString(),
+                          const QStringList& images = QStringList());
   void cancelCompletion();
   bool isGenerating() const { return currentCompletionReply_ != nullptr; }
+
+  // Check if a model likely supports vision (multimodal)
+  static bool isVisionModel(const QString& modelName);
 
   // Settings persistence
   void loadSettings();
@@ -101,8 +114,10 @@ private:
   // Settings
   QString endpoint_ = "http://localhost:11434";
   QString selectedModel_;
+  QString systemPrompt_;
   bool enabled_ = false;
   bool autoLoadModel_ = true;
+  int numThreads_ = 0;  // 0 = auto/default
 
   // Settings keys
   static constexpr const char* SETTINGS_GROUP = "Ollama";
@@ -110,6 +125,8 @@ private:
   static constexpr const char* KEY_SELECTED_MODEL = "selectedModel";
   static constexpr const char* KEY_ENABLED = "enabled";
   static constexpr const char* KEY_AUTO_LOAD = "autoLoadModel";
+  static constexpr const char* KEY_SYSTEM_PROMPT = "systemPrompt";
+  static constexpr const char* KEY_NUM_THREADS = "numThreads";
 };
 
 }  // namespace ros_weaver

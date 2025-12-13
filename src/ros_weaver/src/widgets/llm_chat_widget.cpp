@@ -6,6 +6,10 @@
 #include <QApplication>
 #include <QRegularExpression>
 #include <QTimer>
+#include <QFileDialog>
+#include <QFileInfo>
+#include <QMimeDatabase>
+#include <QImageReader>
 
 namespace ros_weaver {
 
@@ -21,53 +25,61 @@ ChatMessageWidget::ChatMessageWidget(Role role, const QString& message, QWidget*
 }
 
 void ChatMessageWidget::setupUi(Role role) {
-  QVBoxLayout* layout = new QVBoxLayout(this);
-  layout->setContentsMargins(8, 4, 8, 4);
-  layout->setSpacing(0);
+  QHBoxLayout* outerLayout = new QHBoxLayout(this);
+  outerLayout->setContentsMargins(8, 4, 8, 4);
+  outerLayout->setSpacing(0);
+
+  // Container for the message content
+  QWidget* contentWidget = new QWidget(this);
+  QVBoxLayout* contentLayout = new QVBoxLayout(contentWidget);
+  contentLayout->setContentsMargins(0, 0, 0, 0);
+  contentLayout->setSpacing(0);
 
   // Role label
-  QLabel* roleLabel = new QLabel(this);
-  roleLabel->setStyleSheet("font-weight: bold; font-size: 11px; margin-bottom: 2px;");
+  QLabel* roleLabel = new QLabel(contentWidget);
 
+  // Style and alignment based on role
+  QString bgColor, textColor;
   switch (role) {
     case Role::User:
       roleLabel->setText(tr("You"));
       roleLabel->setStyleSheet("font-weight: bold; font-size: 11px; color: #2a82da; margin-bottom: 2px;");
+      roleLabel->setAlignment(Qt::AlignRight);
+      bgColor = "#1e3a5f";
+      textColor = "#e0e0e0";
+      // User: 50% width, right-aligned (spacer on left)
+      outerLayout->addStretch(1);
+      outerLayout->addWidget(contentWidget, 1);
       break;
     case Role::Assistant:
       roleLabel->setText(tr("AI Assistant"));
       roleLabel->setStyleSheet("font-weight: bold; font-size: 11px; color: #4CAF50; margin-bottom: 2px;");
+      bgColor = "#2d2d2d";
+      textColor = "#e0e0e0";
+      // Assistant: 80% width, left-aligned (spacer on right)
+      outerLayout->addWidget(contentWidget, 4);
+      outerLayout->addStretch(1);
       break;
     case Role::System:
       roleLabel->setText(tr("System"));
       roleLabel->setStyleSheet("font-weight: bold; font-size: 11px; color: #888888; margin-bottom: 2px;");
+      roleLabel->setAlignment(Qt::AlignCenter);
+      bgColor = "#3d3d3d";
+      textColor = "#aaaaaa";
+      // System: centered, 80% width
+      outerLayout->addStretch(1);
+      outerLayout->addWidget(contentWidget, 4);
+      outerLayout->addStretch(1);
       break;
   }
-  layout->addWidget(roleLabel);
+  contentLayout->addWidget(roleLabel);
 
   // Text browser for markdown rendering
-  textBrowser_ = new QTextBrowser(this);
+  textBrowser_ = new QTextBrowser(contentWidget);
   textBrowser_->setOpenExternalLinks(true);
   textBrowser_->setFrameShape(QFrame::NoFrame);
   textBrowser_->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   textBrowser_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-
-  // Style based on role - full width
-  QString bgColor, textColor;
-  switch (role) {
-    case Role::User:
-      bgColor = "#1e3a5f";
-      textColor = "#e0e0e0";
-      break;
-    case Role::Assistant:
-      bgColor = "#2d2d2d";
-      textColor = "#e0e0e0";
-      break;
-    case Role::System:
-      bgColor = "#3d3d3d";
-      textColor = "#aaaaaa";
-      break;
-  }
 
   textBrowser_->setStyleSheet(QString(
       "QTextBrowser {"
@@ -83,7 +95,7 @@ void ChatMessageWidget::setupUi(Role role) {
       "QTextBrowser pre { background-color: #1a1a1a; padding: 10px; border-radius: 5px; font-family: monospace; }"
   ).arg(bgColor, textColor));
 
-  layout->addWidget(textBrowser_);
+  contentLayout->addWidget(textBrowser_);
 }
 
 void ChatMessageWidget::appendText(const QString& text) {
@@ -232,12 +244,65 @@ void LLMChatWidget::setupUi() {
   scrollArea_->setWidget(chatContainer_);
   mainLayout->addWidget(scrollArea_, 1);
 
+  // Attachment indicator bar (hidden by default)
+  attachmentBar_ = new QFrame(this);
+  attachmentBar_->setStyleSheet(
+      "QFrame {"
+      "  background-color: #3a4a5a;"
+      "  border-top: 1px solid #505050;"
+      "  padding: 4px;"
+      "}");
+  attachmentBar_->setVisible(false);
+  QHBoxLayout* attachBarLayout = new QHBoxLayout(attachmentBar_);
+  attachBarLayout->setContentsMargins(8, 4, 8, 4);
+  attachBarLayout->setSpacing(8);
+
+  QLabel* attachIcon = new QLabel(QString::fromUtf8("\xF0\x9F\x93\x8E"), this);  // Paperclip emoji
+  attachBarLayout->addWidget(attachIcon);
+
+  attachmentLabel_ = new QLabel(this);
+  attachmentLabel_->setStyleSheet("color: #e0e0e0; font-size: 12px;");
+  attachBarLayout->addWidget(attachmentLabel_, 1);
+
+  removeAttachmentBtn_ = new QPushButton(QString::fromUtf8("\xE2\x9C\x95"), this);  // X symbol
+  removeAttachmentBtn_->setFixedSize(20, 20);
+  removeAttachmentBtn_->setStyleSheet(
+      "QPushButton {"
+      "  background-color: transparent;"
+      "  color: #aaaaaa;"
+      "  border: none;"
+      "  font-size: 12px;"
+      "}"
+      "QPushButton:hover { color: #ff6666; }");
+  connect(removeAttachmentBtn_, &QPushButton::clicked, this, &LLMChatWidget::onRemoveAttachment);
+  attachBarLayout->addWidget(removeAttachmentBtn_);
+
+  mainLayout->addWidget(attachmentBar_);
+
   // Input area
   QWidget* inputArea = new QWidget(this);
   inputArea->setStyleSheet("background-color: #2a2a2a;");
   QHBoxLayout* inputLayout = new QHBoxLayout(inputArea);
   inputLayout->setContentsMargins(8, 8, 8, 8);
   inputLayout->setSpacing(8);
+
+  // Attach button
+  attachBtn_ = new QPushButton(QString::fromUtf8("\xF0\x9F\x93\x8E"), this);  // Paperclip emoji
+  attachBtn_->setMinimumHeight(36);
+  attachBtn_->setFixedWidth(40);
+  attachBtn_->setToolTip(tr("Attach file (text or image)"));
+  attachBtn_->setStyleSheet(
+      "QPushButton {"
+      "  background-color: #3a3a3a;"
+      "  border: 1px solid #505050;"
+      "  border-radius: 4px;"
+      "  color: white;"
+      "  font-size: 16px;"
+      "}"
+      "QPushButton:hover { background-color: #4a4a4a; border-color: #606060; }"
+      "QPushButton:disabled { background-color: #333333; color: #666666; }");
+  connect(attachBtn_, &QPushButton::clicked, this, &LLMChatWidget::onAttachClicked);
+  inputLayout->addWidget(attachBtn_);
 
   inputEdit_ = new QLineEdit(this);
   inputEdit_->setPlaceholderText(tr("Type a message... (Enter to send)"));
@@ -283,9 +348,7 @@ void LLMChatWidget::setupUi() {
       "  font-weight: bold;"
       "}"
       "QPushButton:hover { background-color: #e74c3c; }");
-  connect(stopBtn_, &QPushButton::clicked, this, []() {
-    OllamaManager::instance().cancelCompletion();
-  });
+  connect(stopBtn_, &QPushButton::clicked, this, &LLMChatWidget::onStopClicked);
   inputLayout->addWidget(stopBtn_);
 
   mainLayout->addWidget(inputArea);
@@ -332,6 +395,9 @@ void LLMChatWidget::clearChat() {
 
   currentStreamingMessage_ = nullptr;
 
+  // Clear any pending attachment
+  onRemoveAttachment();
+
   // Add welcome message again
   addMessage(ChatMessageWidget::Role::System,
              tr("Chat cleared. Start a new conversation."));
@@ -366,8 +432,31 @@ void LLMChatWidget::onSendClicked() {
     return;  // Already waiting for a response
   }
 
-  // Add user message to chat
-  addMessage(ChatMessageWidget::Role::User, message);
+  // Build the prompt with file attachment if present
+  QString fullPrompt = message;
+  QStringList images;
+  QString displayMessage = message;
+
+  if (!attachedFilePath_.isEmpty()) {
+    QFileInfo fileInfo(attachedFilePath_);
+
+    if (attachedIsImage_) {
+      // For images, send via the images parameter
+      images.append(attachedImageBase64_);
+      displayMessage = QString("[Image: %1]\n%2").arg(fileInfo.fileName(), message);
+    } else {
+      // For text files, prepend content to the prompt
+      fullPrompt = QString("Here is the content of file '%1':\n```\n%2\n```\n\n%3")
+                       .arg(fileInfo.fileName(), attachedFileContent_, message);
+      displayMessage = QString("[File: %1]\n%2").arg(fileInfo.fileName(), message);
+    }
+
+    // Clear attachment after use
+    onRemoveAttachment();
+  }
+
+  // Add user message to chat (show what user typed + attachment indicator)
+  addMessage(ChatMessageWidget::Role::User, displayMessage);
   inputEdit_->clear();
 
   // Show waiting state
@@ -377,14 +466,131 @@ void LLMChatWidget::onSendClicked() {
   stopBtn_->setVisible(true);
   statusLabel_->setText(tr("Generating..."));
 
-  // Send to Ollama
-  QString systemPrompt = tr("You are a helpful AI assistant integrated into ROS Weaver, "
-                            "a visual ROS2 package editor. Help users with ROS2 development, "
-                            "robotics questions, and general programming assistance. "
-                            "Be concise and helpful. Use markdown formatting for code blocks and lists.");
-  mgr.generateCompletion(message, systemPrompt);
+  // Send to Ollama with the configured system prompt and any images
+  mgr.generateCompletion(fullPrompt, mgr.systemPrompt(), images);
 
   emit messageSent(message);
+}
+
+void LLMChatWidget::onStopClicked() {
+  // Cancel the completion
+  OllamaManager::instance().cancelCompletion();
+
+  // Immediately reset UI state so user can type
+  isWaitingForResponse_ = false;
+  currentStreamingMessage_ = nullptr;
+  setInputEnabled(true);
+  sendBtn_->setVisible(true);
+  stopBtn_->setVisible(false);
+  updateStatusDisplay();
+
+  // Focus the input field for immediate typing
+  inputEdit_->setFocus();
+}
+
+void LLMChatWidget::onAttachClicked() {
+  // Build file filter
+  QString imageFormats;
+  for (const QByteArray& format : QImageReader::supportedImageFormats()) {
+    imageFormats += "*." + QString(format).toLower() + " ";
+  }
+
+  QString filter = tr("All Supported Files (*.txt *.md *.py *.cpp *.hpp *.c *.h *.js *.ts *.json *.xml *.yaml *.yml *.cmake *.sh *.bash *.launch *.urdf *.xacro *.msg *.srv *.action %1);;"
+                      "Text Files (*.txt *.md *.py *.cpp *.hpp *.c *.h *.js *.ts *.json *.xml *.yaml *.yml *.cmake *.sh *.bash);;"
+                      "ROS Files (*.launch *.urdf *.xacro *.msg *.srv *.action);;"
+                      "Images (%1);;"
+                      "All Files (*)").arg(imageFormats.trimmed());
+
+  QString filePath = QFileDialog::getOpenFileName(
+      this, tr("Attach File"), QString(), filter);
+
+  if (filePath.isEmpty()) {
+    return;
+  }
+
+  QFileInfo fileInfo(filePath);
+  if (!fileInfo.exists()) {
+    addMessage(ChatMessageWidget::Role::System, tr("File not found: %1").arg(filePath));
+    return;
+  }
+
+  // Check file size (limit to 1MB for text, 10MB for images)
+  qint64 maxSize = 1024 * 1024;  // 1MB default
+  QMimeDatabase mimeDb;
+  QMimeType mimeType = mimeDb.mimeTypeForFile(filePath);
+  bool isImage = mimeType.name().startsWith("image/");
+
+  if (isImage) {
+    maxSize = 10 * 1024 * 1024;  // 10MB for images
+  }
+
+  if (fileInfo.size() > maxSize) {
+    addMessage(ChatMessageWidget::Role::System,
+               tr("File too large. Maximum size: %1 MB").arg(maxSize / (1024 * 1024)));
+    return;
+  }
+
+  // Clear previous attachment
+  onRemoveAttachment();
+
+  QFile file(filePath);
+  if (!file.open(QIODevice::ReadOnly)) {
+    addMessage(ChatMessageWidget::Role::System, tr("Could not open file: %1").arg(filePath));
+    return;
+  }
+
+  attachedFilePath_ = filePath;
+  attachedIsImage_ = isImage;
+
+  if (isImage) {
+    // Check if current model supports vision
+    OllamaManager& mgr = OllamaManager::instance();
+    if (!OllamaManager::isVisionModel(mgr.selectedModel())) {
+      addMessage(ChatMessageWidget::Role::System,
+                 tr("Note: Current model '%1' may not support images. Consider using a vision model like 'llava' or 'llama3.2-vision'.").arg(mgr.selectedModel()));
+    }
+
+    // Read and base64 encode the image
+    QByteArray imageData = file.readAll();
+    attachedImageBase64_ = QString::fromLatin1(imageData.toBase64());
+    attachedFileContent_.clear();
+  } else {
+    // Read text content
+    QTextStream stream(&file);
+    attachedFileContent_ = stream.readAll();
+    attachedImageBase64_.clear();
+
+    // Truncate if too long (show warning)
+    if (attachedFileContent_.length() > 50000) {
+      attachedFileContent_ = attachedFileContent_.left(50000);
+      addMessage(ChatMessageWidget::Role::System,
+                 tr("File truncated to 50,000 characters."));
+    }
+  }
+  file.close();
+
+  // Update UI to show attachment
+  QString displayName = fileInfo.fileName();
+  QString sizeStr;
+  if (fileInfo.size() < 1024) {
+    sizeStr = QString::number(fileInfo.size()) + " B";
+  } else if (fileInfo.size() < 1024 * 1024) {
+    sizeStr = QString::number(fileInfo.size() / 1024.0, 'f', 1) + " KB";
+  } else {
+    sizeStr = QString::number(fileInfo.size() / (1024.0 * 1024.0), 'f', 1) + " MB";
+  }
+
+  QString typeStr = isImage ? tr("Image") : tr("Text");
+  attachmentLabel_->setText(QString("%1 (%2, %3)").arg(displayName, typeStr, sizeStr));
+  attachmentBar_->setVisible(true);
+}
+
+void LLMChatWidget::onRemoveAttachment() {
+  attachedFilePath_.clear();
+  attachedFileContent_.clear();
+  attachedImageBase64_.clear();
+  attachedIsImage_ = false;
+  attachmentBar_->setVisible(false);
 }
 
 void LLMChatWidget::onOllamaStatusChanged(bool running) {
@@ -456,6 +662,7 @@ void LLMChatWidget::updateStatusDisplay() {
 void LLMChatWidget::setInputEnabled(bool enabled) {
   inputEdit_->setEnabled(enabled);
   sendBtn_->setEnabled(enabled);
+  attachBtn_->setEnabled(enabled);
 }
 
 }  // namespace ros_weaver
