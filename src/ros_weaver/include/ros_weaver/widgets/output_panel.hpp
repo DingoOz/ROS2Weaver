@@ -126,6 +126,9 @@ private:
   // Debug counters
   std::atomic<int> receivedCount_{0};
   std::atomic<int> displayedCount_{0};
+
+  // Store all log entries for re-filtering
+  std::vector<LogEntry> allLogEntries_;
 };
 
 // Terminal Widget for running commands
