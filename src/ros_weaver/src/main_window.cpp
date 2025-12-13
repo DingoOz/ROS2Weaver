@@ -24,6 +24,7 @@
 #include "ros_weaver/widgets/ollama_settings_widget.hpp"
 #include "ros_weaver/widgets/help_browser.hpp"
 #include "ros_weaver/widgets/keyboard_shortcuts_dialog.hpp"
+#include "ros_weaver/widgets/guided_tour.hpp"
 #include "ros_weaver/core/context_help.hpp"
 
 #include <QApplication>
@@ -92,6 +93,7 @@ MainWindow::MainWindow(QWidget* parent)
   , topicViewerDock_(nullptr)
   , tfTreePanel_(nullptr)
   , plotPanel_(nullptr)
+  , guidedTour_(nullptr)
 {
   setWindowTitle(baseWindowTitle_);
   setMinimumSize(1200, 800);
@@ -398,6 +400,11 @@ void MainWindow::setupMenuBar() {
   gettingStartedAction->setToolTip(tr("Quick start guide for new users"));
   connect(gettingStartedAction, &QAction::triggered, this, &MainWindow::onShowGettingStarted);
 
+  QAction* guidedTourAction = helpMenu->addAction(tr("Guided &Tour..."));
+  guidedTourAction->setShortcut(tr("Ctrl+Shift+T"));
+  guidedTourAction->setToolTip(tr("Interactive tour of the application features"));
+  connect(guidedTourAction, &QAction::triggered, this, &MainWindow::onShowGuidedTour);
+
   QAction* userManualAction = helpMenu->addAction(tr("&User Manual..."));
   userManualAction->setToolTip(tr("Browse the full documentation"));
   connect(userManualAction, &QAction::triggered, this, &MainWindow::onShowUserManual);
@@ -455,6 +462,7 @@ void MainWindow::setupToolBar() {
 void MainWindow::setupDockWidgets() {
   // Package Browser Dock (left side)
   packageBrowserDock_ = new QDockWidget(tr("Package Browser"), this);
+  packageBrowserDock_->setObjectName("packageBrowserDock");
   packageBrowserDock_->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
 
   QWidget* browserWidget = new QWidget();
@@ -519,6 +527,7 @@ void MainWindow::setupDockWidgets() {
 
   // Properties Dock (right side) with Param Dashboard
   propertiesDock_ = new QDockWidget(tr("Properties"), this);
+  propertiesDock_->setObjectName("propertiesDock");
   propertiesDock_->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
 
   propertiesTab_ = new QTabWidget();
@@ -616,6 +625,7 @@ void MainWindow::setupDockWidgets() {
 
   // Output Dock (bottom) - with tabs for Build Output, ROS Logs, and Terminal
   outputDock_ = new QDockWidget(tr("Output"), this);
+  outputDock_->setObjectName("outputDock");
   outputDock_->setAllowedAreas(Qt::BottomDockWidgetArea | Qt::TopDockWidgetArea);
 
   outputPanel_ = new OutputPanel();
@@ -624,6 +634,7 @@ void MainWindow::setupDockWidgets() {
 
   // System Mapping Dock (right side, tabbed with Properties)
   systemMappingDock_ = new QDockWidget(tr("System Mapping"), this);
+  systemMappingDock_->setObjectName("systemMappingDock");
   systemMappingDock_->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
 
   systemMappingPanel_ = new SystemMappingPanel();
@@ -662,6 +673,7 @@ void MainWindow::setupDockWidgets() {
 
 void MainWindow::setupCentralWidget() {
   canvas_ = new WeaverCanvas(this);
+  canvas_->setObjectName("weaverCanvas");
   setCentralWidget(canvas_);
 
   // Connect canvas signals
@@ -1626,6 +1638,16 @@ void MainWindow::onShowWhatsNew() {
   browser->show();
   browser->raise();
   browser->activateWindow();
+}
+
+void MainWindow::onShowGuidedTour() {
+  if (!guidedTour_) {
+    guidedTour_ = new GuidedTour(this);
+  }
+
+  if (!guidedTour_->isRunning()) {
+    guidedTour_->start();
+  }
 }
 
 void MainWindow::onReportIssue() {

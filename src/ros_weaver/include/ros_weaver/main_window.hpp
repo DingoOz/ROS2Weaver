@@ -38,6 +38,7 @@ class SystemMappingPanel;
 class TopicViewerPanel;
 class TFTreePanel;
 class PlotPanel;
+class GuidedTour;
 
 class MainWindow : public QMainWindow {
   Q_OBJECT
@@ -61,6 +62,7 @@ private slots:
   void onShowUserManual();
   void onShowKeyboardShortcuts();
   void onShowWhatsNew();
+  void onShowGuidedTour();
   void onReportIssue();
 
   // Example projects
@@ -185,6 +187,9 @@ private:
 
   // Plot panel
   PlotPanel* plotPanel_;
+
+  // Guided tour
+  GuidedTour* guidedTour_;
 };
 
 }  // namespace ros_weaver
