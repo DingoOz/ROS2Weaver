@@ -74,7 +74,16 @@ qrc_*.cpp
 *.md
 !README.md
 !ROS Weaver Development Plan.md
+!tests/README.md
 
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# UI Test artifacts
+tests/baselines/
+tests/.venv/
+tests/__pycache__/
+tests/**/__pycache__/
+*.pyc
+.pytest_cache/

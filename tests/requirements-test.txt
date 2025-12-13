@@ -1,0 +1,9 @@
+# UI Regression Test Dependencies
+# Install with: pip install -r requirements-test.txt
+
+pytest>=7.0.0
+pytest-timeout>=2.1.0
+pyatspi>=2.38.0
+Pillow>=9.0.0
+reportlab>=4.0.0
+pyscreenshot>=3.0
