@@ -35,51 +35,41 @@ Inspired by visual programming tools like Unreal Engine's Blueprint and Houdini'
 ## Features
 
 ### Visual Canvas Editor
-- **Drag-and-drop** package blocks onto the canvas
-- **Connection wiring** between nodes with type-safe pins
-- **Node grouping** with Unreal Engine-style comment boxes
-- **Animated connections** showing live data flow rates
-- **Zoom and pan** navigation with middle mouse button
+- Drag-and-drop package blocks with type-safe connection wiring
+- Animated connections showing live data flow rates
+- Node grouping with resizable, colored comment boxes
+- Zoom/pan navigation with middle mouse button
 
-### ROS2 System Status
-- **Live status indicator** in title bar showing ROS2 connectivity
-- **Node discovery** scanning running ROS2 nodes
-- **Topic monitoring** with publish rates and message counts
+### Live ROS2 Monitoring
+- Real-time topic viewer with message rates and echo output
+- TF tree visualization with frame status and transform details
+- System discovery scanning running nodes, topics, and services
+- Canvas mapping to match discovered nodes with blocks
 
-### Real-Time Topic Viewer
-- **Topic browser** with filtering and search
-- **Live message monitoring** with rate display
-- **Auto-monitor canvas topics** button for quick setup
-- **Echo to output panel** for debugging
-
-### TF Tree Viewer & Frame Linker
-- **Live TF tree** visualization with parent-child hierarchy
-- **Frame status** indicators (healthy, stale, static, orphan)
-- **Transform details** showing translation and rotation (quaternion + RPY)
-- **Frame linking** to canvas blocks, topics, and YAML parameters
-- **Update rate tracking** for dynamic transforms
-
-### Live System Discovery
-- **System scan** to discover running nodes, topics, and services
-- **Canvas mapping** to match discovered nodes with canvas blocks
-- **Visual feedback** showing matched/unmatched nodes
-- **Auto-refresh** option for continuous monitoring
+### Data Visualization
+- Plot panel for real-time numeric data graphing
+- Configurable plot styles and time windows
+- Multi-topic overlay support
 
 ### Code Generation
-- **Package generation wizard** with customizable templates
-- **Launch file generation** for composed systems
-- **Parameter file export** in YAML format
-- **VS Code integration** to open generated packages
+- Package generation wizard with launch files and parameters
+- YAML parameter export
+- VS Code integration for generated packages
 
-### Node Grouping
-- **Comment boxes** to organize related nodes
-- **Group movement** moves all contained nodes together
-- **Resizable groups** with drag handles
-- **Color customization** with preset colors
+### Local AI Assistant
+- Ollama integration for local LLM support
+- AI chat panel for ROS2 development assistance
+- Status indicator showing AI availability
+
+### In-Program Help
+- Interactive guided tour for new users
+- Searchable user manual and documentation
+- Keyboard shortcuts reference (F1)
+- Context-sensitive help
 
 ### Example Projects
-- **Turtlesim Teleop** - Basic publisher/subscriber example
-- **TurtleBot3 Navigation** - SLAM and Nav2 with Gazebo simulation
+- Turtlesim Teleop - Basic publisher/subscriber
+- TurtleBot3 Navigation - SLAM and Nav2 with Gazebo
 
 ## Requirements
 
@@ -154,11 +144,13 @@ ros2 run ros_weaver ros_weaver
 | Ctrl+S | Save Project |
 | Ctrl+Shift+S | Save As |
 | Ctrl+G | Generate Code |
-| Ctrl+T | Show TF Tree |
+| Ctrl+M | Toggle Live Monitoring |
+| Ctrl+Shift+R | Scan System |
+| Ctrl+Shift+M | Show System Mapping |
 | Ctrl+Shift+T | Show Topic Viewer |
 | Ctrl+Shift+L | Show ROS Logs |
-| Ctrl+M | Toggle Live Monitoring |
-| F5 | Scan System |
+| F1 | Keyboard Shortcuts |
+| F2 | Start Guided Tour |
 
 ### Package Browser
 - Drag packages from the left panel onto the canvas
