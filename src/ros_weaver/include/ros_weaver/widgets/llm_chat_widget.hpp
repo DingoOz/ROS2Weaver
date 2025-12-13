@@ -2,7 +2,7 @@
 #define ROS_WEAVER_LLM_CHAT_WIDGET_HPP
 
 #include <QWidget>
-#include <QTextEdit>
+#include <QTextBrowser>
 #include <QLineEdit>
 #include <QPushButton>
 #include <QLabel>
@@ -11,7 +11,7 @@
 
 namespace ros_weaver {
 
-// Individual chat message widget
+// Individual chat message widget with markdown support
 class ChatMessageWidget : public QWidget {
   Q_OBJECT
 
@@ -20,8 +20,22 @@ public:
 
   ChatMessageWidget(Role role, const QString& message, QWidget* parent = nullptr);
 
+  // For streaming: append text to this message
+  void appendText(const QString& text);
+
+  // Get current text
+  QString text() const { return currentText_; }
+
+  // Update display (rerender markdown)
+  void updateDisplay();
+
 private:
-  void setupUi(Role role, const QString& message);
+  void setupUi(Role role);
+  QString convertMarkdownToHtml(const QString& markdown);
+
+  Role role_;
+  QString currentText_;
+  QTextBrowser* textBrowser_;
 };
 
 // Main LLM Chat Widget
@@ -41,15 +55,18 @@ signals:
 private slots:
   void onSendClicked();
   void onOllamaStatusChanged(bool running);
-  void onCompletionReceived(const QString& response);
+  void onCompletionStarted();
+  void onCompletionToken(const QString& token);
+  void onCompletionFinished(const QString& fullResponse);
   void onCompletionError(const QString& error);
   void onSettingsChanged();
 
 private:
   void setupUi();
-  void addMessage(ChatMessageWidget::Role role, const QString& message);
+  ChatMessageWidget* addMessage(ChatMessageWidget::Role role, const QString& message);
   void updateStatusDisplay();
   void setInputEnabled(bool enabled);
+  void scrollToBottom();
 
   // UI components
   QWidget* chatContainer_;
@@ -57,8 +74,12 @@ private:
   QScrollArea* scrollArea_;
   QLineEdit* inputEdit_;
   QPushButton* sendBtn_;
+  QPushButton* stopBtn_;
   QPushButton* clearBtn_;
   QLabel* statusLabel_;
+
+  // Current streaming message
+  ChatMessageWidget* currentStreamingMessage_ = nullptr;
 
   // State
   bool isWaitingForResponse_ = false;

@@ -48,8 +48,10 @@ public:
   bool autoLoadModel() const { return autoLoadModel_; }
   void setAutoLoadModel(bool autoLoad);
 
-  // API operations
+  // API operations - streaming completion
   void generateCompletion(const QString& prompt, const QString& systemPrompt = QString());
+  void cancelCompletion();
+  bool isGenerating() const { return currentCompletionReply_ != nullptr; }
 
   // Settings persistence
   void loadSettings();
@@ -64,7 +66,10 @@ signals:
   void pullProgress(const QString& modelName, double progress, const QString& status);
   void pullCompleted(const QString& modelName, bool success, const QString& error);
   void modelDeleted(const QString& modelName, bool success);
-  void completionReceived(const QString& response);
+  // Streaming completion signals
+  void completionStarted();
+  void completionToken(const QString& token);
+  void completionFinished(const QString& fullResponse);
   void completionError(const QString& error);
   void settingsChanged();
 
@@ -73,7 +78,8 @@ private slots:
   void onPullReadyRead();
   void onPullFinished();
   void onDeleteFinished(QNetworkReply* reply);
-  void onCompletionFinished(QNetworkReply* reply);
+  void onCompletionReadyRead();
+  void onCompletionFinished();
 
 private:
   OllamaManager();
@@ -83,7 +89,9 @@ private:
 
   QNetworkAccessManager* networkManager_;
   QNetworkReply* currentPullReply_ = nullptr;
+  QNetworkReply* currentCompletionReply_ = nullptr;
   QString currentPullingModel_;
+  QString accumulatedResponse_;
   QTimer* statusCheckTimer_;
 
   // State

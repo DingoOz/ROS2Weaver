@@ -214,35 +214,93 @@ void OllamaManager::generateCompletion(const QString& prompt, const QString& sys
     return;
   }
 
+  // Cancel any existing completion
+  if (currentCompletionReply_) {
+    cancelCompletion();
+  }
+
+  accumulatedResponse_.clear();
+
   QNetworkRequest request(QUrl(endpoint_ + "/api/generate"));
   request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 
   QJsonObject json;
   json["model"] = selectedModel_;
   json["prompt"] = prompt;
-  json["stream"] = false;
+  json["stream"] = true;  // Enable streaming
 
   if (!systemPrompt.isEmpty()) {
     json["system"] = systemPrompt;
   }
 
-  QNetworkReply* reply = networkManager_->post(request, QJsonDocument(json).toJson());
-  connect(reply, &QNetworkReply::finished, this, [this, reply]() {
-    onCompletionFinished(reply);
-  });
+  currentCompletionReply_ = networkManager_->post(request, QJsonDocument(json).toJson());
+
+  connect(currentCompletionReply_, &QNetworkReply::readyRead,
+          this, &OllamaManager::onCompletionReadyRead);
+  connect(currentCompletionReply_, &QNetworkReply::finished,
+          this, &OllamaManager::onCompletionFinished);
+
+  emit completionStarted();
 }
 
-void OllamaManager::onCompletionFinished(QNetworkReply* reply) {
-  if (reply->error() == QNetworkReply::NoError) {
-    QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
+void OllamaManager::cancelCompletion() {
+  if (currentCompletionReply_) {
+    currentCompletionReply_->abort();
+    currentCompletionReply_->deleteLater();
+    currentCompletionReply_ = nullptr;
+    accumulatedResponse_.clear();
+  }
+}
+
+void OllamaManager::onCompletionReadyRead() {
+  if (!currentCompletionReply_) return;
+
+  // Read all available data
+  while (currentCompletionReply_->canReadLine()) {
+    QByteArray line = currentCompletionReply_->readLine();
+    if (line.isEmpty()) continue;
+
+    QJsonDocument doc = QJsonDocument::fromJson(line);
+    if (doc.isNull()) continue;
+
     QJsonObject obj = doc.object();
-    QString response = obj["response"].toString();
-    emit completionReceived(response);
-  } else {
-    emit completionError(reply->errorString());
+    QString token = obj["response"].toString();
+
+    if (!token.isEmpty()) {
+      accumulatedResponse_ += token;
+      emit completionToken(token);
+    }
+
+    // Check if this is the final message
+    if (obj["done"].toBool()) {
+      // Final message received
+    }
+  }
+}
+
+void OllamaManager::onCompletionFinished() {
+  if (!currentCompletionReply_) return;
+
+  if (currentCompletionReply_->error() == QNetworkReply::NoError) {
+    // Process any remaining data
+    QByteArray remaining = currentCompletionReply_->readAll();
+    for (const QByteArray& line : remaining.split('\n')) {
+      if (line.isEmpty()) continue;
+      QJsonDocument doc = QJsonDocument::fromJson(line);
+      if (doc.isNull()) continue;
+      QString token = doc.object()["response"].toString();
+      if (!token.isEmpty()) {
+        accumulatedResponse_ += token;
+        emit completionToken(token);
+      }
+    }
+    emit completionFinished(accumulatedResponse_);
+  } else if (currentCompletionReply_->error() != QNetworkReply::OperationCanceledError) {
+    emit completionError(currentCompletionReply_->errorString());
   }
 
-  reply->deleteLater();
+  currentCompletionReply_->deleteLater();
+  currentCompletionReply_ = nullptr;
 }
 
 void OllamaManager::setEndpoint(const QString& endpoint) {
