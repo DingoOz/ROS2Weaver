@@ -270,7 +270,15 @@ void RosLogViewer::onLogReceived(const LogEntry& entry) {
 }
 
 void RosLogViewer::addLogEntry(const LogEntry& entry) {
-  // Check filter
+  // Store entry for later re-filtering
+  allLogEntries_.push_back(entry);
+
+  // Enforce max stored entries
+  while (static_cast<int>(allLogEntries_.size()) > maxLogEntries_) {
+    allLogEntries_.erase(allLogEntries_.begin());
+  }
+
+  // Check filter for display
   if (!passesFilter(entry)) return;
 
   // Create tree item
@@ -295,7 +303,7 @@ void RosLogViewer::addLogEntry(const LogEntry& entry) {
   logTree_->addTopLevelItem(item);
   displayedCount_++;
 
-  // Enforce max entries
+  // Enforce max displayed entries
   while (logTree_->topLevelItemCount() > maxLogEntries_) {
     delete logTree_->takeTopLevelItem(0);
   }
@@ -390,8 +398,39 @@ bool RosLogViewer::passesFilter(const LogEntry& entry) const {
 }
 
 void RosLogViewer::onFilterChanged() {
-  // When filter changes, we don't re-filter existing entries
-  // New entries will use the new filter
+  // Re-filter all stored entries when filter changes
+  logTree_->clear();
+  displayedCount_ = 0;
+
+  for (const LogEntry& entry : allLogEntries_) {
+    if (!passesFilter(entry)) continue;
+
+    // Create tree item
+    QTreeWidgetItem* item = new QTreeWidgetItem();
+    item->setText(0, entry.timestamp.toString("hh:mm:ss.zzz"));
+    item->setText(1, entry.level);
+    item->setText(2, entry.nodeName);
+    item->setText(3, entry.message);
+
+    // Set tooltip with full info
+    QString tooltip = QString("File: %1:%2\nFunction: %3")
+      .arg(entry.file).arg(entry.line).arg(entry.function);
+    item->setToolTip(3, tooltip);
+
+    // Color code by level
+    QColor color = getColorForLevel(entry.level);
+    for (int i = 0; i < 4; ++i) {
+      item->setForeground(i, color);
+    }
+
+    logTree_->addTopLevelItem(item);
+    displayedCount_++;
+  }
+
+  // Scroll to bottom if auto-scroll enabled
+  if (autoScrollCheck_->isChecked()) {
+    logTree_->scrollToBottom();
+  }
 }
 
 void RosLogViewer::onClearClicked() {
@@ -400,6 +439,7 @@ void RosLogViewer::onClearClicked() {
 
 void RosLogViewer::clear() {
   logTree_->clear();
+  allLogEntries_.clear();
   receivedCount_ = 0;
   displayedCount_ = 0;
 }
