@@ -36,6 +36,7 @@ class CanvasMapper;
 class SystemMappingPanel;
 class TopicViewerPanel;
 class TFTreePanel;
+class PlotPanel;
 
 class MainWindow : public QMainWindow {
   Q_OBJECT
@@ -169,6 +170,9 @@ private:
 
   // TF Tree viewer
   TFTreePanel* tfTreePanel_;
+
+  // Plot panel
+  PlotPanel* plotPanel_;
 };
 
 }  // namespace ros_weaver

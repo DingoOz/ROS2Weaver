@@ -14,6 +14,7 @@
 #include "ros_weaver/widgets/system_mapping_panel.hpp"
 #include "ros_weaver/widgets/topic_viewer_panel.hpp"
 #include "ros_weaver/widgets/tf_tree_panel.hpp"
+#include "ros_weaver/widgets/plot_panel.hpp"
 #include "ros_weaver/core/system_discovery.hpp"
 #include "ros_weaver/core/canvas_mapper.hpp"
 #include "ros_weaver/wizards/package_wizard.hpp"
@@ -79,6 +80,8 @@ MainWindow::MainWindow(QWidget* parent)
   , scanProgressBar_(nullptr)
   , topicViewerPanel_(nullptr)
   , topicViewerDock_(nullptr)
+  , tfTreePanel_(nullptr)
+  , plotPanel_(nullptr)
 {
   setWindowTitle(baseWindowTitle_);
   setMinimumSize(1200, 800);
@@ -512,6 +515,11 @@ void MainWindow::setupDockWidgets() {
   tfTreePanel_ = new TFTreePanel();
   tfTreePanel_->setCanvas(canvas_);
   propertiesTab_->addTab(tfTreePanel_, tr("TF Tree"));
+
+  // Plot panel tab
+  plotPanel_ = new PlotPanel();
+  plotPanel_->setCanvas(canvas_);
+  propertiesTab_->addTab(plotPanel_, tr("Plots"));
 
   // Connect TF tree signals
   connect(tfTreePanel_, &TFTreePanel::frameSelected,
