@@ -38,6 +38,7 @@ class SystemMappingPanel;
 class TopicViewerPanel;
 class TFTreePanel;
 class PlotPanel;
+class GuidedTour;
 
 class MainWindow : public QMainWindow {
   Q_OBJECT
@@ -61,6 +62,7 @@ private slots:
   void onShowUserManual();
   void onShowKeyboardShortcuts();
   void onShowWhatsNew();
+  void onShowGuidedTour();
   void onReportIssue();
 
   // Example projects
@@ -140,6 +142,9 @@ private:
   QTreeWidgetItem* searchResultsItem_;
   QTreeWidgetItem* localPackagesItem_;
 
+  // Browser panel tabs (left side)
+  QTabWidget* browserTab_;
+
   // Properties panel with param dashboard
   QTabWidget* propertiesTab_;
   ParamDashboard* paramDashboard_;
@@ -171,7 +176,6 @@ private:
   SystemDiscovery* systemDiscovery_;
   CanvasMapper* canvasMapper_;
   SystemMappingPanel* systemMappingPanel_;
-  QDockWidget* systemMappingDock_;
   QAction* scanSystemAction_;
   QAction* autoScanAction_;
   QProgressBar* scanProgressBar_;
@@ -185,6 +189,9 @@ private:
 
   // Plot panel
   PlotPanel* plotPanel_;
+
+  // Guided tour
+  GuidedTour* guidedTour_;
 };
 
 }  // namespace ros_weaver

@@ -24,6 +24,7 @@
 #include "ros_weaver/widgets/ollama_settings_widget.hpp"
 #include "ros_weaver/widgets/help_browser.hpp"
 #include "ros_weaver/widgets/keyboard_shortcuts_dialog.hpp"
+#include "ros_weaver/widgets/guided_tour.hpp"
 #include "ros_weaver/core/context_help.hpp"
 
 #include <QApplication>
@@ -69,6 +70,7 @@ MainWindow::MainWindow(QWidget* parent)
   , packageSearchEdit_(nullptr)
   , searchResultsItem_(nullptr)
   , localPackagesItem_(nullptr)
+  , browserTab_(nullptr)
   , propertiesTab_(nullptr)
   , paramDashboard_(nullptr)
   , outputPanel_(nullptr)
@@ -84,7 +86,6 @@ MainWindow::MainWindow(QWidget* parent)
   , systemDiscovery_(nullptr)
   , canvasMapper_(nullptr)
   , systemMappingPanel_(nullptr)
-  , systemMappingDock_(nullptr)
   , scanSystemAction_(nullptr)
   , autoScanAction_(nullptr)
   , scanProgressBar_(nullptr)
@@ -92,6 +93,7 @@ MainWindow::MainWindow(QWidget* parent)
   , topicViewerDock_(nullptr)
   , tfTreePanel_(nullptr)
   , plotPanel_(nullptr)
+  , guidedTour_(nullptr)
 {
   setWindowTitle(baseWindowTitle_);
   setMinimumSize(1200, 800);
@@ -329,9 +331,13 @@ void MainWindow::setupMenuBar() {
   QAction* showMappingPanelAction = ros2Menu->addAction(tr("Show System &Mapping Panel"));
   showMappingPanelAction->setShortcut(tr("Ctrl+Shift+M"));
   connect(showMappingPanelAction, &QAction::triggered, this, [this]() {
-    if (systemMappingDock_) {
-      systemMappingDock_->show();
-      systemMappingDock_->raise();
+    // Show Browser dock and switch to System Mapping tab
+    if (packageBrowserDock_) {
+      packageBrowserDock_->show();
+      packageBrowserDock_->raise();
+    }
+    if (browserTab_ && systemMappingPanel_) {
+      browserTab_->setCurrentWidget(systemMappingPanel_);
     }
   });
 
@@ -398,6 +404,11 @@ void MainWindow::setupMenuBar() {
   gettingStartedAction->setToolTip(tr("Quick start guide for new users"));
   connect(gettingStartedAction, &QAction::triggered, this, &MainWindow::onShowGettingStarted);
 
+  QAction* guidedTourAction = helpMenu->addAction(tr("Guided &Tour..."));
+  guidedTourAction->setShortcut(tr("Ctrl+Shift+T"));
+  guidedTourAction->setToolTip(tr("Interactive tour of the application features"));
+  connect(guidedTourAction, &QAction::triggered, this, &MainWindow::onShowGuidedTour);
+
   QAction* userManualAction = helpMenu->addAction(tr("&User Manual..."));
   userManualAction->setToolTip(tr("Browse the full documentation"));
   connect(userManualAction, &QAction::triggered, this, &MainWindow::onShowUserManual);
@@ -453,10 +464,14 @@ void MainWindow::setupToolBar() {
 }
 
 void MainWindow::setupDockWidgets() {
-  // Package Browser Dock (left side)
-  packageBrowserDock_ = new QDockWidget(tr("Package Browser"), this);
+  // Browser Dock (left side) - contains Package Browser and System Mapping tabs
+  packageBrowserDock_ = new QDockWidget(tr("Browser"), this);
+  packageBrowserDock_->setObjectName("packageBrowserDock");
   packageBrowserDock_->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
 
+  browserTab_ = new QTabWidget();
+
+  // Package Browser tab
   QWidget* browserWidget = new QWidget();
   QVBoxLayout* browserLayout = new QVBoxLayout(browserWidget);
   browserLayout->setContentsMargins(4, 4, 4, 4);
@@ -514,11 +529,25 @@ void MainWindow::setupDockWidgets() {
   }
 
   browserLayout->addWidget(packageTree_);
-  packageBrowserDock_->setWidget(browserWidget);
+  browserTab_->addTab(browserWidget, tr("Packages"));
+
+  // System Mapping tab
+  systemMappingPanel_ = new SystemMappingPanel();
+  systemMappingPanel_->setSystemDiscovery(systemDiscovery_);
+  systemMappingPanel_->setCanvasMapper(canvasMapper_);
+  browserTab_->addTab(systemMappingPanel_, tr("System Mapping"));
+
+  connect(systemMappingPanel_, &SystemMappingPanel::blockSelected,
+          this, &MainWindow::onMappingBlockSelected);
+  connect(systemMappingPanel_, &SystemMappingPanel::scanRequested,
+          this, &MainWindow::onScanSystem);
+
+  packageBrowserDock_->setWidget(browserTab_);
   addDockWidget(Qt::LeftDockWidgetArea, packageBrowserDock_);
 
   // Properties Dock (right side) with Param Dashboard
   propertiesDock_ = new QDockWidget(tr("Properties"), this);
+  propertiesDock_->setObjectName("propertiesDock");
   propertiesDock_->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
 
   propertiesTab_ = new QTabWidget();
@@ -616,30 +645,12 @@ void MainWindow::setupDockWidgets() {
 
   // Output Dock (bottom) - with tabs for Build Output, ROS Logs, and Terminal
   outputDock_ = new QDockWidget(tr("Output"), this);
+  outputDock_->setObjectName("outputDock");
   outputDock_->setAllowedAreas(Qt::BottomDockWidgetArea | Qt::TopDockWidgetArea);
 
   outputPanel_ = new OutputPanel();
   outputDock_->setWidget(outputPanel_);
   addDockWidget(Qt::BottomDockWidgetArea, outputDock_);
-
-  // System Mapping Dock (right side, tabbed with Properties)
-  systemMappingDock_ = new QDockWidget(tr("System Mapping"), this);
-  systemMappingDock_->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-
-  systemMappingPanel_ = new SystemMappingPanel();
-  systemMappingPanel_->setSystemDiscovery(systemDiscovery_);
-  systemMappingPanel_->setCanvasMapper(canvasMapper_);
-
-  connect(systemMappingPanel_, &SystemMappingPanel::blockSelected,
-          this, &MainWindow::onMappingBlockSelected);
-  connect(systemMappingPanel_, &SystemMappingPanel::scanRequested,
-          this, &MainWindow::onScanSystem);
-
-  systemMappingDock_->setWidget(systemMappingPanel_);
-  addDockWidget(Qt::RightDockWidgetArea, systemMappingDock_);
-  tabifyDockWidget(propertiesDock_, systemMappingDock_);
-
-  propertiesDock_->raise();  // Make Properties the default visible tab
 
   // Connect panel visibility toggles from View > Panels menu
   QAction* showPackageBrowserAction = findChild<QAction*>("showPackageBrowserAction");
@@ -662,6 +673,7 @@ void MainWindow::setupDockWidgets() {
 
 void MainWindow::setupCentralWidget() {
   canvas_ = new WeaverCanvas(this);
+  canvas_->setObjectName("weaverCanvas");
   setCentralWidget(canvas_);
 
   // Connect canvas signals
@@ -1626,6 +1638,16 @@ void MainWindow::onShowWhatsNew() {
   browser->show();
   browser->raise();
   browser->activateWindow();
+}
+
+void MainWindow::onShowGuidedTour() {
+  if (!guidedTour_) {
+    guidedTour_ = new GuidedTour(this);
+  }
+
+  if (!guidedTour_->isRunning()) {
+    guidedTour_->start();
+  }
 }
 
 void MainWindow::onReportIssue() {

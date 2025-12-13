@@ -77,6 +77,7 @@ set(SOURCES
   src/widgets/topic_list_model.cpp
   src/widgets/tf_tree_panel.cpp
   src/widgets/plot_panel.cpp
+  src/widgets/guided_tour.cpp
   src/wizards/package_wizard.cpp
 )
 
@@ -111,6 +112,7 @@ set(HEADERS
   include/ros_weaver/widgets/topic_list_model.hpp
   include/ros_weaver/widgets/tf_tree_panel.hpp
   include/ros_weaver/widgets/plot_panel.hpp
+  include/ros_weaver/widgets/guided_tour.hpp
   include/ros_weaver/wizards/package_wizard.hpp
 )
 
