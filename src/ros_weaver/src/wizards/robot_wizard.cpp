@@ -222,9 +222,24 @@ void RobotWizard::setupProgressWidget() {
   progressWidget_->setSteps(stepNames);
   progressWidget_->setCurrentStep(0);
 
+  // QWizard has a complex internal layout. The most reliable way to add
+  // a progress widget at the top is to find the main layout and insert there.
+  // We need to delay insertion until after the wizard's layout is fully set up
   QTimer::singleShot(0, this, [this]() {
+    // Find the wizard's main layout
     if (QVBoxLayout* vboxLayout = qobject_cast<QVBoxLayout*>(layout())) {
+      // Insert at the top (position 0)
       vboxLayout->insertWidget(0, progressWidget_);
+    } else if (QGridLayout* gridLayout = qobject_cast<QGridLayout*>(layout())) {
+      // Some wizard styles use grid layout - insert at top spanning all columns
+      gridLayout->addWidget(progressWidget_, 0, 0, 1, gridLayout->columnCount());
+    } else {
+      // Fallback: just parent it and position manually
+      progressWidget_->setParent(this);
+      progressWidget_->move(0, 0);
+      progressWidget_->resize(width(), progressWidget_->sizeHint().height());
+      progressWidget_->show();
+      progressWidget_->raise();
     }
   });
 }
