@@ -11,8 +11,14 @@
 #include <QFrame>
 #include <QComboBox>
 #include <QElapsedTimer>
+#include <QJsonObject>
 
 namespace ros_weaver {
+
+class PackageBlock;
+class ConnectionLine;
+class NodeGroup;
+class WeaverCanvas;
 
 // Individual chat message widget with markdown support
 class ChatMessageWidget : public QWidget {
@@ -55,8 +61,19 @@ public:
   // Send a message programmatically (useful for automated analysis)
   void sendMessage(const QString& message);
 
+  // Set the canvas for AI tool registration and context
+  void setCanvas(WeaverCanvas* canvas);
+
+  // Ask AI about specific elements (triggered from context menu)
+  void askAboutBlock(PackageBlock* block);
+  void askAboutConnection(ConnectionLine* connection);
+  void askAboutGroup(NodeGroup* group);
+  void askAboutPin(PackageBlock* block, int pinIndex, bool isOutput);
+
 signals:
   void messageSent(const QString& message);
+  // Signal to request loading an example (handled by MainWindow)
+  void loadExampleRequested(const QString& exampleName);
 
 protected:
   // Override to handle paste events for images
@@ -76,15 +93,26 @@ private slots:
   void onQuickQuestionSelected(int index);
   void handleClipboardPaste();
 
+  // AI Tool callbacks
+  void onAIPermissionRequired(const QString& toolName, const QString& description,
+                               const QJsonObject& params);
+  void onAIToolExecuted(const QString& toolName, bool success, const QString& message);
+  void onAIActionUndone(const QString& description);
+  void onUndoStackChanged(int size);
+
 private:
   void setupUi();
   void setupQuickQuestions();
+  void setupAITools();
   ChatMessageWidget* addMessage(ChatMessageWidget::Role role, const QString& message);
   void updateStatusDisplay();
   void setInputEnabled(bool enabled);
   void scrollToBottom();
   QString gatherROSContext();
   void attachImageFromClipboard(const QImage& image);
+  void processToolCalls(const QString& response);
+  void showUndoNotification(const QString& actionDescription);
+  QString buildEnhancedSystemPrompt();
 
   // UI components
   QWidget* chatContainer_;
@@ -119,6 +147,12 @@ private:
   QString attachedFileContent_;  // For text files
   QString attachedImageBase64_;  // For image files
   bool attachedIsImage_ = false;
+
+  // Canvas reference for AI tools
+  WeaverCanvas* canvas_ = nullptr;
+
+  // Undo button for AI actions
+  QPushButton* undoBtn_ = nullptr;
 };
 
 }  // namespace ros_weaver

@@ -49,15 +49,21 @@ OllamaManager::~OllamaManager() {
 
 QStringList OllamaManager::recommendedModels() {
   return QStringList{
+    // Good for tool calling / structured output
+    "llama3.1:8b",
+    "qwen2.5:7b",
+    "mistral:7b",
+    "mistral-small:latest",
+    // Coding focused
     "qwen2.5-coder:7b",
     "qwen2.5-coder:3b",
-    "qwen2.5-coder:1.5b",
     "deepseek-coder-v2:16b",
     "codellama:7b",
+    // Smaller/faster
     "llama3.2:3b",
     "llama3.2:1b",
+    "qwen2.5:3b",
     "phi3:mini",
-    "mistral:7b",
     "gemma2:2b"
   };
 }
@@ -119,6 +125,7 @@ void OllamaManager::pullModel(const QString& modelName) {
   }
 
   currentPullingModel_ = modelName;
+  pullError_.clear();  // Reset any previous error
 
   QNetworkRequest request(QUrl(endpoint_ + "/api/pull"));
   request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
@@ -141,6 +148,13 @@ void OllamaManager::onPullReadyRead() {
     QJsonDocument doc = QJsonDocument::fromJson(line);
     QJsonObject obj = doc.object();
 
+    // Check for error in response (Ollama returns {"error": "message"} for invalid models)
+    if (obj.contains("error")) {
+      pullError_ = obj["error"].toString();
+      emit pullProgress(currentPullingModel_, -1, tr("Error: %1").arg(pullError_));
+      return;
+    }
+
     QString status = obj["status"].toString();
 
     if (obj.contains("total") && obj.contains("completed")) {
@@ -157,14 +171,24 @@ void OllamaManager::onPullReadyRead() {
 void OllamaManager::onPullFinished() {
   if (!currentPullReply_) return;
 
-  bool success = (currentPullReply_->error() == QNetworkReply::NoError);
-  QString error = success ? QString() : currentPullReply_->errorString();
+  // Check both HTTP error AND error from response body
+  bool httpSuccess = (currentPullReply_->error() == QNetworkReply::NoError);
+  bool ollamaSuccess = pullError_.isEmpty();
+  bool success = httpSuccess && ollamaSuccess;
+
+  QString error;
+  if (!httpSuccess) {
+    error = currentPullReply_->errorString();
+  } else if (!ollamaSuccess) {
+    error = pullError_;
+  }
 
   QString modelName = currentPullingModel_;
 
   currentPullReply_->deleteLater();
   currentPullReply_ = nullptr;
   currentPullingModel_.clear();
+  pullError_.clear();
 
   // Refresh the models list BEFORE emitting pullCompleted
   // This ensures the model list is updated before any UI response
@@ -471,22 +495,27 @@ QColor OllamaManager::defaultCodeBackgroundColor() {
 
 QString OllamaManager::defaultSystemPrompt() {
   return QStringLiteral(
-    "You are a ROS2 robotics assistant running locally with limited resources.\n\n"
-    "CRITICAL RULES:\n"
-    "- Keep responses SHORT and DIRECT. No lengthy explanations.\n"
-    "- Answer in 1-3 sentences when possible.\n"
-    "- Use bullet points for lists, not paragraphs.\n"
-    "- Show code only when asked or essential.\n"
-    "- Don't repeat the question or add filler phrases.\n\n"
-    "ROS2 EXPERTISE:\n"
-    "- Focus on ROS2 Humble/Iron/Jazzy patterns.\n"
-    "- Topics: nodes, topics, services, actions, launch files, parameters, tf2, nav2, MoveIt2.\n"
-    "- Prefer Python for quick examples, C++ when performance matters.\n"
-    "- Use standard ROS2 conventions and best practices.\n\n"
-    "FORMAT:\n"
-    "- Use markdown for code blocks.\n"
-    "- One code block per response unless comparing approaches.\n"
-    "- If unsure, ask ONE clarifying question first."
+    "You are a ROS2 assistant integrated with ROS Weaver canvas editor.\n\n"
+    "IMPORTANT: You have tools to control the canvas. When the user asks you to do something on the canvas, you MUST use a tool.\n\n"
+    "TO USE A TOOL, output EXACTLY this format (no other text before it):\n"
+    "<tool_call>{\"tool\": \"TOOL_NAME\", \"parameters\": {PARAMS}}</tool_call>\n\n"
+    "TOOLS:\n"
+    "1. load_example - Load example project\n"
+    "   <tool_call>{\"tool\": \"load_example\", \"parameters\": {\"example_name\": \"turtlesim_teleop\"}}</tool_call>\n\n"
+    "2. add_block - Add a ROS2 node\n"
+    "   <tool_call>{\"tool\": \"add_block\", \"parameters\": {\"package\": \"turtlesim\", \"executable\": \"turtlesim_node\", \"x\": 200, \"y\": 150}}</tool_call>\n\n"
+    "3. remove_block - Remove a block\n"
+    "   <tool_call>{\"tool\": \"remove_block\", \"parameters\": {\"block_name\": \"turtlesim_node\"}}</tool_call>\n\n"
+    "4. set_parameter - Change a parameter\n"
+    "   <tool_call>{\"tool\": \"set_parameter\", \"parameters\": {\"block_name\": \"node\", \"param_name\": \"param\", \"value\": \"val\"}}</tool_call>\n\n"
+    "5. get_project_state - See what's on canvas\n"
+    "   <tool_call>{\"tool\": \"get_project_state\", \"parameters\": {}}</tool_call>\n\n"
+    "RULES:\n"
+    "- \"Load turtlesim example\" -> USE load_example tool\n"
+    "- \"Add a node\" -> USE add_block tool\n"
+    "- \"What's on the canvas?\" -> USE get_project_state tool\n"
+    "- General ROS2 questions -> Answer normally\n\n"
+    "Keep responses SHORT. Use tools when asked to modify the canvas."
   );
 }
 

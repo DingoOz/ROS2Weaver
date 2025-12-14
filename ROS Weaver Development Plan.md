@@ -1307,3 +1307,13 @@ In the System Matching panel, once a scan has been done if the user sees Extra N
 ## Deployment
 
 * write a blog post
+
+
+
+
+
+## Feature: Undo function.
+
+
+
+## Feature:Update ollama version to allow tool usage
