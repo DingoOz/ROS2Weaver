@@ -137,6 +137,7 @@ private:
   QNetworkReply* currentPullReply_ = nullptr;
   QNetworkReply* currentCompletionReply_ = nullptr;
   QString currentPullingModel_;
+  QString pullError_;  // Stores error from Ollama's response body
   QString accumulatedResponse_;
   QTimer* statusCheckTimer_;
 
