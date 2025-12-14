@@ -325,6 +325,12 @@ void TopicViewerPanel::shutdownRosNode() {
     activeSubscriptions_.clear();
   }
 
+  // Wait for discovery thread to complete to avoid use-after-free
+  if (discoveryThread_ && discoveryThread_->joinable()) {
+    discoveryThread_->join();
+  }
+  discoveryThread_.reset();
+
   if (spinThread_ && spinThread_->joinable()) {
     spinThread_->join();
   }
@@ -340,10 +346,16 @@ void TopicViewerPanel::refreshTopics() {
 
   statusLabel_->setText(tr("Discovering topics..."));
 
-  // Perform discovery in background thread
-  std::thread([this]() {
+  // Wait for any previous discovery thread to complete
+  if (discoveryThread_ && discoveryThread_->joinable()) {
+    discoveryThread_->join();
+  }
+
+  // Perform discovery in background thread (tracked to avoid use-after-free)
+  discoveryThread_ = std::make_unique<std::thread>([this]() {
+    if (!spinning_.load()) return;  // Early exit if shutting down
     performTopicDiscovery();
-  }).detach();
+  });
 }
 
 void TopicViewerPanel::performTopicDiscovery() {
@@ -741,10 +753,14 @@ void TopicViewerPanel::checkTopicInactivity() {
   for (const QString& topicName : inactiveTopics) {
     emit messageReceived(topicName, QString(), 0.0);
     topicModel_->updateTopicRate(topicName, 0.0);
+  }
 
-    // Reset the last message time to prevent repeated emissions
+  // Reset the last message times to prevent repeated emissions (single lock for efficiency)
+  if (!inactiveTopics.isEmpty()) {
     std::lock_guard<std::mutex> lock(topicsMutex_);
-    lastMessageTimes_[topicName.toStdString()] = 0;
+    for (const QString& topicName : inactiveTopics) {
+      lastMessageTimes_[topicName.toStdString()] = 0;
+    }
   }
 }
 
