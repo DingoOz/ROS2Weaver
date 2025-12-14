@@ -63,7 +63,10 @@ set(SOURCES
   src/core/theme_manager.cpp
   src/core/ollama_manager.cpp
   src/core/context_help.cpp
+  src/core/data_lineage.cpp
+  src/core/lineage_provider.cpp
   src/widgets/param_dashboard.cpp
+  src/widgets/lineage_dialog.cpp
   src/widgets/help_browser.cpp
   src/widgets/keyboard_shortcuts_dialog.cpp
   src/widgets/ollama_settings_widget.cpp
@@ -99,7 +102,10 @@ set(HEADERS
   include/ros_weaver/core/theme_manager.hpp
   include/ros_weaver/core/ollama_manager.hpp
   include/ros_weaver/core/context_help.hpp
+  include/ros_weaver/core/data_lineage.hpp
+  include/ros_weaver/core/lineage_provider.hpp
   include/ros_weaver/widgets/param_dashboard.hpp
+  include/ros_weaver/widgets/lineage_dialog.hpp
   include/ros_weaver/widgets/help_browser.hpp
   include/ros_weaver/widgets/keyboard_shortcuts_dialog.hpp
   include/ros_weaver/widgets/ollama_settings_widget.hpp

@@ -3,6 +3,8 @@
 #include "ros_weaver/canvas/connection_line.hpp"
 #include "ros_weaver/canvas/node_group.hpp"
 #include "ros_weaver/core/project.hpp"
+#include "ros_weaver/core/lineage_provider.hpp"
+#include "ros_weaver/widgets/lineage_dialog.hpp"
 
 #include <QMenu>
 #include <QInputDialog>
@@ -920,6 +922,16 @@ void WeaverCanvas::contextMenuEvent(QContextMenuEvent* event) {
       emit openBlockInVSCodeRequested(block);
     });
 
+    // Show Data Origin
+    menu.addAction(tr("Show Data Origin..."), [this, block]() {
+      BlockData blockData;
+      blockData.id = block->id();
+      blockData.name = block->packageName();
+      blockData.position = block->pos();
+      DataLineage lineage = globalLineageProvider().getBlockLineage(blockData);
+      LineageContextMenu::showLineageDialog(lineage, this);
+    });
+
     menu.addSeparator();
 
     // Parameter source submenu
@@ -1028,6 +1040,16 @@ void WeaverCanvas::contextMenuEvent(QContextMenuEvent* event) {
       removeNodeGroup(group);
     });
   } else if (ConnectionLine* conn = dynamic_cast<ConnectionLine*>(item)) {
+    // Show Data Origin for connection
+    menu.addAction(tr("Show Data Origin..."), [this, conn]() {
+      QString topicName = conn->topicName();
+      QString messageType = conn->messageType();
+      bool isLive = conn->activityState() != TopicActivityState::Unknown;
+      DataLineage lineage = globalLineageProvider().getConnectionLineage(topicName, messageType, isLive);
+      LineageContextMenu::showLineageDialog(lineage, this);
+    });
+
+    menu.addSeparator();
     menu.addAction(tr("Delete Connection"), [this, conn]() {
       removeConnection(conn);
     });

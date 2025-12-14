@@ -1,4 +1,6 @@
 #include "ros_weaver/widgets/tf_tree_panel.hpp"
+#include "ros_weaver/widgets/lineage_dialog.hpp"
+#include "ros_weaver/core/lineage_provider.hpp"
 #include "ros_weaver/canvas/weaver_canvas.hpp"
 #include "ros_weaver/canvas/package_block.hpp"
 
@@ -864,6 +866,19 @@ void TFTreePanel::onContextMenu(const QPoint& pos) {
 
   menu.addAction(tr("Find Links"), [this, frameName]() {
     updateDetailsPanel(frameName);
+  });
+
+  menu.addSeparator();
+
+  // Get parent frame for lineage info
+  QString parentFrame;
+  if (item->parent()) {
+    parentFrame = item->parent()->data(0, Qt::UserRole).toString();
+  }
+
+  menu.addAction(tr("Show Data Origin..."), [this, frameName, parentFrame]() {
+    DataLineage lineage = globalLineageProvider().getTfFrameLineage(frameName, parentFrame);
+    LineageContextMenu::showLineageDialog(lineage, this);
   });
 
   menu.exec(treeWidget_->viewport()->mapToGlobal(pos));

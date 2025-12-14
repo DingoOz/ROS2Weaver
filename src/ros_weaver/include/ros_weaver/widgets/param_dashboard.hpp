@@ -98,6 +98,7 @@ private slots:
   void onCollapseAll();
   void onYamlSourceChanged(int index);
   void onSyncToBlock();
+  void onContextMenu(const QPoint& pos);
 
 private:
   void setupUi();

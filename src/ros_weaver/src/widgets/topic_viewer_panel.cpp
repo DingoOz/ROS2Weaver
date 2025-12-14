@@ -1,5 +1,7 @@
 #include "ros_weaver/widgets/topic_viewer_panel.hpp"
 #include "ros_weaver/widgets/topic_list_model.hpp"
+#include "ros_weaver/widgets/lineage_dialog.hpp"
+#include "ros_weaver/core/lineage_provider.hpp"
 #include "ros_weaver/canvas/weaver_canvas.hpp"
 #include "ros_weaver/canvas/connection_line.hpp"
 
@@ -542,6 +544,15 @@ void TopicViewerPanel::onContextMenu(const QPoint& pos) {
   QAction* copyTypeAction = menu.addAction(tr("Copy Message Type"));
   connect(copyTypeAction, &QAction::triggered, [topic]() {
     QApplication::clipboard()->setText(topic.type);
+  });
+
+  menu.addSeparator();
+
+  // Show Data Origin action
+  QAction* lineageAction = menu.addAction(tr("Show Data Origin..."));
+  connect(lineageAction, &QAction::triggered, [this, topic]() {
+    DataLineage lineage = globalLineageProvider().getRosTopicLineage(topic.name, topic.type);
+    LineageContextMenu::showLineageDialog(lineage, this);
   });
 
   menu.exec(topicTreeView_->viewport()->mapToGlobal(pos));

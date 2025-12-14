@@ -1,4 +1,6 @@
 #include "ros_weaver/widgets/param_dashboard.hpp"
+#include "ros_weaver/widgets/lineage_dialog.hpp"
+#include "ros_weaver/core/lineage_provider.hpp"
 #include "ros_weaver/canvas/package_block.hpp"
 #include "ros_weaver/core/project.hpp"
 
@@ -133,8 +135,11 @@ void ParamDashboard::setupUi() {
   paramTree_->setAlternatingRowColors(true);
   paramTree_->setRootIsDecorated(true);
   paramTree_->setAnimated(true);
+  paramTree_->setContextMenuPolicy(Qt::CustomContextMenu);
   connect(paramTree_, &QTreeWidget::itemChanged,
           this, &ParamDashboard::onItemChanged);
+  connect(paramTree_, &QTreeWidget::customContextMenuRequested,
+          this, &ParamDashboard::onContextMenu);
   mainLayout->addWidget(paramTree_);
 
   // Buttons row 1: Add/Remove/Group
@@ -1288,6 +1293,62 @@ void ParamDashboard::onSyncToBlock() {
 
   QMessageBox::information(this, tr("Parameters Synced"),
     tr("YAML parameters have been copied to the block.\nThe block now uses these parameters."));
+}
+
+void ParamDashboard::onContextMenu(const QPoint& pos) {
+  QTreeWidgetItem* item = paramTree_->itemAt(pos);
+  if (!item) return;
+
+  // Get parameter name and source information
+  QString paramName = item->text(0);
+  QString nodeName = currentBlock_ ? currentBlock_->packageName() : QString();
+
+  // Determine the source of this parameter
+  QString yamlSource;
+  if (showingYamlParams_ && yamlSourceCombo_->currentIndex() > 0) {
+    yamlSource = yamlSourceCombo_->currentData().toString();
+  } else if (currentBlock_) {
+    yamlSource = currentBlock_->preferredYamlSource();
+  }
+
+  QMenu menu(this);
+
+  // Edit value action (if applicable)
+  QAction* editAction = menu.addAction(tr("Edit Value"));
+  connect(editAction, &QAction::triggered, [this, item]() {
+    paramTree_->editItem(item, 1);
+  });
+
+  menu.addSeparator();
+
+  // Show Data Origin action
+  QAction* lineageAction = menu.addAction(tr("Show Data Origin..."));
+  connect(lineageAction, &QAction::triggered, [this, nodeName, paramName, yamlSource]() {
+    DataLineage lineage = globalLineageProvider().getParameterLineage(
+        nodeName, paramName, yamlSource);
+    LineageContextMenu::showLineageDialog(lineage, this);
+  });
+
+  // If from YAML, add Open in VS Code action
+  if (!yamlSource.isEmpty() && yamlSource != "block") {
+    QString resolvedPath = resolveYamlPath(yamlSource);
+    if (!resolvedPath.isEmpty()) {
+      int lineNumber = LineageProvider::findYamlLineNumber(resolvedPath, paramName);
+
+      menu.addSeparator();
+      QString label = lineNumber > 0
+          ? tr("Open in VS Code (line %1)").arg(lineNumber)
+          : tr("Open in VS Code");
+
+      QAction* vsCodeAction = menu.addAction(label);
+      connect(vsCodeAction, &QAction::triggered, [resolvedPath, lineNumber]() {
+        VsCodeIntegration::openFile(resolvedPath, lineNumber);
+      });
+      vsCodeAction->setEnabled(VsCodeIntegration::isAvailable());
+    }
+  }
+
+  menu.exec(paramTree_->viewport()->mapToGlobal(pos));
 }
 
 }  // namespace ros_weaver
