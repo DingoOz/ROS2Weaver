@@ -183,11 +183,25 @@ install(DIRECTORY
 )
 
 if(BUILD_TESTING)
-  find_package(ament_lint_auto REQUIRED)
-  ament_lint_auto_find_test_dependencies()
-
   find_package(ament_cmake_gtest REQUIRED)
-  # Add tests here as they are created
+
+  # Unit tests
+  ament_add_gtest(test_project test/test_project.cpp src/core/project.cpp)
+  target_include_directories(test_project PRIVATE include)
+  target_link_libraries(test_project Qt5::Core Qt5::Gui)
+
+  ament_add_gtest(test_data_lineage test/test_data_lineage.cpp src/core/data_lineage.cpp)
+  target_include_directories(test_data_lineage PRIVATE include)
+  target_link_libraries(test_data_lineage Qt5::Core Qt5::Gui)
+
+  # Lint tests (non-invasive ones only - skip copyright/cpplint/uncrustify for now)
+  find_package(ament_cmake_xmllint REQUIRED)
+  find_package(ament_cmake_lint_cmake REQUIRED)
+  find_package(ament_cmake_cppcheck REQUIRED)
+
+  ament_xmllint()
+  ament_lint_cmake()
+  ament_cppcheck()
 endif()
 
 ament_package()
