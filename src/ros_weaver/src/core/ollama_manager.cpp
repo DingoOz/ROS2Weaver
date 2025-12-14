@@ -166,11 +166,13 @@ void OllamaManager::onPullFinished() {
   currentPullReply_ = nullptr;
   currentPullingModel_.clear();
 
-  emit pullCompleted(modelName, success, error);
-
+  // Refresh the models list BEFORE emitting pullCompleted
+  // This ensures the model list is updated before any UI response
   if (success) {
     refreshLocalModels();
   }
+
+  emit pullCompleted(modelName, success, error);
 }
 
 void OllamaManager::cancelPull() {

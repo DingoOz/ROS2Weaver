@@ -96,6 +96,9 @@ void OllamaSettingsWidget::setupUi() {
   mgmtLayout->addWidget(installedModelsList_);
 
   QHBoxLayout* mgmtBtnLayout = new QHBoxLayout();
+  refreshModelsBtn_ = new QPushButton(tr("Refresh List"), this);
+  refreshModelsBtn_->setToolTip(tr("Refresh the list of installed models from Ollama"));
+  mgmtBtnLayout->addWidget(refreshModelsBtn_);
   deleteModelBtn_ = new QPushButton(tr("Delete Selected"), this);
   deleteModelBtn_->setEnabled(false);
   mgmtBtnLayout->addWidget(deleteModelBtn_);
@@ -323,6 +326,7 @@ void OllamaSettingsWidget::connectSignals() {
   connect(downloadBtn_, &QPushButton::clicked, this, &OllamaSettingsWidget::onDownloadClicked);
   connect(cancelDownloadBtn_, &QPushButton::clicked, &mgr, &OllamaManager::cancelPull);
   connect(deleteModelBtn_, &QPushButton::clicked, this, &OllamaSettingsWidget::onDeleteClicked);
+  connect(refreshModelsBtn_, &QPushButton::clicked, this, &OllamaSettingsWidget::onRefreshClicked);
 
   connect(modelCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
           this, &OllamaSettingsWidget::settingsChanged);
@@ -474,7 +478,11 @@ void OllamaSettingsWidget::onPullCompleted(const QString& modelName, bool succes
     QMessageBox::information(this, tr("Download Complete"),
                              tr("Model '%1' has been downloaded successfully.").arg(modelName));
 
-    // Auto-select the newly downloaded model
+    // Explicitly refresh models after the dialog is closed
+    // to ensure the new model appears in the list
+    OllamaManager::instance().refreshLocalModels();
+
+    // Auto-select the newly downloaded model (will work after refresh signal)
     int idx = modelCombo_->findText(modelName);
     if (idx >= 0) {
       modelCombo_->setCurrentIndex(idx);

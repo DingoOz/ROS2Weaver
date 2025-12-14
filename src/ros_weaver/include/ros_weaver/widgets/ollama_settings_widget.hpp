@@ -87,6 +87,7 @@ private:
   QGroupBox* managementGroup_;
   QListWidget* installedModelsList_;
   QPushButton* deleteModelBtn_;
+  QPushButton* refreshModelsBtn_;
 
   // Download Group
   QGroupBox* downloadGroup_;
