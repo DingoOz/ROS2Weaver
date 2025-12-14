@@ -70,8 +70,14 @@ QString ContextHelp::getHelpTopic(QWidget* widget) {
     {"ros_weaver::SystemMappingPanel", "ros2-integration"},
     {"ros_weaver::LLMChatWidget", "local-ai"},
     {"ros_weaver::OllamaSettingsWidget", "local-ai"},
+    {"ros_weaver::LocalAIStatusWidget", "local-ai"},
     {"ros_weaver::OutputPanel", "ros2-integration"},
     {"ros_weaver::PackageWizard", "code-generation"},
+    {"ros_weaver::LineageDialog", "data-lineage"},
+    {"ros_weaver::GuidedTour", "guided-tour"},
+    {"ros_weaver::TourTooltip", "guided-tour"},
+    {"ros_weaver::KeyboardShortcutsDialog", "keyboard-shortcuts"},
+    {"ros_weaver::HelpBrowser", "getting-started"},
   };
 
   if (classTopicMap.contains(className)) {

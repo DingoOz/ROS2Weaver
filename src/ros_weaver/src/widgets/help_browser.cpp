@@ -504,6 +504,7 @@ View rosout messages:
 | Ctrl+Shift+S | Save Project As |
 | Ctrl+G | Generate ROS2 Package |
 | Ctrl+Shift+G | Generate (Wizard) |
+| Ctrl+Shift+W | Robot Configuration Wizard |
 | Ctrl+Q | Exit |
 
 ## Edit
@@ -538,12 +539,12 @@ View rosout messages:
 ## External Tools
 | Shortcut | Action |
 |----------|--------|
-| Ctrl+Shift+E | Open in VS Code |
+| Ctrl+Shift+E | Open Project Folder in VS Code |
 
 ## Help
 | Shortcut | Action |
 |----------|--------|
-| F1 | Context Help |
+| F1 | Context Help (for focused widget) |
 | Ctrl+F1 | Getting Started |
 | Ctrl+/ | Keyboard Shortcuts |
 
@@ -555,6 +556,13 @@ View rosout messages:
 | Select | Click |
 | Multi-select | Ctrl+Click |
 | Deselect | Click empty area |
+
+## Guided Tour
+| Key | Action |
+|-----|--------|
+| Right Arrow / Enter | Next step |
+| Left Arrow | Previous step |
+| Escape | Skip/Exit tour |
 )"),
     "",
     {"shortcuts", "keyboard", "hotkeys", "keys", "commands"}
@@ -699,7 +707,43 @@ Use the integrated AI assistant (if configured):
     tr("What's New"),
     tr(R"(# What's New in ROS Weaver
 
-## Version 0.1.0 (Current)
+## Recent Updates
+
+### Guided Tour
+- Interactive walkthrough of the application
+- Spotlight highlighting of UI elements
+- Keyboard navigation support
+
+### Data Lineage
+- Track where data originates from
+- View source files and line numbers
+- Jump directly to VS Code for editing
+- Right-click context menu integration
+
+### Robot Configuration Wizard
+- Quick setup for common robot platforms
+- TurtleBot3 support
+- Navigation stack configuration
+- Sensor configuration
+
+### Enhanced VS Code Integration
+- Open project folders directly
+- Open generated packages
+- Jump to specific line numbers
+- Support for code-insiders and codium
+
+### Local AI Assistant
+- Tabbed interface for settings
+- Improved model management
+- System prompt customization
+- Hardware detection for recommendations
+
+### Plot Panel Improvements
+- All fields selected by default
+- Better topic selection dialog
+- Improved performance
+
+## Version 0.1.0
 
 ### Core Features
 - Visual canvas for ROS2 package design
@@ -730,15 +774,12 @@ Use the integrated AI assistant (if configured):
 - VS Code integration
 - Keyboard shortcuts
 
-## Planned Features
+## Getting Help
 
-- RViz2 integration
-- Interactive tutorials
-- Unit testing framework
-- Multi-robot support
-- URDF visualization
-
-Check the development plan for detailed roadmap.
+- Press **F1** for context-sensitive help
+- Use **Help > Guided Tour** for an introduction
+- Check **Help > Video Tutorials** for online resources
+- Report issues via **Help > Report Issue**
 )"),
     "",
     {"new", "changelog", "version", "release", "updates", "features"}
@@ -857,6 +898,220 @@ Use mouse wheel to zoom in/out on the plot area.
     {"plot", "chart", "graph", "data", "visualization", "time series"}
   };
   topicOrder_ << "plot-panel";
+
+  // Guided Tour
+  topics_["guided-tour"] = {
+    "guided-tour",
+    tr("Guided Tour"),
+    tr(R"(# Guided Tour
+
+ROS Weaver includes an interactive guided tour to help you learn the application.
+
+## Starting the Tour
+
+**Help > Guided Tour** (or from the Welcome screen)
+
+The tour walks you through each major component of the interface:
+
+1. **Welcome** - Introduction to ROS Weaver
+2. **Menu Bar** - Access all application functions
+3. **Main Toolbar** - Quick access to common actions
+4. **Visual Canvas** - Where you design your ROS2 system
+5. **Package Browser** - Search and add packages
+6. **Properties Panel** - Configure node parameters
+7. **Output Panel** - Build output, logs, and terminal
+8. **System Mapping** - Discover running ROS2 nodes
+9. **Status Bar** - Connection status and feedback
+10. **AI Assistant** - Chat with the local LLM
+11. **Keyboard Shortcuts** - Tips for faster workflow
+
+## Navigation
+
+- **Next/Previous** buttons to move between steps
+- **Skip** to exit the tour at any time
+- **Escape** key to close the tour
+- Arrow keys (Left/Right) to navigate
+
+## Spotlight Feature
+
+The tour uses a spotlight effect to highlight the current UI element:
+- A red border highlights the focused area
+- The rest of the screen is dimmed
+- Click outside the highlight to skip the tour
+
+## Restart the Tour
+
+You can restart the tour anytime from **Help > Guided Tour**.
+)"),
+    "",
+    {"tour", "tutorial", "introduction", "learn", "walkthrough", "guide"}
+  };
+  topicOrder_ << "guided-tour";
+
+  // Data Lineage
+  topics_["data-lineage"] = {
+    "data-lineage",
+    tr("Data Lineage"),
+    tr(R"(# Data Lineage
+
+ROS Weaver tracks where data comes from, helping you understand and debug your system.
+
+## What is Data Lineage?
+
+Data lineage shows the origin and transformation chain of any value in the system:
+- Where a parameter value was defined
+- Which file contains a configuration
+- How data flows through your ROS2 system
+
+## Viewing Data Origin
+
+Right-click on parameters, topics, or other data to see:
+- **Show Data Origin** - Opens the lineage dialog
+
+The lineage dialog shows:
+- **Primary Source** - Where the data originally came from
+- **Derived From** - Intermediate sources in the chain
+- File paths with line numbers
+- Timestamps when available
+
+## Source Types
+
+Data can originate from:
+- **Project File** - Your .weaver project file
+- **YAML File** - Configuration and parameter files
+- **Source Code** - C++ or Python files
+- **ROS Topic** - Live data from the ROS2 system
+- **ROS Parameter** - Parameter server values
+- **User Input** - Values you entered manually
+- **System Discovery** - Automatically detected nodes/topics
+- **Generated** - Code generated by ROS Weaver
+
+## VS Code Integration
+
+From the lineage dialog:
+- Click **Open in VS Code** to jump directly to the source
+- Double-click any file path to open it
+- **Copy Path** to copy the file location
+
+This makes it easy to find and edit the original configuration.
+)"),
+    "",
+    {"lineage", "origin", "source", "debug", "trace", "provenance"}
+  };
+  topicOrder_ << "data-lineage";
+
+  // VS Code Integration
+  topics_["vscode-integration"] = {
+    "vscode-integration",
+    tr("VS Code Integration"),
+    tr(R"(# VS Code Integration
+
+ROS Weaver integrates with Visual Studio Code for seamless code editing.
+
+## Opening in VS Code
+
+### Project Folder
+**File > Open Project Folder in VS Code** (Ctrl+Shift+E)
+
+Opens your entire project directory in VS Code.
+
+### Generated Package
+**File > Open Generated Package in VS Code**
+
+After code generation, quickly open the generated ROS2 package.
+
+### From Data Lineage
+When viewing data origin, click **Open in VS Code** to jump directly to the source file and line number.
+
+## Supported Editors
+
+ROS Weaver detects these editors in order:
+1. **code** - VS Code
+2. **code-insiders** - VS Code Insiders
+3. **codium** - VSCodium
+
+## File Navigation
+
+When opening files with line numbers, VS Code will:
+- Open the file
+- Scroll to the specified line
+- Place the cursor at that location
+
+## Requirements
+
+- VS Code (or compatible) must be installed
+- The `code` command must be in your PATH
+- For most installations, this works automatically
+
+## Tips
+
+- Use Ctrl+Shift+E to quickly jump between ROS Weaver and VS Code
+- The lineage feature helps you find where to make changes
+- Generated code includes comments linking back to ROS Weaver
+)"),
+    "",
+    {"vscode", "editor", "code", "visual studio", "ide", "edit"}
+  };
+  topicOrder_ << "vscode-integration";
+
+  // Robot Configuration Wizard
+  topics_["robot-wizard"] = {
+    "robot-wizard",
+    tr("Robot Configuration Wizard"),
+    tr(R"(# Robot Configuration Wizard
+
+The Robot Configuration Wizard helps you set up common robot configurations quickly.
+
+## Starting the Wizard
+
+**File > Robot Configuration Wizard** (Ctrl+Shift+W)
+
+## Wizard Steps
+
+### Step 1: Robot Type
+Select your robot platform:
+- TurtleBot3 (Burger, Waffle, Waffle Pi)
+- Custom robot
+- Generic differential drive
+- Ackermann steering
+
+### Step 2: Sensors
+Configure sensors for your robot:
+- LIDAR (2D/3D)
+- Camera (RGB, Depth, RGBD)
+- IMU
+- Odometry sources
+
+### Step 3: Navigation Stack
+Choose navigation components:
+- Nav2 (ROS2 Navigation)
+- SLAM (mapping)
+- Localization (AMCL, etc.)
+- Path planning
+
+### Step 4: Review
+Review your configuration before generating.
+
+## Generated Output
+
+The wizard generates:
+- Launch files for your robot
+- Parameter YAML files
+- URDF/Xacro modifications (if needed)
+- Navigation configuration
+
+## When to Use
+
+The wizard is ideal when:
+- Setting up a new robot project
+- Adding navigation to an existing robot
+- Learning ROS2 navigation concepts
+- Creating a simulation environment
+)"),
+    "",
+    {"robot", "wizard", "configuration", "setup", "turtlebot", "navigation"}
+  };
+  topicOrder_ << "robot-wizard";
 }
 
 void HelpBrowser::buildTableOfContents() {
@@ -867,6 +1122,11 @@ void HelpBrowser::buildTableOfContents() {
   gettingStarted->setText(0, tr("Getting Started"));
   gettingStarted->setData(0, Qt::UserRole, "getting-started");
   gettingStarted->setIcon(0, QApplication::style()->standardIcon(QStyle::SP_DialogHelpButton));
+
+  QTreeWidgetItem* guidedTourItem = new QTreeWidgetItem(tocTree_);
+  guidedTourItem->setText(0, tr("Guided Tour"));
+  guidedTourItem->setData(0, Qt::UserRole, "guided-tour");
+  guidedTourItem->setIcon(0, QApplication::style()->standardIcon(QStyle::SP_ArrowRight));
 
   QTreeWidgetItem* userGuide = new QTreeWidgetItem(tocTree_);
   userGuide->setText(0, tr("User Guide"));
@@ -888,6 +1148,10 @@ void HelpBrowser::buildTableOfContents() {
   codeGenItem->setText(0, tr("Code Generation"));
   codeGenItem->setData(0, Qt::UserRole, "code-generation");
 
+  QTreeWidgetItem* robotWizardItem = new QTreeWidgetItem(userGuide);
+  robotWizardItem->setText(0, tr("Robot Configuration Wizard"));
+  robotWizardItem->setData(0, Qt::UserRole, "robot-wizard");
+
   QTreeWidgetItem* projectItem = new QTreeWidgetItem(userGuide);
   projectItem->setText(0, tr("Project Management"));
   projectItem->setData(0, Qt::UserRole, "project-management");
@@ -901,9 +1165,21 @@ void HelpBrowser::buildTableOfContents() {
   plotItem->setText(0, tr("Plot Panel"));
   plotItem->setData(0, Qt::UserRole, "plot-panel");
 
+  QTreeWidgetItem* lineageItem = new QTreeWidgetItem(ros2Item);
+  lineageItem->setText(0, tr("Data Lineage"));
+  lineageItem->setData(0, Qt::UserRole, "data-lineage");
+
   QTreeWidgetItem* aiItem = new QTreeWidgetItem(tocTree_);
   aiItem->setText(0, tr("Local AI Assistant"));
   aiItem->setData(0, Qt::UserRole, "local-ai");
+
+  QTreeWidgetItem* tools = new QTreeWidgetItem(tocTree_);
+  tools->setText(0, tr("Tools & Integration"));
+  tools->setExpanded(true);
+
+  QTreeWidgetItem* vscodeItem = new QTreeWidgetItem(tools);
+  vscodeItem->setText(0, tr("VS Code Integration"));
+  vscodeItem->setData(0, Qt::UserRole, "vscode-integration");
 
   QTreeWidgetItem* reference = new QTreeWidgetItem(tocTree_);
   reference->setText(0, tr("Reference"));
