@@ -4,7 +4,6 @@
 #include <QWidget>
 #include <QComboBox>
 #include <QLineEdit>
-#include <QTextEdit>
 #include <QCheckBox>
 #include <QPushButton>
 #include <QProgressBar>
@@ -14,6 +13,7 @@
 #include <QTimer>
 #include <QSpinBox>
 #include <QFontComboBox>
+#include <QTabWidget>
 #include "ros_weaver/core/ollama_manager.hpp"
 
 namespace ros_weaver {
@@ -53,6 +53,7 @@ private slots:
   void onTestConnectionClicked();
   void onTestConnectionTimeout();
   void onEndpointChanged();
+  void onEditSystemPromptClicked();
 
   // Appearance slots
   void onUserTextColorClicked();
@@ -70,26 +71,52 @@ private:
   void populateModelCombo();
   void setButtonColor(QPushButton* button, const QColor& color);
 
-  // Connection Group
+  // Tab pages
+  QWidget* createConnectionTab();
+  QWidget* createModelsTab();
+  QWidget* createAppearanceTab();
+
+  // Main layout widgets
+  QTabWidget* tabWidget_;
+
+  // Enable/Disable (always visible at top)
+  QCheckBox* enableOllamaCheck_;
+
+  // Connection Tab widgets
   QGroupBox* connectionGroup_;
   QLineEdit* endpointEdit_;
   QPushButton* testConnectionBtn_;
   QLabel* statusLabel_;
   QLabel* statusIcon_;
 
-  // Model Selection Group
+  // Status Bar Display
+  QGroupBox* statusBarGroup_;
+  QCheckBox* showStatusCheck_;
+  QCheckBox* showModelNameCheck_;
+
+  // Performance
+  QGroupBox* performanceGroup_;
+  QSpinBox* cpuThreadsSpin_;
+
+  // System Prompt (opens dialog)
+  QGroupBox* systemPromptGroup_;
+  QLabel* systemPromptPreview_;
+  QPushButton* editSystemPromptBtn_;
+  QString currentSystemPrompt_;
+
+  // Models Tab widgets
   QGroupBox* modelGroup_;
   QComboBox* modelCombo_;
   QCheckBox* autoLoadCheck_;
   QPushButton* refreshBtn_;
 
-  // Model Management Group
+  // Model Management
   QGroupBox* managementGroup_;
   QListWidget* installedModelsList_;
   QPushButton* deleteModelBtn_;
   QPushButton* refreshModelsBtn_;
 
-  // Download Group
+  // Download
   QGroupBox* downloadGroup_;
   QComboBox* downloadModelCombo_;
   QPushButton* downloadBtn_;
@@ -97,24 +124,7 @@ private:
   QProgressBar* downloadProgress_;
   QLabel* downloadStatusLabel_;
 
-  // Enable/Disable
-  QCheckBox* enableOllamaCheck_;
-
-  // Status Bar Display Group
-  QGroupBox* statusBarGroup_;
-  QCheckBox* showStatusCheck_;
-  QCheckBox* showModelNameCheck_;
-
-  // System Prompt Group
-  QGroupBox* systemPromptGroup_;
-  QTextEdit* systemPromptEdit_;
-  QPushButton* resetPromptBtn_;
-
-  // Performance Group
-  QGroupBox* performanceGroup_;
-  QSpinBox* cpuThreadsSpin_;
-
-  // Chat Appearance Group
+  // Appearance Tab widgets
   QGroupBox* appearanceGroup_;
   QFontComboBox* fontFamilyCombo_;
   QSpinBox* fontSizeSpin_;

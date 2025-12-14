@@ -70,6 +70,7 @@ set(SOURCES
   src/widgets/help_browser.cpp
   src/widgets/keyboard_shortcuts_dialog.cpp
   src/widgets/ollama_settings_widget.cpp
+  src/widgets/system_prompt_dialog.cpp
   src/widgets/local_ai_status_widget.cpp
   src/widgets/llm_chat_widget.cpp
   src/widgets/output_panel.cpp
@@ -109,6 +110,7 @@ set(HEADERS
   include/ros_weaver/widgets/help_browser.hpp
   include/ros_weaver/widgets/keyboard_shortcuts_dialog.hpp
   include/ros_weaver/widgets/ollama_settings_widget.hpp
+  include/ros_weaver/widgets/system_prompt_dialog.hpp
   include/ros_weaver/widgets/local_ai_status_widget.hpp
   include/ros_weaver/widgets/llm_chat_widget.hpp
   include/ros_weaver/widgets/output_panel.hpp

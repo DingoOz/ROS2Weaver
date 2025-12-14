@@ -1,5 +1,6 @@
 #include "ros_weaver/widgets/ollama_settings_widget.hpp"
 #include "ros_weaver/widgets/local_ai_status_widget.hpp"
+#include "ros_weaver/widgets/system_prompt_dialog.hpp"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
@@ -32,153 +33,79 @@ OllamaSettingsWidget::OllamaSettingsWidget(QWidget* parent)
 
 void OllamaSettingsWidget::setupUi() {
   QVBoxLayout* mainLayout = new QVBoxLayout(this);
-  mainLayout->setSpacing(16);
+  mainLayout->setSpacing(12);
 
-  // Enable checkbox at top
+  // Enable checkbox at top (always visible)
   enableOllamaCheck_ = new QCheckBox(tr("Enable Local LLM (Ollama)"), this);
   enableOllamaCheck_->setToolTip(tr("Enable or disable the local LLM integration"));
   mainLayout->addWidget(enableOllamaCheck_);
 
+  // Tab widget
+  tabWidget_ = new QTabWidget(this);
+  tabWidget_->addTab(createConnectionTab(), tr("Connection"));
+  tabWidget_->addTab(createModelsTab(), tr("Models"));
+  tabWidget_->addTab(createAppearanceTab(), tr("Appearance"));
+  mainLayout->addWidget(tabWidget_, 1);
+
+  // Initial state
+  updateUiState();
+}
+
+QWidget* OllamaSettingsWidget::createConnectionTab() {
+  QWidget* tab = new QWidget();
+  QVBoxLayout* layout = new QVBoxLayout(tab);
+  layout->setSpacing(12);
+
   // Connection Group
-  connectionGroup_ = new QGroupBox(tr("Ollama Connection"), this);
+  connectionGroup_ = new QGroupBox(tr("Ollama Connection"), tab);
   QVBoxLayout* connLayout = new QVBoxLayout(connectionGroup_);
 
   QHBoxLayout* statusLayout = new QHBoxLayout();
-  statusIcon_ = new QLabel(this);
+  statusIcon_ = new QLabel(tab);
   statusIcon_->setFixedSize(16, 16);
-  statusLabel_ = new QLabel(tr("Checking..."), this);
+  statusLabel_ = new QLabel(tr("Checking..."), tab);
   statusLayout->addWidget(statusIcon_);
   statusLayout->addWidget(statusLabel_);
   statusLayout->addStretch();
   connLayout->addLayout(statusLayout);
 
   QFormLayout* endpointLayout = new QFormLayout();
-  endpointEdit_ = new QLineEdit(this);
+  endpointEdit_ = new QLineEdit(tab);
   endpointEdit_->setPlaceholderText("http://localhost:11434");
   endpointLayout->addRow(tr("Endpoint URL:"), endpointEdit_);
   connLayout->addLayout(endpointLayout);
 
   QHBoxLayout* connBtnLayout = new QHBoxLayout();
-  testConnectionBtn_ = new QPushButton(tr("Test Connection"), this);
+  testConnectionBtn_ = new QPushButton(tr("Test Connection"), tab);
   connBtnLayout->addWidget(testConnectionBtn_);
   connBtnLayout->addStretch();
   connLayout->addLayout(connBtnLayout);
 
-  mainLayout->addWidget(connectionGroup_);
-
-  // Model Selection Group
-  modelGroup_ = new QGroupBox(tr("Active Model"), this);
-  QVBoxLayout* modelLayout = new QVBoxLayout(modelGroup_);
-
-  QHBoxLayout* modelSelectLayout = new QHBoxLayout();
-  modelCombo_ = new QComboBox(this);
-  modelCombo_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-  modelCombo_->setMinimumWidth(200);
-  refreshBtn_ = new QPushButton(tr("Refresh"), this);
-  modelSelectLayout->addWidget(new QLabel(tr("Selected Model:"), this));
-  modelSelectLayout->addWidget(modelCombo_);
-  modelSelectLayout->addWidget(refreshBtn_);
-  modelLayout->addLayout(modelSelectLayout);
-
-  autoLoadCheck_ = new QCheckBox(tr("Automatically use this model on next launch"), this);
-  autoLoadCheck_->setToolTip(tr("When enabled, the selected model will be automatically loaded when the application starts"));
-  modelLayout->addWidget(autoLoadCheck_);
-
-  mainLayout->addWidget(modelGroup_);
-
-  // Installed Models Management Group
-  managementGroup_ = new QGroupBox(tr("Installed Models"), this);
-  QVBoxLayout* mgmtLayout = new QVBoxLayout(managementGroup_);
-
-  installedModelsList_ = new QListWidget(this);
-  installedModelsList_->setSelectionMode(QAbstractItemView::SingleSelection);
-  installedModelsList_->setMinimumHeight(100);
-  mgmtLayout->addWidget(installedModelsList_);
-
-  QHBoxLayout* mgmtBtnLayout = new QHBoxLayout();
-  refreshModelsBtn_ = new QPushButton(tr("Refresh List"), this);
-  refreshModelsBtn_->setToolTip(tr("Refresh the list of installed models from Ollama"));
-  mgmtBtnLayout->addWidget(refreshModelsBtn_);
-  deleteModelBtn_ = new QPushButton(tr("Delete Selected"), this);
-  deleteModelBtn_->setEnabled(false);
-  mgmtBtnLayout->addWidget(deleteModelBtn_);
-  mgmtBtnLayout->addStretch();
-  mgmtLayout->addLayout(mgmtBtnLayout);
-
-  mainLayout->addWidget(managementGroup_);
-
-  // Download Group
-  downloadGroup_ = new QGroupBox(tr("Download New Model"), this);
-  QVBoxLayout* dlLayout = new QVBoxLayout(downloadGroup_);
-
-  QHBoxLayout* dlSelectLayout = new QHBoxLayout();
-  downloadModelCombo_ = new QComboBox(this);
-  downloadModelCombo_->setEditable(true);
-  downloadModelCombo_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-  downloadModelCombo_->setMinimumWidth(200);
-
-  // Populate with recommended models
-  for (const QString& model : OllamaManager::recommendedModels()) {
-    downloadModelCombo_->addItem(model);
-  }
-
-  dlSelectLayout->addWidget(new QLabel(tr("Model:"), this));
-  dlSelectLayout->addWidget(downloadModelCombo_);
-  dlLayout->addLayout(dlSelectLayout);
-
-  QLabel* dlHintLabel = new QLabel(
-      tr("Enter a model name from <a href=\"https://ollama.ai/library\">ollama.ai/library</a> "
-         "or select from the recommended models above."), this);
-  dlHintLabel->setOpenExternalLinks(true);
-  dlHintLabel->setWordWrap(true);
-  dlHintLabel->setStyleSheet("color: gray; font-size: 11px;");
-  dlLayout->addWidget(dlHintLabel);
-
-  QHBoxLayout* dlBtnLayout = new QHBoxLayout();
-  downloadBtn_ = new QPushButton(tr("Download"), this);
-  cancelDownloadBtn_ = new QPushButton(tr("Cancel"), this);
-  cancelDownloadBtn_->setEnabled(false);
-  dlBtnLayout->addWidget(downloadBtn_);
-  dlBtnLayout->addWidget(cancelDownloadBtn_);
-  dlBtnLayout->addStretch();
-  dlLayout->addLayout(dlBtnLayout);
-
-  downloadProgress_ = new QProgressBar(this);
-  downloadProgress_->setRange(0, 100);
-  downloadProgress_->setValue(0);
-  downloadProgress_->setVisible(false);
-  dlLayout->addWidget(downloadProgress_);
-
-  downloadStatusLabel_ = new QLabel(this);
-  downloadStatusLabel_->setStyleSheet("color: gray;");
-  downloadStatusLabel_->setVisible(false);
-  dlLayout->addWidget(downloadStatusLabel_);
-
-  mainLayout->addWidget(downloadGroup_);
+  layout->addWidget(connectionGroup_);
 
   // Status Bar Display Group
-  statusBarGroup_ = new QGroupBox(tr("Status Bar Display"), this);
+  statusBarGroup_ = new QGroupBox(tr("Status Bar Display"), tab);
   QVBoxLayout* statusBarLayout = new QVBoxLayout(statusBarGroup_);
 
-  showStatusCheck_ = new QCheckBox(tr("Show LocalAI status in status bar"), this);
+  showStatusCheck_ = new QCheckBox(tr("Show LocalAI status in status bar"), tab);
   showStatusCheck_->setToolTip(tr("Display the Local AI connection status in the application status bar"));
   showStatusCheck_->setChecked(true);
   statusBarLayout->addWidget(showStatusCheck_);
 
-  showModelNameCheck_ = new QCheckBox(tr("Show model name in status bar"), this);
+  showModelNameCheck_ = new QCheckBox(tr("Show model name in status bar"), tab);
   showModelNameCheck_->setToolTip(tr("Display the selected model name in the status bar when connected"));
   showModelNameCheck_->setChecked(true);
   statusBarLayout->addWidget(showModelNameCheck_);
 
-  mainLayout->addWidget(statusBarGroup_);
+  layout->addWidget(statusBarGroup_);
 
   // Performance Group
-  performanceGroup_ = new QGroupBox(tr("Performance"), this);
+  performanceGroup_ = new QGroupBox(tr("Performance"), tab);
   QVBoxLayout* perfLayout = new QVBoxLayout(performanceGroup_);
 
   QHBoxLayout* threadsLayout = new QHBoxLayout();
-  threadsLayout->addWidget(new QLabel(tr("CPU Threads:"), this));
-  cpuThreadsSpin_ = new QSpinBox(this);
+  threadsLayout->addWidget(new QLabel(tr("CPU Threads:"), tab));
+  cpuThreadsSpin_ = new QSpinBox(tab);
   cpuThreadsSpin_->setRange(0, 64);
   cpuThreadsSpin_->setSpecialValueText(tr("Auto"));
   cpuThreadsSpin_->setToolTip(tr("Number of CPU threads for inference (0 = auto)"));
@@ -188,94 +115,199 @@ void OllamaSettingsWidget::setupUi() {
   perfLayout->addLayout(threadsLayout);
 
   QLabel* perfHintLabel = new QLabel(
-      tr("Set to 0 for automatic. Higher values may not improve speed due to memory bandwidth limits. "
-         "Typical optimal range: 4-8 threads."),
-      this);
+      tr("Set to 0 for automatic. Typical optimal range: 4-8 threads."),
+      tab);
   perfHintLabel->setWordWrap(true);
   perfHintLabel->setStyleSheet("color: gray; font-size: 11px;");
   perfLayout->addWidget(perfHintLabel);
 
-  mainLayout->addWidget(performanceGroup_);
+  layout->addWidget(performanceGroup_);
 
-  // System Prompt Group
-  systemPromptGroup_ = new QGroupBox(tr("System Prompt"), this);
+  // System Prompt Group (opens dialog)
+  systemPromptGroup_ = new QGroupBox(tr("System Prompt"), tab);
   QVBoxLayout* promptLayout = new QVBoxLayout(systemPromptGroup_);
 
-  QLabel* promptHintLabel = new QLabel(
-      tr("Customize the AI assistant's behavior. This prompt is sent with every message."),
-      this);
-  promptHintLabel->setWordWrap(true);
-  promptHintLabel->setStyleSheet("color: gray; font-size: 11px;");
-  promptLayout->addWidget(promptHintLabel);
-
-  systemPromptEdit_ = new QTextEdit(this);
-  systemPromptEdit_->setPlaceholderText(tr("Enter system prompt..."));
-  systemPromptEdit_->setMinimumHeight(120);
-  systemPromptEdit_->setMaximumHeight(200);
-  promptLayout->addWidget(systemPromptEdit_);
+  systemPromptPreview_ = new QLabel(tab);
+  systemPromptPreview_->setWordWrap(true);
+  systemPromptPreview_->setStyleSheet(
+      "color: gray; font-style: italic; padding: 8px; "
+      "background-color: rgba(128,128,128,0.1); border-radius: 4px;");
+  systemPromptPreview_->setMaximumHeight(60);
+  promptLayout->addWidget(systemPromptPreview_);
 
   QHBoxLayout* promptBtnLayout = new QHBoxLayout();
-  resetPromptBtn_ = new QPushButton(tr("Reset to Default"), this);
-  resetPromptBtn_->setToolTip(tr("Reset the system prompt to the default ROS2-focused prompt"));
-  promptBtnLayout->addWidget(resetPromptBtn_);
+  editSystemPromptBtn_ = new QPushButton(tr("Edit System Prompt..."), tab);
+  editSystemPromptBtn_->setToolTip(tr("Open the system prompt editor in a new window"));
+  promptBtnLayout->addWidget(editSystemPromptBtn_);
   promptBtnLayout->addStretch();
   promptLayout->addLayout(promptBtnLayout);
 
-  mainLayout->addWidget(systemPromptGroup_);
+  layout->addWidget(systemPromptGroup_);
+
+  layout->addStretch();
+  return tab;
+}
+
+QWidget* OllamaSettingsWidget::createModelsTab() {
+  QWidget* tab = new QWidget();
+  QVBoxLayout* layout = new QVBoxLayout(tab);
+  layout->setSpacing(12);
+
+  // Model Selection Group
+  modelGroup_ = new QGroupBox(tr("Active Model"), tab);
+  QVBoxLayout* modelLayout = new QVBoxLayout(modelGroup_);
+
+  QHBoxLayout* modelSelectLayout = new QHBoxLayout();
+  modelCombo_ = new QComboBox(tab);
+  modelCombo_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+  modelCombo_->setMinimumWidth(200);
+  refreshBtn_ = new QPushButton(tr("Refresh"), tab);
+  modelSelectLayout->addWidget(new QLabel(tr("Selected Model:"), tab));
+  modelSelectLayout->addWidget(modelCombo_);
+  modelSelectLayout->addWidget(refreshBtn_);
+  modelLayout->addLayout(modelSelectLayout);
+
+  autoLoadCheck_ = new QCheckBox(tr("Automatically use this model on next launch"), tab);
+  autoLoadCheck_->setToolTip(tr("When enabled, the selected model will be automatically loaded when the application starts"));
+  modelLayout->addWidget(autoLoadCheck_);
+
+  layout->addWidget(modelGroup_);
+
+  // Installed Models Management Group
+  managementGroup_ = new QGroupBox(tr("Installed Models"), tab);
+  QVBoxLayout* mgmtLayout = new QVBoxLayout(managementGroup_);
+
+  installedModelsList_ = new QListWidget(tab);
+  installedModelsList_->setSelectionMode(QAbstractItemView::SingleSelection);
+  installedModelsList_->setMinimumHeight(100);
+  mgmtLayout->addWidget(installedModelsList_);
+
+  QHBoxLayout* mgmtBtnLayout = new QHBoxLayout();
+  refreshModelsBtn_ = new QPushButton(tr("Refresh List"), tab);
+  refreshModelsBtn_->setToolTip(tr("Refresh the list of installed models from Ollama"));
+  mgmtBtnLayout->addWidget(refreshModelsBtn_);
+  deleteModelBtn_ = new QPushButton(tr("Delete Selected"), tab);
+  deleteModelBtn_->setEnabled(false);
+  mgmtBtnLayout->addWidget(deleteModelBtn_);
+  mgmtBtnLayout->addStretch();
+  mgmtLayout->addLayout(mgmtBtnLayout);
+
+  layout->addWidget(managementGroup_);
+
+  // Download Group
+  downloadGroup_ = new QGroupBox(tr("Download New Model"), tab);
+  QVBoxLayout* dlLayout = new QVBoxLayout(downloadGroup_);
+
+  QHBoxLayout* dlSelectLayout = new QHBoxLayout();
+  downloadModelCombo_ = new QComboBox(tab);
+  downloadModelCombo_->setEditable(true);
+  downloadModelCombo_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+  downloadModelCombo_->setMinimumWidth(200);
+
+  // Populate with recommended models
+  for (const QString& model : OllamaManager::recommendedModels()) {
+    downloadModelCombo_->addItem(model);
+  }
+
+  dlSelectLayout->addWidget(new QLabel(tr("Model:"), tab));
+  dlSelectLayout->addWidget(downloadModelCombo_);
+  dlLayout->addLayout(dlSelectLayout);
+
+  QLabel* dlHintLabel = new QLabel(
+      tr("Enter a model name from <a href=\"https://ollama.ai/library\">ollama.ai/library</a> "
+         "or select from the recommended models above."), tab);
+  dlHintLabel->setOpenExternalLinks(true);
+  dlHintLabel->setWordWrap(true);
+  dlHintLabel->setStyleSheet("color: gray; font-size: 11px;");
+  dlLayout->addWidget(dlHintLabel);
+
+  QHBoxLayout* dlBtnLayout = new QHBoxLayout();
+  downloadBtn_ = new QPushButton(tr("Download"), tab);
+  cancelDownloadBtn_ = new QPushButton(tr("Cancel"), tab);
+  cancelDownloadBtn_->setEnabled(false);
+  dlBtnLayout->addWidget(downloadBtn_);
+  dlBtnLayout->addWidget(cancelDownloadBtn_);
+  dlBtnLayout->addStretch();
+  dlLayout->addLayout(dlBtnLayout);
+
+  downloadProgress_ = new QProgressBar(tab);
+  downloadProgress_->setRange(0, 100);
+  downloadProgress_->setValue(0);
+  downloadProgress_->setVisible(false);
+  dlLayout->addWidget(downloadProgress_);
+
+  downloadStatusLabel_ = new QLabel(tab);
+  downloadStatusLabel_->setStyleSheet("color: gray;");
+  downloadStatusLabel_->setVisible(false);
+  dlLayout->addWidget(downloadStatusLabel_);
+
+  layout->addWidget(downloadGroup_);
+
+  layout->addStretch();
+  return tab;
+}
+
+QWidget* OllamaSettingsWidget::createAppearanceTab() {
+  QWidget* tab = new QWidget();
+  QVBoxLayout* layout = new QVBoxLayout(tab);
+  layout->setSpacing(12);
 
   // Chat Appearance Group
-  appearanceGroup_ = new QGroupBox(tr("Chat Appearance"), this);
+  appearanceGroup_ = new QGroupBox(tr("Chat Appearance"), tab);
   QVBoxLayout* appearanceLayout = new QVBoxLayout(appearanceGroup_);
 
   // Font selection row
   QHBoxLayout* fontLayout = new QHBoxLayout();
-  fontLayout->addWidget(new QLabel(tr("Font:"), this));
-  fontFamilyCombo_ = new QFontComboBox(this);
+  fontLayout->addWidget(new QLabel(tr("Font:"), tab));
+  fontFamilyCombo_ = new QFontComboBox(tab);
   fontFamilyCombo_->setCurrentFont(OllamaManager::defaultChatFont());
   fontLayout->addWidget(fontFamilyCombo_, 1);
 
-  fontLayout->addWidget(new QLabel(tr("Size:"), this));
-  fontSizeSpin_ = new QSpinBox(this);
+  fontLayout->addWidget(new QLabel(tr("Size:"), tab));
+  fontSizeSpin_ = new QSpinBox(tab);
   fontSizeSpin_->setRange(8, 24);
   fontSizeSpin_->setValue(OllamaManager::defaultChatFontSize());
   fontSizeSpin_->setFixedWidth(60);
   fontLayout->addWidget(fontSizeSpin_);
 
-  fontBoldCheck_ = new QCheckBox(tr("Bold"), this);
+  fontBoldCheck_ = new QCheckBox(tr("Bold"), tab);
   fontLayout->addWidget(fontBoldCheck_);
 
-  fontItalicCheck_ = new QCheckBox(tr("Italic"), this);
+  fontItalicCheck_ = new QCheckBox(tr("Italic"), tab);
   fontLayout->addWidget(fontItalicCheck_);
 
   appearanceLayout->addLayout(fontLayout);
 
+  // Spacer
+  appearanceLayout->addSpacing(12);
+
   // Color buttons in a grid
   QGridLayout* colorGrid = new QGridLayout();
 
-  colorGrid->addWidget(new QLabel(tr("Your Messages:"), this), 0, 0);
-  userTextColorBtn_ = new QPushButton(tr("Text Color"), this);
+  colorGrid->addWidget(new QLabel(tr("Your Messages:"), tab), 0, 0);
+  userTextColorBtn_ = new QPushButton(tr("Text Color"), tab);
   userTextColorBtn_->setFixedWidth(100);
   connect(userTextColorBtn_, &QPushButton::clicked, this, &OllamaSettingsWidget::onUserTextColorClicked);
   colorGrid->addWidget(userTextColorBtn_, 0, 1);
 
-  userBgColorBtn_ = new QPushButton(tr("Background"), this);
+  userBgColorBtn_ = new QPushButton(tr("Background"), tab);
   userBgColorBtn_->setFixedWidth(100);
   connect(userBgColorBtn_, &QPushButton::clicked, this, &OllamaSettingsWidget::onUserBgColorClicked);
   colorGrid->addWidget(userBgColorBtn_, 0, 2);
 
-  colorGrid->addWidget(new QLabel(tr("AI Messages:"), this), 1, 0);
-  assistantTextColorBtn_ = new QPushButton(tr("Text Color"), this);
+  colorGrid->addWidget(new QLabel(tr("AI Messages:"), tab), 1, 0);
+  assistantTextColorBtn_ = new QPushButton(tr("Text Color"), tab);
   assistantTextColorBtn_->setFixedWidth(100);
   connect(assistantTextColorBtn_, &QPushButton::clicked, this, &OllamaSettingsWidget::onAssistantTextColorClicked);
   colorGrid->addWidget(assistantTextColorBtn_, 1, 1);
 
-  assistantBgColorBtn_ = new QPushButton(tr("Background"), this);
+  assistantBgColorBtn_ = new QPushButton(tr("Background"), tab);
   assistantBgColorBtn_->setFixedWidth(100);
   connect(assistantBgColorBtn_, &QPushButton::clicked, this, &OllamaSettingsWidget::onAssistantBgColorClicked);
   colorGrid->addWidget(assistantBgColorBtn_, 1, 2);
 
-  colorGrid->addWidget(new QLabel(tr("Code Blocks:"), this), 2, 0);
-  codeBgColorBtn_ = new QPushButton(tr("Background"), this);
+  colorGrid->addWidget(new QLabel(tr("Code Blocks:"), tab), 2, 0);
+  codeBgColorBtn_ = new QPushButton(tr("Background"), tab);
   codeBgColorBtn_->setFixedWidth(100);
   connect(codeBgColorBtn_, &QPushButton::clicked, this, &OllamaSettingsWidget::onCodeBgColorClicked);
   colorGrid->addWidget(codeBgColorBtn_, 2, 1);
@@ -284,7 +316,7 @@ void OllamaSettingsWidget::setupUi() {
   appearanceLayout->addLayout(colorGrid);
 
   // Preview label
-  previewLabel_ = new QLabel(this);
+  previewLabel_ = new QLabel(tab);
   previewLabel_->setMinimumHeight(60);
   previewLabel_->setWordWrap(true);
   previewLabel_->setAlignment(Qt::AlignCenter);
@@ -293,18 +325,16 @@ void OllamaSettingsWidget::setupUi() {
 
   // Reset button
   QHBoxLayout* resetAppearanceLayout = new QHBoxLayout();
-  resetAppearanceBtn_ = new QPushButton(tr("Reset to Defaults"), this);
+  resetAppearanceBtn_ = new QPushButton(tr("Reset to Defaults"), tab);
   connect(resetAppearanceBtn_, &QPushButton::clicked, this, &OllamaSettingsWidget::onResetAppearanceClicked);
   resetAppearanceLayout->addWidget(resetAppearanceBtn_);
   resetAppearanceLayout->addStretch();
   appearanceLayout->addLayout(resetAppearanceLayout);
 
-  mainLayout->addWidget(appearanceGroup_);
+  layout->addWidget(appearanceGroup_);
 
-  mainLayout->addStretch();
-
-  // Initial state
-  updateUiState();
+  layout->addStretch();
+  return tab;
 }
 
 void OllamaSettingsWidget::connectSignals() {
@@ -344,11 +374,8 @@ void OllamaSettingsWidget::connectSignals() {
   connect(cpuThreadsSpin_, QOverload<int>::of(&QSpinBox::valueChanged),
           this, &OllamaSettingsWidget::settingsChanged);
 
-  // System prompt
-  connect(systemPromptEdit_, &QTextEdit::textChanged, this, &OllamaSettingsWidget::settingsChanged);
-  connect(resetPromptBtn_, &QPushButton::clicked, this, [this]() {
-    systemPromptEdit_->setPlainText(OllamaManager::defaultSystemPrompt());
-  });
+  // System prompt dialog
+  connect(editSystemPromptBtn_, &QPushButton::clicked, this, &OllamaSettingsWidget::onEditSystemPromptClicked);
 
   // Appearance settings
   connect(fontFamilyCombo_, &QFontComboBox::currentFontChanged, this, [this]() {
@@ -372,6 +399,8 @@ void OllamaSettingsWidget::connectSignals() {
 void OllamaSettingsWidget::updateUiState() {
   bool enabled = enableOllamaCheck_->isChecked();
   bool ollamaRunning = OllamaManager::instance().isOllamaRunning();
+
+  tabWidget_->setEnabled(enabled);
 
   connectionGroup_->setEnabled(enabled);
   modelGroup_->setEnabled(enabled && ollamaRunning);
@@ -603,6 +632,24 @@ void OllamaSettingsWidget::onEndpointChanged() {
   emit settingsChanged();
 }
 
+void OllamaSettingsWidget::onEditSystemPromptClicked() {
+  SystemPromptDialog dialog(this);
+  dialog.setPrompt(currentSystemPrompt_);
+
+  if (dialog.exec() == QDialog::Accepted) {
+    currentSystemPrompt_ = dialog.prompt();
+
+    // Update preview
+    QString preview = currentSystemPrompt_;
+    if (preview.length() > 100) {
+      preview = preview.left(100) + "...";
+    }
+    systemPromptPreview_->setText(preview.isEmpty() ? tr("(No system prompt set)") : preview);
+
+    emit settingsChanged();
+  }
+}
+
 void OllamaSettingsWidget::applySettings() {
   OllamaManager& mgr = OllamaManager::instance();
 
@@ -612,7 +659,7 @@ void OllamaSettingsWidget::applySettings() {
                       : endpointEdit_->text().trimmed());
   mgr.setSelectedModel(modelCombo_->currentText());
   mgr.setAutoLoadModel(autoLoadCheck_->isChecked());
-  mgr.setSystemPrompt(systemPromptEdit_->toPlainText());
+  mgr.setSystemPrompt(currentSystemPrompt_);
   mgr.setNumThreads(cpuThreadsSpin_->value());
 
   // Apply status bar display settings
@@ -650,7 +697,12 @@ void OllamaSettingsWidget::resetToSaved() {
   }
 
   // Load system prompt
-  systemPromptEdit_->setPlainText(mgr.systemPrompt());
+  currentSystemPrompt_ = mgr.systemPrompt();
+  QString preview = currentSystemPrompt_;
+  if (preview.length() > 100) {
+    preview = preview.left(100) + "...";
+  }
+  systemPromptPreview_->setText(preview.isEmpty() ? tr("(No system prompt set)") : preview);
 
   // Load performance settings
   cpuThreadsSpin_->setValue(mgr.numThreads());

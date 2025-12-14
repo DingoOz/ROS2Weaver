@@ -1228,7 +1228,7 @@ Using gtest and a suite of define tests to perform unit testing where it is most
 
 
 
-## Planned Feature: Tutorial mode
+## Planned Feature: Tutorial mode (Completed)
 
 If selected it will pulse visuals over the UI in sequence to let a new user run an example and be shown all the features
 
@@ -1265,6 +1265,12 @@ Multi-step wizard for creating robots with ros2_control support. Accessible via 
 
 
 
+## Remote AI
+
+* allow the user to integreate their own Claude Code account, or codex or similar.
+
+
+
 ## Local AI
 
 * Allow user to Cut and paste images to Local AI
@@ -1280,6 +1286,14 @@ Multi-step wizard for creating robots with ros2_control support. Accessible via 
 ## System Mapping
 
 In the System Matching panel, once a scan has been done if the user sees Extra Nodes in System and double clicks on them this should add the node to the canvas.
+
+
+
+## Feature: Data linage
+
+* every piece of displayed data should let the user right hand click to show where it originates from.
+  * Where it sits in a text editable file, the option should be to include the option to open it to inspect or edit in VS Code
+  * Where the data is generated or indirectly related to a source file, then the complete data linage and source file should be shown, with the option to edit where appropriate
 
 
 
