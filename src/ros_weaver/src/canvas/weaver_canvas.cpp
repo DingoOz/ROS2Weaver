@@ -932,6 +932,11 @@ void WeaverCanvas::contextMenuEvent(QContextMenuEvent* event) {
       LineageContextMenu::showLineageDialog(lineage, this);
     });
 
+    // Ask AI about this block
+    menu.addAction(tr("Ask AI about this..."), [this, block]() {
+      emit askAIAboutBlock(block);
+    });
+
     menu.addSeparator();
 
     // Parameter source submenu
@@ -1036,6 +1041,13 @@ void WeaverCanvas::contextMenuEvent(QContextMenuEvent* event) {
     });
 
     menu.addSeparator();
+
+    // Ask AI about this group
+    menu.addAction(tr("Ask AI about this..."), [this, group]() {
+      emit askAIAboutGroup(group);
+    });
+
+    menu.addSeparator();
     menu.addAction(tr("Delete Group"), [this, group]() {
       removeNodeGroup(group);
     });
@@ -1047,6 +1059,11 @@ void WeaverCanvas::contextMenuEvent(QContextMenuEvent* event) {
       bool isLive = conn->activityState() != TopicActivityState::Unknown;
       DataLineage lineage = globalLineageProvider().getConnectionLineage(topicName, messageType, isLive);
       LineageContextMenu::showLineageDialog(lineage, this);
+    });
+
+    // Ask AI about this connection/topic
+    menu.addAction(tr("Ask AI about this..."), [this, conn]() {
+      emit askAIAboutConnection(conn);
     });
 
     menu.addSeparator();
