@@ -114,8 +114,8 @@ private:
 
   // Validation helpers
   bool validateParameter(ParamDefinition& param);
-  bool validateNumericRange(const ParamDefinition& param);
-  bool validateStringValue(const ParamDefinition& param);
+  bool validateNumericRange(ParamDefinition& param);
+  bool validateStringValue(ParamDefinition& param);
 
   // YAML helpers
   void parseYamlParams(const YAML::Node& node, const QString& group);

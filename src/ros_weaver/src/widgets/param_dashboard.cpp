@@ -647,32 +647,32 @@ bool ParamDashboard::validateParameter(ParamDefinition& param) {
   return true;
 }
 
-bool ParamDashboard::validateNumericRange(const ParamDefinition& param) {
+bool ParamDashboard::validateNumericRange(ParamDefinition& param) {
   if (param.type == "int") {
     int value = param.currentValue.toInt();
     if (param.minValue.isValid() && value < param.minValue.toInt()) {
-      const_cast<ParamDefinition&>(param).isValid = false;
-      const_cast<ParamDefinition&>(param).validationError =
+      param.isValid = false;
+      param.validationError =
         tr("Value %1 is below minimum %2").arg(value).arg(param.minValue.toInt());
       return false;
     }
     if (param.maxValue.isValid() && value > param.maxValue.toInt()) {
-      const_cast<ParamDefinition&>(param).isValid = false;
-      const_cast<ParamDefinition&>(param).validationError =
+      param.isValid = false;
+      param.validationError =
         tr("Value %1 is above maximum %2").arg(value).arg(param.maxValue.toInt());
       return false;
     }
   } else if (param.type == "double") {
     double value = param.currentValue.toDouble();
     if (param.minValue.isValid() && value < param.minValue.toDouble()) {
-      const_cast<ParamDefinition&>(param).isValid = false;
-      const_cast<ParamDefinition&>(param).validationError =
+      param.isValid = false;
+      param.validationError =
         tr("Value %1 is below minimum %2").arg(value).arg(param.minValue.toDouble());
       return false;
     }
     if (param.maxValue.isValid() && value > param.maxValue.toDouble()) {
-      const_cast<ParamDefinition&>(param).isValid = false;
-      const_cast<ParamDefinition&>(param).validationError =
+      param.isValid = false;
+      param.validationError =
         tr("Value %1 is above maximum %2").arg(value).arg(param.maxValue.toDouble());
       return false;
     }
@@ -680,13 +680,13 @@ bool ParamDashboard::validateNumericRange(const ParamDefinition& param) {
   return true;
 }
 
-bool ParamDashboard::validateStringValue(const ParamDefinition& param) {
+bool ParamDashboard::validateStringValue(ParamDefinition& param) {
   QString value = param.currentValue.toString();
 
   // If enum values are defined, check that value is in the list
   if (!param.enumValues.isEmpty() && !param.enumValues.contains(value)) {
-    const_cast<ParamDefinition&>(param).isValid = false;
-    const_cast<ParamDefinition&>(param).validationError =
+    param.isValid = false;
+    param.validationError =
       tr("Value '%1' is not in allowed values: %2").arg(value).arg(param.enumValues.join(", "));
     return false;
   }

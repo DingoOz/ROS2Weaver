@@ -197,7 +197,7 @@ QString ChatMessageWidget::convertMarkdownToHtml(const QString& markdown) {
 
   // Clean up consecutive <br> after block elements
   html.replace(QRegularExpression("</pre><br>"), "</pre>");
-  html.replace(QRegularExpression("</h[234]><br>"), "</h\\1>");
+  html.replace(QRegularExpression("</h([234])><br>"), "</h\\1>");
 
   return html;
 }

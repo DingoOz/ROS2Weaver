@@ -159,6 +159,7 @@ private:
   // ROS2 components
   std::shared_ptr<rclcpp::Node> rosNode_;
   std::unique_ptr<std::thread> spinThread_;
+  std::unique_ptr<std::thread> discoveryThread_;  // Track discovery thread to avoid use-after-free
   std::atomic<bool> spinning_;
   std::atomic<bool> monitoring_;
 
