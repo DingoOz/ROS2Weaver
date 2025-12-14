@@ -26,6 +26,7 @@
 #include "ros_weaver/widgets/help_browser.hpp"
 #include "ros_weaver/widgets/keyboard_shortcuts_dialog.hpp"
 #include "ros_weaver/widgets/guided_tour.hpp"
+#include "ros_weaver/widgets/topic_echo_dialog.hpp"
 #include "ros_weaver/core/context_help.hpp"
 
 #include <QApplication>
@@ -695,6 +696,20 @@ void MainWindow::setupCentralWidget() {
     if (paramDashboard_->currentBlock() == block) {
       paramDashboard_->setCurrentBlock(block);
     }
+  });
+
+  // Connect connection line signals when new connections are created
+  connect(canvas_, &WeaverCanvas::connectionCreated, this,
+          [this](ConnectionLine* connection) {
+    if (!connection) return;
+
+    // Connect double-click to show topic echo dialog
+    connect(connection, &ConnectionLine::doubleClicked,
+            this, &MainWindow::onConnectionDoubleClicked);
+
+    // Connect single-click for topic inspector (when live monitoring enabled)
+    connect(connection, &ConnectionLine::clicked,
+            this, &MainWindow::onConnectionClicked);
   });
 }
 
@@ -2091,11 +2106,19 @@ void MainWindow::onConnectionDoubleClicked(ConnectionLine* connection) {
     return;
   }
 
-  // Double-click could open echo in output panel
   QString topicName = connection->topicName();
-  if (!topicName.isEmpty()) {
-    onEchoTopicRequested(topicName);
+  if (topicName.isEmpty()) {
+    return;
   }
+
+  // Open floating topic echo dialog
+  TopicEchoDialog* dialog = new TopicEchoDialog(topicName, this);
+  dialog->show();
+  dialog->raise();
+  dialog->activateWindow();
+
+  // Also log to output panel (existing behavior)
+  onEchoTopicRequested(topicName);
 }
 
 void MainWindow::onTopicActivity(const QString& topicName, double rate) {
