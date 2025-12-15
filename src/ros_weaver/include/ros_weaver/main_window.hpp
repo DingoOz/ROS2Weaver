@@ -41,6 +41,7 @@ class TopicViewerPanel;
 class TFTreePanel;
 class PlotPanel;
 class GuidedTour;
+class RosbagWorkbenchPanel;
 
 class MainWindow : public QMainWindow {
   Q_OBJECT
@@ -200,6 +201,10 @@ private:
   UndoStack* undoStack_;
   QAction* undoAction_;
   QAction* redoAction_;
+
+  // Rosbag Workbench
+  RosbagWorkbenchPanel* rosbagWorkbenchPanel_;
+  QDockWidget* rosbagWorkbenchDock_;
 };
 
 }  // namespace ros_weaver

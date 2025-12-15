@@ -29,6 +29,7 @@
 #include "ros_weaver/widgets/keyboard_shortcuts_dialog.hpp"
 #include "ros_weaver/widgets/guided_tour.hpp"
 #include "ros_weaver/widgets/topic_echo_dialog.hpp"
+#include "ros_weaver/widgets/rosbag_workbench_panel.hpp"
 #include "ros_weaver/core/context_help.hpp"
 
 #include <QApplication>
@@ -101,6 +102,8 @@ MainWindow::MainWindow(QWidget* parent)
   , undoStack_(nullptr)
   , undoAction_(nullptr)
   , redoAction_(nullptr)
+  , rosbagWorkbenchPanel_(nullptr)
+  , rosbagWorkbenchDock_(nullptr)
 {
   setWindowTitle(baseWindowTitle_);
   setMinimumSize(1200, 800);
@@ -300,6 +303,12 @@ void MainWindow::setupMenuBar() {
   showOutputAction->setCheckable(true);
   showOutputAction->setChecked(true);
   showOutputAction->setObjectName("showOutputAction");
+
+  QAction* showRosbagWorkbenchAction = panelsMenu->addAction(tr("&Rosbag Workbench"));
+  showRosbagWorkbenchAction->setCheckable(true);
+  showRosbagWorkbenchAction->setChecked(false);  // Hidden by default
+  showRosbagWorkbenchAction->setObjectName("showRosbagWorkbenchAction");
+  showRosbagWorkbenchAction->setToolTip(tr("Show/hide rosbag playback and SLAM tuning workbench"));
 
   panelsMenu->addSeparator();
 
@@ -691,6 +700,29 @@ void MainWindow::setupDockWidgets() {
   if (showOutputAction) {
     connect(showOutputAction, &QAction::toggled, outputDock_, &QDockWidget::setVisible);
     connect(outputDock_, &QDockWidget::visibilityChanged, showOutputAction, &QAction::setChecked);
+  }
+
+  // Rosbag Workbench Dock (bottom, initially hidden)
+  rosbagWorkbenchDock_ = new QDockWidget(tr("Rosbag Workbench"), this);
+  rosbagWorkbenchDock_->setObjectName("rosbagWorkbenchDock");
+  rosbagWorkbenchDock_->setAllowedAreas(Qt::BottomDockWidgetArea | Qt::TopDockWidgetArea);
+
+  // Create panel with deferred initialization to avoid blocking startup
+  rosbagWorkbenchPanel_ = new RosbagWorkbenchPanel();
+  rosbagWorkbenchPanel_->setCanvas(canvas_);
+  rosbagWorkbenchPanel_->setTopicViewerPanel(topicViewerPanel_);
+  rosbagWorkbenchPanel_->setPlotPanel(plotPanel_);
+  rosbagWorkbenchPanel_->setParamDashboard(paramDashboard_);
+
+  rosbagWorkbenchDock_->setWidget(rosbagWorkbenchPanel_);
+  addDockWidget(Qt::BottomDockWidgetArea, rosbagWorkbenchDock_);
+  rosbagWorkbenchDock_->hide();  // Hidden by default
+
+  // Connect rosbag workbench visibility toggle
+  QAction* showRosbagWorkbenchAction = findChild<QAction*>("showRosbagWorkbenchAction");
+  if (showRosbagWorkbenchAction) {
+    connect(showRosbagWorkbenchAction, &QAction::toggled, rosbagWorkbenchDock_, &QDockWidget::setVisible);
+    connect(rosbagWorkbenchDock_, &QDockWidget::visibilityChanged, showRosbagWorkbenchAction, &QAction::setChecked);
   }
 
   // Setup AI integration between canvas and LLM chat

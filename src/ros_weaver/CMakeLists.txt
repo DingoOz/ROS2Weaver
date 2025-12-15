@@ -23,6 +23,9 @@ find_package(tf2_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(rosbag2_cpp REQUIRED)
+find_package(rosbag2_storage REQUIRED)
+find_package(rosgraph_msgs REQUIRED)
 
 # Qt5 setup
 set(CMAKE_AUTOMOC ON)
@@ -97,6 +100,15 @@ set(SOURCES
   src/widgets/plot_panel.cpp
   src/widgets/guided_tour.cpp
   src/widgets/topic_echo_dialog.cpp
+  src/widgets/rosbag_workbench_panel.cpp
+  src/widgets/timeline_widget.cpp
+  src/widgets/topic_selector_widget.cpp
+  src/widgets/playback_control_widget.cpp
+  src/widgets/slam_config_widget.cpp
+  src/widgets/bookmark_manager.cpp
+  src/core/bag_manager.cpp
+  src/core/playback_controller.cpp
+  src/core/slam_pipeline_manager.cpp
   src/wizards/package_wizard.cpp
   src/wizards/robot_wizard.cpp
 )
@@ -142,6 +154,15 @@ set(HEADERS
   include/ros_weaver/widgets/plot_panel.hpp
   include/ros_weaver/widgets/guided_tour.hpp
   include/ros_weaver/widgets/topic_echo_dialog.hpp
+  include/ros_weaver/widgets/rosbag_workbench_panel.hpp
+  include/ros_weaver/widgets/timeline_widget.hpp
+  include/ros_weaver/widgets/topic_selector_widget.hpp
+  include/ros_weaver/widgets/playback_control_widget.hpp
+  include/ros_weaver/widgets/slam_config_widget.hpp
+  include/ros_weaver/widgets/bookmark_manager.hpp
+  include/ros_weaver/core/bag_manager.hpp
+  include/ros_weaver/core/playback_controller.hpp
+  include/ros_weaver/core/slam_pipeline_manager.hpp
   include/ros_weaver/wizards/package_wizard.hpp
   include/ros_weaver/wizards/robot_wizard.hpp
 )
@@ -173,6 +194,9 @@ ament_target_dependencies(${PROJECT_NAME}
   geometry_msgs
   nav_msgs
   sensor_msgs
+  rosbag2_cpp
+  rosbag2_storage
+  rosgraph_msgs
 )
 
 # Install targets
