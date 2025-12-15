@@ -6,6 +6,7 @@
 [![Humble Test](https://img.shields.io/github/actions/workflow/status/DingoOz/ROS2Weaver/ci.yml?branch=main&label=Humble%20Test)](https://github.com/DingoOz/ROS2Weaver/actions/workflows/ci.yml)
 [![Jazzy Build](https://img.shields.io/github/actions/workflow/status/DingoOz/ROS2Weaver/ci.yml?branch=main&label=Jazzy%20Build)](https://github.com/DingoOz/ROS2Weaver/actions/workflows/ci.yml)
 [![Jazzy Test](https://img.shields.io/github/actions/workflow/status/DingoOz/ROS2Weaver/ci.yml?branch=main&label=Jazzy%20Test)](https://github.com/DingoOz/ROS2Weaver/actions/workflows/ci.yml)
+[![License: BSD-3-Clause](https://img.shields.io/badge/License-BSD--3--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 
 </div>
 
@@ -238,4 +239,4 @@ src/ros_weaver/
 
 ## License
 
-GPL-3.0
+BSD-3-Clause
