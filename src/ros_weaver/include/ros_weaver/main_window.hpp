@@ -15,6 +15,7 @@
 
 #include "ros_weaver/core/system_discovery.hpp"
 #include "ros_weaver/core/canvas_mapper.hpp"
+#include "ros_weaver/core/undo/undo_stack.hpp"
 
 namespace ros_weaver {
 
@@ -194,6 +195,11 @@ private:
 
   // Guided tour
   GuidedTour* guidedTour_;
+
+  // Undo/Redo system
+  UndoStack* undoStack_;
+  QAction* undoAction_;
+  QAction* redoAction_;
 };
 
 }  // namespace ros_weaver
