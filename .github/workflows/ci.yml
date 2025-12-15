@@ -6,12 +6,64 @@ on:
   pull_request:
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        ros-distro: [jazzy]
+        include:
+          - ros-distro: humble
+            os-version: ubuntu-22.04
+          - ros-distro: jazzy
+            os-version: ubuntu-24.04
+
+    name: Build & Test (${{ matrix.ros-distro }})
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup ROS2 ${{ matrix.ros-distro }}
+        uses: ros-tooling/setup-ros@v0.7
+        with:
+          required-ros-distributions: ${{ matrix.ros-distro }}
+
+      - name: Install Qt5 dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libqt5charts5-dev \
+            qtbase5-dev \
+            qtbase5-dev-tools \
+            libqt5widgets5
+
+      - name: Build and Test
+        uses: ros-tooling/action-ros-ci@v0.4
+        id: ros_ci
+        with:
+          target-ros2-distro: ${{ matrix.ros-distro }}
+          package-name: ros_weaver
+          skip-tests: false
+          colcon-defaults: |
+            {
+              "test": {
+                "ctest-args": ["-V", "--output-on-failure"]
+              }
+            }
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-${{ matrix.ros-distro }}
+          path: |
+            ros_ws/build/ros_weaver/Testing/
+            ros_ws/log/
+          retention-days: 7
+
+  lint:
+    runs-on: ubuntu-latest
+    name: Lint Checks
 
     steps:
       - name: Checkout code
@@ -20,14 +72,64 @@ jobs:
       - name: Setup ROS2
         uses: ros-tooling/setup-ros@v0.7
         with:
-          required-ros-distributions: ${{ matrix.ros-distro }}
+          required-ros-distributions: jazzy
 
-      - name: Install Qt5 Charts
-        run: sudo apt-get update && sudo apt-get install -y libqt5charts5-dev
+      - name: Install Qt5 dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libqt5charts5-dev \
+            qtbase5-dev \
+            qtbase5-dev-tools \
+            libqt5widgets5
 
-      - name: Build and Test
+      - name: Run linters
         uses: ros-tooling/action-ros-ci@v0.4
         with:
-          target-ros2-distro: ${{ matrix.ros-distro }}
+          target-ros2-distro: jazzy
           package-name: ros_weaver
-          skip-tests: false
+          skip-tests: true
+          colcon-defaults: |
+            {
+              "build": {
+                "cmake-args": ["-DBUILD_TESTING=ON"]
+              }
+            }
+
+  test-summary:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: always()
+    name: Test Summary
+
+    steps:
+      - name: Download all test results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: test-results-*
+          merge-multiple: true
+          path: test-results
+
+      - name: Display test summary
+        run: |
+          echo "## Test Results Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          for distro in humble jazzy; do
+            echo "### ROS2 $distro" >> $GITHUB_STEP_SUMMARY
+            if [ -d "test-results" ]; then
+              # Count test XML files if they exist
+              test_count=$(find test-results -name "*.xml" 2>/dev/null | wc -l)
+              echo "- Test result files found: $test_count" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- No test results found" >> $GITHUB_STEP_SUMMARY
+            fi
+            echo "" >> $GITHUB_STEP_SUMMARY
+          done
+
+          echo "### Unit Tests" >> $GITHUB_STEP_SUMMARY
+          echo "- test_project: Project serialization tests" >> $GITHUB_STEP_SUMMARY
+          echo "- test_data_lineage: Data lineage tracking tests" >> $GITHUB_STEP_SUMMARY
+          echo "- test_code_generator: Code generation tests" >> $GITHUB_STEP_SUMMARY
+          echo "- test_theme_manager: Theme manager tests" >> $GITHUB_STEP_SUMMARY
+          echo "- test_lineage_provider: Lineage provider tests" >> $GITHUB_STEP_SUMMARY
