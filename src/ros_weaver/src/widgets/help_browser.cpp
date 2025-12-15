@@ -792,7 +792,7 @@ Use the integrated AI assistant (if configured):
     tr("Local AI Assistant"),
     tr(R"(# Local AI Assistant
 
-ROS Weaver includes an optional local AI assistant powered by Ollama.
+ROS Weaver includes an optional local AI assistant powered by Ollama with native tool calling support.
 
 ## Setup
 
@@ -801,10 +801,11 @@ ROS Weaver includes an optional local AI assistant powered by Ollama.
 2. Download and install for your platform
 3. Start Ollama service
 
-### Recommended Models
+### Recommended Models for Tool Calling
+- **llama3.1:8b** - Excellent tool calling support
+- **qwen2.5:7b** - Good all-rounder with tools
 - **qwen2.5-coder:7b** - Best for coding tasks
-- **llama3.3:8b** - Good all-rounder
-- **phi3:mini** - For limited hardware
+- **mistral:7b** - Reliable tool support
 
 ## Using the AI Assistant
 
@@ -816,6 +817,7 @@ Open the AI chat panel in the Output area (bottom of window).
 - Get debugging help
 - Generate code snippets
 - Analyze error logs
+- **Control the canvas directly** (see AI Tools below)
 
 ### Example Prompts
 - "How do I create a ROS2 publisher?"
@@ -842,6 +844,170 @@ All AI processing happens locally on your machine:
     {"ai", "llm", "ollama", "assistant", "chat", "local"}
   };
   topicOrder_ << "local-ai";
+
+  // AI Tools
+  topics_["ai-tools"] = {
+    "ai-tools",
+    tr("AI Canvas Tools"),
+    tr(R"(# AI Canvas Tools
+
+The AI assistant can control the ROS Weaver canvas using native tool calling. Simply describe what you want in natural language.
+
+## Available Tools
+
+### load_example
+Load example projects onto the canvas.
+
+**Example prompts:**
+- "Load the turtlesim example"
+- "Show me the TurtleBot3 navigation example"
+- "Open a demo project"
+
+**Available examples:**
+- `turtlesim_teleop` - Basic publisher/subscriber with turtlesim
+- `turtlebot3_navigation` - Navigation with SLAM and Nav2
+
+### add_block
+Add ROS2 nodes to the canvas at a specified position.
+
+**Example prompts:**
+- "Add a turtlesim node"
+- "Put a teleop_twist_keyboard node at position 300, 200"
+- "Add the navigation stack nodes"
+
+**Parameters:**
+- package: ROS2 package name
+- executable: Node executable name
+- x, y: Position on canvas (optional)
+
+### remove_block
+Remove a node from the canvas by name.
+
+**Example prompts:**
+- "Remove the teleop node"
+- "Delete turtlesim_node"
+- "Take off the navigation node"
+
+### set_parameter
+Modify parameters on a node.
+
+**Example prompts:**
+- "Set the background color to blue"
+- "Change the linear velocity to 2.0"
+- "Update the robot name parameter"
+
+**Parameters:**
+- block_name: Target node name
+- param_name: Parameter to change
+- value: New value
+
+### create_connection
+Create topic connections between nodes.
+
+**Example prompts:**
+- "Connect the teleop to the turtlesim"
+- "Wire up cmd_vel between these nodes"
+- "Link the publisher to the subscriber"
+
+**Parameters:**
+- from_block: Source node name
+- from_pin: Output pin name
+- to_block: Target node name
+- to_pin: Input pin name
+
+### remove_connection
+Remove topic connections.
+
+**Example prompts:**
+- "Disconnect the cmd_vel topic"
+- "Remove the connection between teleop and turtle"
+
+### create_group
+Create a visual group around nodes.
+
+**Example prompts:**
+- "Group the navigation nodes together"
+- "Create a group called 'Sensors'"
+
+**Parameters:**
+- title: Group name
+- block_names: List of nodes to include
+
+### get_project_state
+Query the current canvas contents.
+
+**Example prompts:**
+- "What's on the canvas?"
+- "Show me the current project state"
+- "List all nodes and connections"
+
+### get_block_info
+Get detailed information about a specific node.
+
+**Example prompts:**
+- "Tell me about the turtlesim node"
+- "What parameters does teleop have?"
+- "Show details for the navigation node"
+
+### list_available_packages
+List ROS2 packages available to add.
+
+**Example prompts:**
+- "What packages can I use?"
+- "List available ROS2 packages"
+- "Show me navigation packages"
+
+## Using AI Tools
+
+### Natural Language
+Just describe what you want:
+- "Set up a basic turtlesim demo"
+- "Add a camera node and connect it to the image processor"
+- "Clean up the canvas and organize the nodes"
+
+### Undo Support
+AI actions can be undone:
+- Click the **Undo** button that appears after actions
+- The AI maintains an action history
+
+### Permission Requests
+Some actions require permission:
+- A dialog will appear asking for confirmation
+- You can approve individual actions or approve all for the session
+
+## Tips
+
+### Be Specific
+- "Add turtlesim/turtlesim_node" is clearer than "add a turtle"
+- Include positions if you have a preference
+
+### Chain Commands
+- "Load the turtlesim example and then add a second turtle node"
+- The AI can handle multi-step requests
+
+### Ask Questions First
+- "What's on the canvas?" before making changes
+- "What nodes are available in turtlesim?"
+
+## Troubleshooting
+
+### Tool Not Working
+- Ensure you're using a model that supports tool calling
+- Check that Ollama is running and connected
+- Try rephrasing your request
+
+### Permission Denied
+- Some actions require explicit approval
+- Check the permission dialog settings
+
+### Unexpected Results
+- Use "What's on the canvas?" to verify state
+- Use the Undo button to revert changes
+)"),
+    "",
+    {"ai", "tools", "canvas", "control", "commands", "automation"}
+  };
+  topicOrder_ << "ai-tools";
 
   // Plot Panel
   topics_["plot-panel"] = {
@@ -1172,6 +1338,11 @@ void HelpBrowser::buildTableOfContents() {
   QTreeWidgetItem* aiItem = new QTreeWidgetItem(tocTree_);
   aiItem->setText(0, tr("Local AI Assistant"));
   aiItem->setData(0, Qt::UserRole, "local-ai");
+  aiItem->setExpanded(true);
+
+  QTreeWidgetItem* aiToolsItem = new QTreeWidgetItem(aiItem);
+  aiToolsItem->setText(0, tr("AI Canvas Tools"));
+  aiToolsItem->setData(0, Qt::UserRole, "ai-tools");
 
   QTreeWidgetItem* tools = new QTreeWidgetItem(tocTree_);
   tools->setText(0, tr("Tools & Integration"));

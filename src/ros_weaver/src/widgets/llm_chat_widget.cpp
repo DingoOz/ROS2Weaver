@@ -1,5 +1,12 @@
 #include "ros_weaver/widgets/llm_chat_widget.hpp"
 #include "ros_weaver/core/ollama_manager.hpp"
+#include "ros_weaver/core/ai_tool_manager.hpp"
+#include "ros_weaver/core/ai_context_provider.hpp"
+#include "ros_weaver/widgets/ai_permission_dialog.hpp"
+#include "ros_weaver/canvas/weaver_canvas.hpp"
+#include "ros_weaver/canvas/package_block.hpp"
+#include "ros_weaver/canvas/connection_line.hpp"
+#include "ros_weaver/canvas/node_group.hpp"
 #include <QHBoxLayout>
 #include <QScrollBar>
 #include <QFrame>
@@ -15,6 +22,8 @@
 #include <QBuffer>
 #include <QKeyEvent>
 #include <QColor>
+#include <QJsonDocument>
+#include <QJsonArray>
 
 namespace ros_weaver {
 
@@ -208,7 +217,9 @@ LLMChatWidget::LLMChatWidget(QWidget* parent)
     : QWidget(parent)
     , quickQuestionsCombo_(nullptr)
     , bottomSpacer_(nullptr)
-    , tokenCount_(0) {
+    , tokenCount_(0)
+    , canvas_(nullptr)
+    , undoBtn_(nullptr) {
   setupUi();
 
   // Install event filter for paste handling
@@ -218,6 +229,7 @@ LLMChatWidget::LLMChatWidget(QWidget* parent)
   OllamaManager& mgr = OllamaManager::instance();
   connect(&mgr, &OllamaManager::ollamaStatusChanged,
           this, &LLMChatWidget::onOllamaStatusChanged);
+  // Legacy /api/generate signals (fallback)
   connect(&mgr, &OllamaManager::completionStarted,
           this, &LLMChatWidget::onCompletionStarted);
   connect(&mgr, &OllamaManager::completionToken,
@@ -228,6 +240,22 @@ LLMChatWidget::LLMChatWidget(QWidget* parent)
           this, &LLMChatWidget::onCompletionError);
   connect(&mgr, &OllamaManager::settingsChanged,
           this, &LLMChatWidget::onSettingsChanged);
+
+  // Native /api/chat signals (preferred for tool calling)
+  connect(&mgr, &OllamaManager::chatStarted,
+          this, &LLMChatWidget::onChatStarted);
+  connect(&mgr, &OllamaManager::chatToken,
+          this, &LLMChatWidget::onChatToken);
+  connect(&mgr, &OllamaManager::chatFinished,
+          this, &LLMChatWidget::onChatFinished);
+  connect(&mgr, &OllamaManager::chatError,
+          this, &LLMChatWidget::onChatError);
+  connect(&mgr, &OllamaManager::toolCallsReceived,
+          this, &LLMChatWidget::onToolCallsReceived);
+
+  // Setup AI tools
+  setupAITools();
+  setupNativeToolCalling();
 
   // Initial status update
   updateStatusDisplay();
@@ -254,6 +282,24 @@ void LLMChatWidget::setupUi() {
   clearBtn_->setFixedWidth(60);
   connect(clearBtn_, &QPushButton::clicked, this, &LLMChatWidget::clearChat);
   statusLayout->addWidget(clearBtn_);
+
+  // Undo button (hidden by default)
+  undoBtn_ = new QPushButton(tr("Undo"), this);
+  undoBtn_->setFixedWidth(60);
+  undoBtn_->setVisible(false);
+  undoBtn_->setStyleSheet(
+      "QPushButton {"
+      "  background-color: #5a5a5a;"
+      "  border: 1px solid #707070;"
+      "  border-radius: 3px;"
+      "  color: white;"
+      "  font-size: 11px;"
+      "}"
+      "QPushButton:hover { background-color: #707070; }");
+  connect(undoBtn_, &QPushButton::clicked, this, [this]() {
+    AIToolManager::instance().undoLastAction();
+  });
+  statusLayout->addWidget(undoBtn_);
 
   mainLayout->addWidget(statusBar);
 
@@ -472,6 +518,12 @@ void LLMChatWidget::clearChat() {
 
   currentStreamingMessage_ = nullptr;
 
+  // Clear conversation history for native tool calling
+  conversationHistory_.clear();
+  pendingToolCalls_.clear();
+  toolResults_.clear();
+  OllamaManager::instance().clearConversation();
+
   // Clear any pending attachment
   onRemoveAttachment();
 
@@ -543,8 +595,38 @@ void LLMChatWidget::onSendClicked() {
   stopBtn_->setVisible(true);
   statusLabel_->setText(tr("Generating..."));
 
-  // Send to Ollama with the configured system prompt and any images
-  mgr.generateCompletion(fullPrompt, mgr.systemPrompt(), images);
+  // Use native tool calling if enabled
+  if (useNativeToolCalling_ && mgr.isToolCallingEnabled()) {
+    // Build conversation for /api/chat
+    QList<ChatMessage> messages;
+
+    // Add system message with ROS2 context
+    ChatMessage systemMsg;
+    systemMsg.role = "system";
+    systemMsg.content = buildEnhancedSystemPrompt();
+    messages.append(systemMsg);
+
+    // Add conversation history
+    messages.append(conversationHistory_);
+
+    // Add current user message
+    ChatMessage userMsg;
+    userMsg.role = "user";
+    userMsg.content = fullPrompt;
+    messages.append(userMsg);
+
+    // Store in history
+    conversationHistory_.append(userMsg);
+
+    // Build tools list from AIToolManager
+    currentTools_ = buildToolsList();
+
+    // Send via chat API with tools
+    mgr.chatWithTools(messages, currentTools_, images);
+  } else {
+    // Fallback to legacy /api/generate
+    mgr.generateCompletion(fullPrompt, mgr.systemPrompt(), images);
+  }
 
   emit messageSent(message);
 }
@@ -734,14 +816,15 @@ void LLMChatWidget::onCompletionToken(const QString& token) {
 }
 
 void LLMChatWidget::onCompletionFinished(const QString& fullResponse) {
-  Q_UNUSED(fullResponse);
-
   isWaitingForResponse_ = false;
   currentStreamingMessage_ = nullptr;
   setInputEnabled(true);
   sendBtn_->setVisible(true);
   stopBtn_->setVisible(false);
   updateStatusDisplay();
+
+  // Process any tool calls in the response
+  processToolCalls(fullResponse);
 }
 
 void LLMChatWidget::onCompletionError(const QString& error) {
@@ -926,23 +1009,362 @@ void LLMChatWidget::attachImageFromClipboard(const QImage& image) {
 }
 
 QString LLMChatWidget::gatherROSContext() {
-  // This function gathers available ROS2 system information
-  // to provide context to the AI for diagnostics questions
+  // Use the AI context provider for comprehensive context
+  return AIContextProvider::instance().getProjectContext();
+}
 
-  QString context;
-  context += "=== Current ROS2 System State ===\n";
+void LLMChatWidget::setCanvas(WeaverCanvas* canvas) {
+  canvas_ = canvas;
 
-  // Note: In a full implementation, this would query the ROS2 system
-  // For now, we provide a placeholder that can be expanded
-  // The actual data would come from the ROS2 node integration
+  // Register tools with the canvas
+  AIToolManager::instance().registerTools(canvas);
 
-  // TODO: Integrate with the existing ROS2 scanning functionality
-  // to get actual topics, nodes, and TF tree information
+  // Set canvas in context provider
+  AIContextProvider::instance().setCanvas(canvas);
+}
 
-  context += "\n[ROS2 context data would be gathered here from the running system]\n";
-  context += "Please provide general ROS2 assistance based on the question.\n";
+void LLMChatWidget::setupAITools() {
+  // Connect to AIToolManager signals
+  AIToolManager& toolMgr = AIToolManager::instance();
 
-  return context;
+  connect(&toolMgr, &AIToolManager::permissionRequired,
+          this, &LLMChatWidget::onAIPermissionRequired);
+  connect(&toolMgr, &AIToolManager::toolExecuted,
+          this, &LLMChatWidget::onAIToolExecuted);
+  connect(&toolMgr, &AIToolManager::actionUndone,
+          this, &LLMChatWidget::onAIActionUndone);
+  connect(&toolMgr, &AIToolManager::undoStackChanged,
+          this, &LLMChatWidget::onUndoStackChanged);
+}
+
+void LLMChatWidget::askAboutBlock(PackageBlock* block) {
+  if (!block) return;
+
+  QString context = AIContextProvider::instance().getBlockContext(block);
+  QString prompt = AIContextProvider::instance().buildElementPrompt(context);
+
+  // Add a system message showing what we're asking about
+  addMessage(ChatMessageWidget::Role::System,
+             tr("Asking about block: %1").arg(block->packageName()));
+
+  // Send the context to the AI
+  sendMessage(prompt);
+}
+
+void LLMChatWidget::askAboutConnection(ConnectionLine* connection) {
+  if (!connection) return;
+
+  QString context = AIContextProvider::instance().getConnectionContext(connection);
+  QString prompt = AIContextProvider::instance().buildElementPrompt(context);
+
+  QString topicName = connection->topicName();
+  addMessage(ChatMessageWidget::Role::System,
+             tr("Asking about connection/topic: %1").arg(topicName));
+
+  sendMessage(prompt);
+}
+
+void LLMChatWidget::askAboutGroup(NodeGroup* group) {
+  if (!group) return;
+
+  QString context = AIContextProvider::instance().getGroupContext(group);
+  QString prompt = AIContextProvider::instance().buildElementPrompt(context);
+
+  addMessage(ChatMessageWidget::Role::System,
+             tr("Asking about group: %1").arg(group->title()));
+
+  sendMessage(prompt);
+}
+
+void LLMChatWidget::askAboutPin(PackageBlock* block, int pinIndex, bool isOutput) {
+  if (!block) return;
+
+  QString context = AIContextProvider::instance().getPinContext(block, pinIndex, isOutput);
+  QString prompt = AIContextProvider::instance().buildElementPrompt(context);
+
+  QString pinType = isOutput ? tr("output") : tr("input");
+  addMessage(ChatMessageWidget::Role::System,
+             tr("Asking about %1 pin on %2").arg(pinType, block->packageName()));
+
+  sendMessage(prompt);
+}
+
+void LLMChatWidget::onAIPermissionRequired(const QString& toolName,
+                                            const QString& description,
+                                            const QJsonObject& params) {
+  AIPermissionDialog* dialog = new AIPermissionDialog(this);
+  dialog->setAction(toolName, description, params);
+
+  connect(dialog, &AIPermissionDialog::permissionGranted, this,
+          [toolName, params](bool approveAll) {
+            AIToolManager::instance().onPermissionGranted(toolName, params, approveAll);
+          });
+
+  connect(dialog, &AIPermissionDialog::permissionDenied, this,
+          [toolName]() {
+            AIToolManager::instance().onPermissionDenied(toolName);
+          });
+
+  dialog->exec();
+  dialog->deleteLater();
+}
+
+void LLMChatWidget::onAIToolExecuted(const QString& toolName, bool success,
+                                      const QString& message) {
+  // Show result in chat
+  if (success) {
+    addMessage(ChatMessageWidget::Role::System,
+               tr("AI action completed: %1\n%2").arg(toolName, message));
+
+    // Check if this was a load_example action that needs MainWindow handling
+    if (toolName == "load_example") {
+      // Parse the message or use tool manager to get the example name
+      // The actual loading is done via signal to MainWindow
+      AIToolManager& mgr = AIToolManager::instance();
+      if (mgr.canUndo()) {
+        QString lastDesc = mgr.lastActionDescription();
+        if (lastDesc.contains("turtlesim")) {
+          emit loadExampleRequested("turtlesim_teleop");
+        } else if (lastDesc.contains("turtlebot") || lastDesc.contains("TurtleBot")) {
+          emit loadExampleRequested("turtlebot3_navigation");
+        }
+      }
+    }
+  } else {
+    addMessage(ChatMessageWidget::Role::System,
+               tr("AI action failed: %1\n%2").arg(toolName, message));
+  }
+
+  scrollToBottom();
+}
+
+void LLMChatWidget::onAIActionUndone(const QString& description) {
+  addMessage(ChatMessageWidget::Role::System,
+             tr("Undone: %1").arg(description));
+  scrollToBottom();
+}
+
+void LLMChatWidget::onUndoStackChanged(int size) {
+  // Show/hide undo button based on whether there are actions to undo
+  if (undoBtn_) {
+    undoBtn_->setVisible(size > 0);
+    if (size > 0) {
+      undoBtn_->setToolTip(tr("Undo: %1").arg(
+          AIToolManager::instance().lastActionDescription()));
+    }
+  }
+}
+
+void LLMChatWidget::processToolCalls(const QString& response) {
+  AIToolManager& toolMgr = AIToolManager::instance();
+
+  // Parse tool calls from the response
+  QList<QPair<QString, QJsonObject>> toolCalls = toolMgr.parseToolCalls(response);
+
+  for (const auto& call : toolCalls) {
+    QString toolName = call.first;
+    QJsonObject params = call.second;
+
+    // Execute the tool (will trigger permission dialog if needed)
+    AIToolResult result = toolMgr.executeTool(toolName, params);
+
+    // If the result indicates waiting for permission, the dialog will handle it
+    if (!result.data.contains("pending") || !result.data["pending"].toBool()) {
+      // Tool executed immediately (no permission needed or auto-approved)
+      if (result.success) {
+        addMessage(ChatMessageWidget::Role::System,
+                   tr("Executed: %1").arg(result.message));
+      }
+    }
+  }
+}
+
+void LLMChatWidget::showUndoNotification(const QString& actionDescription) {
+  // Show a notification that the action can be undone
+  AIActionNotification* notification = new AIActionNotification(
+      AIActionNotification::Type::Success,
+      tr("Action completed: %1").arg(actionDescription),
+      true,  // showUndo
+      this);
+
+  connect(notification, &AIActionNotification::undoClicked, this, [this]() {
+    AIToolManager::instance().undoLastAction();
+  });
+
+  // Position at bottom-right of the chat widget
+  QPoint pos = mapToGlobal(QPoint(width() - notification->width() - 20,
+                                   height() - notification->height() - 80));
+  notification->move(pos);
+  notification->showFor(5000);  // Show for 5 seconds
+}
+
+QString LLMChatWidget::buildEnhancedSystemPrompt() {
+  return AIContextProvider::instance().buildSystemPrompt();
+}
+
+// ============================================================================
+// Native Tool Calling Implementation
+// ============================================================================
+
+void LLMChatWidget::setupNativeToolCalling() {
+  // Initialize conversation history
+  conversationHistory_.clear();
+  pendingToolCalls_.clear();
+  toolResults_.clear();
+
+  // Build initial tools list
+  currentTools_ = buildToolsList();
+}
+
+QList<OllamaTool> LLMChatWidget::buildToolsList() {
+  QList<OllamaTool> tools;
+
+  AIToolManager& toolMgr = AIToolManager::instance();
+  QStringList toolNames = toolMgr.availableTools();
+
+  for (const QString& name : toolNames) {
+    const AITool* aiTool = toolMgr.getTool(name);
+    if (aiTool) {
+      OllamaTool tool = OllamaManager::convertFromAITool(
+          aiTool->name,
+          aiTool->description,
+          aiTool->parametersSchema);
+      tools.append(tool);
+    }
+  }
+
+  qDebug() << "Built tools list with" << tools.size() << "tools";
+  return tools;
+}
+
+void LLMChatWidget::onChatStarted() {
+  // Create empty assistant message for streaming
+  currentStreamingMessage_ = addMessage(ChatMessageWidget::Role::Assistant, "");
+}
+
+void LLMChatWidget::onChatToken(const QString& token) {
+  if (currentStreamingMessage_) {
+    currentStreamingMessage_->appendText(token);
+    scrollToBottom();
+  }
+}
+
+void LLMChatWidget::onChatFinished(const QString& fullResponse, const ChatMessage& assistantMessage) {
+  isWaitingForResponse_ = false;
+  currentStreamingMessage_ = nullptr;
+  setInputEnabled(true);
+  sendBtn_->setVisible(true);
+  stopBtn_->setVisible(false);
+  updateStatusDisplay();
+
+  // Add assistant message to conversation history
+  conversationHistory_.append(assistantMessage);
+
+  // Also process any text-based tool calls for backward compatibility
+  processToolCalls(fullResponse);
+}
+
+void LLMChatWidget::onChatError(const QString& error) {
+  isWaitingForResponse_ = false;
+  currentStreamingMessage_ = nullptr;
+  setInputEnabled(true);
+  sendBtn_->setVisible(true);
+  stopBtn_->setVisible(false);
+  updateStatusDisplay();
+
+  addMessage(ChatMessageWidget::Role::System,
+             tr("Chat error: %1").arg(error));
+}
+
+void LLMChatWidget::onToolCallsReceived(const QList<OllamaToolCall>& toolCalls) {
+  qDebug() << "Received" << toolCalls.size() << "native tool calls";
+
+  // Store pending tool calls
+  pendingToolCalls_ = toolCalls;
+  toolResults_.clear();
+
+  // Show what tools the AI wants to call
+  QStringList toolNames;
+  for (const OllamaToolCall& tc : toolCalls) {
+    toolNames.append(tc.functionName);
+  }
+  addMessage(ChatMessageWidget::Role::System,
+             tr("AI wants to use tools: %1").arg(toolNames.join(", ")));
+
+  // Execute all tool calls
+  executeNativeToolCalls(toolCalls);
+}
+
+void LLMChatWidget::executeNativeToolCalls(const QList<OllamaToolCall>& toolCalls) {
+  AIToolManager& toolMgr = AIToolManager::instance();
+
+  for (const OllamaToolCall& tc : toolCalls) {
+    qDebug() << "Executing native tool call:" << tc.functionName;
+
+    // Execute the tool
+    AIToolResult result = toolMgr.executeTool(tc.functionName, tc.arguments);
+
+    // Store result
+    QString resultStr;
+    if (result.success) {
+      // Include any data in the result
+      if (!result.data.isEmpty()) {
+        QJsonDocument dataDoc(result.data);
+        resultStr = QString("Success: %1\nData: %2")
+                        .arg(result.message,
+                             QString::fromUtf8(dataDoc.toJson(QJsonDocument::Compact)));
+      } else {
+        resultStr = QString("Success: %1").arg(result.message);
+      }
+    } else {
+      resultStr = QString("Error: %1").arg(result.message);
+    }
+
+    toolResults_[tc.id] = resultStr;
+
+    // Show result in chat
+    addMessage(ChatMessageWidget::Role::System,
+               tr("Tool '%1': %2").arg(tc.functionName, result.message));
+  }
+
+  // After all tools are executed, send results back to the model
+  sendToolResultsToModel();
+}
+
+void LLMChatWidget::sendToolResultsToModel() {
+  OllamaManager& mgr = OllamaManager::instance();
+
+  // Build the full conversation including tool results
+  QList<ChatMessage> messages;
+
+  // Add system message
+  ChatMessage systemMsg;
+  systemMsg.role = "system";
+  systemMsg.content = buildEnhancedSystemPrompt();
+  messages.append(systemMsg);
+
+  // Add conversation history (this should include the assistant message with tool_calls)
+  messages.append(conversationHistory_);
+
+  // Add tool results as tool messages
+  for (const OllamaToolCall& tc : pendingToolCalls_) {
+    ChatMessage toolResultMsg;
+    toolResultMsg.role = "tool";
+    toolResultMsg.content = toolResults_.value(tc.id, "No result");
+    toolResultMsg.toolCallId = tc.id;
+    messages.append(toolResultMsg);
+
+    // Also add to conversation history
+    conversationHistory_.append(toolResultMsg);
+  }
+
+  // Clear pending tool calls
+  pendingToolCalls_.clear();
+  toolResults_.clear();
+
+  // Send the tool results back to continue the conversation
+  statusLabel_->setText(tr("Processing tool results..."));
+  mgr.sendToolResults(messages, currentTools_);
 }
 
 }  // namespace ros_weaver

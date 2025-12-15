@@ -2,6 +2,8 @@
 #include "ros_weaver/canvas/weaver_canvas.hpp"
 #include "ros_weaver/canvas/package_block.hpp"
 #include "ros_weaver/canvas/connection_line.hpp"
+#include "ros_weaver/canvas/node_group.hpp"
+#include "ros_weaver/widgets/llm_chat_widget.hpp"
 #include "ros_weaver/core/project.hpp"
 #include "ros_weaver/core/ros_package_index.hpp"
 #include "ros_weaver/core/code_generator.hpp"
@@ -675,6 +677,49 @@ void MainWindow::setupDockWidgets() {
   if (showOutputAction) {
     connect(showOutputAction, &QAction::toggled, outputDock_, &QDockWidget::setVisible);
     connect(outputDock_, &QDockWidget::visibilityChanged, showOutputAction, &QAction::setChecked);
+  }
+
+  // Setup AI integration between canvas and LLM chat
+  if (outputPanel_->llmChatWidget() && canvas_) {
+    LLMChatWidget* llmChat = outputPanel_->llmChatWidget();
+
+    // Set the canvas on the LLM chat widget for AI tools
+    llmChat->setCanvas(canvas_);
+
+    // Connect canvas "Ask AI about this..." signals to LLM chat
+    connect(canvas_, &WeaverCanvas::askAIAboutBlock, this,
+            [this, llmChat](PackageBlock* block) {
+      outputPanel_->showLLMChatTab();
+      llmChat->askAboutBlock(block);
+    });
+
+    connect(canvas_, &WeaverCanvas::askAIAboutConnection, this,
+            [this, llmChat](ConnectionLine* connection) {
+      outputPanel_->showLLMChatTab();
+      llmChat->askAboutConnection(connection);
+    });
+
+    connect(canvas_, &WeaverCanvas::askAIAboutGroup, this,
+            [this, llmChat](NodeGroup* group) {
+      outputPanel_->showLLMChatTab();
+      llmChat->askAboutGroup(group);
+    });
+
+    connect(canvas_, &WeaverCanvas::askAIAboutPin, this,
+            [this, llmChat](PackageBlock* block, int pinIndex, bool isOutput) {
+      outputPanel_->showLLMChatTab();
+      llmChat->askAboutPin(block, pinIndex, isOutput);
+    });
+
+    // Connect load example signal from AI to main window
+    connect(llmChat, &LLMChatWidget::loadExampleRequested, this,
+            [this](const QString& exampleName) {
+      if (exampleName == "turtlesim_teleop") {
+        onLoadTurtlesimExample();
+      } else if (exampleName == "turtlebot3_navigation") {
+        onLoadTurtleBotExample();
+      }
+    });
   }
 }
 

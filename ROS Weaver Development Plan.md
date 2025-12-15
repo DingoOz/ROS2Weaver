@@ -377,6 +377,14 @@ Future improvements to the in-program help system:
 - Multiple language support (i18n)
 - Integration with ROS2 documentation (ros.org links)
 
+## Feature: Undo Function (Planned)
+
+Add undo/redo support for canvas operations.
+
+## Feature: Ollama Tool Usage Update (Planned)
+
+Update Ollama integration to support native tool/function calling capabilities.
+
 ## Deployment
 
 - Write a blog post announcing the release

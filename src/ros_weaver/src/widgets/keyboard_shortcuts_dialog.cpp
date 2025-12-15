@@ -137,6 +137,22 @@ void KeyboardShortcutsDialog::loadShortcuts() {
   shortcuts_ << ShortcutInfo{"Help", tr("Getting Started"), "Ctrl+F1", tr("Open Getting Started guide")};
   shortcuts_ << ShortcutInfo{"Help", tr("Keyboard Shortcuts"), "Ctrl+/", tr("Show this shortcuts reference")};
 
+  // AI Assistant Tools
+  shortcuts_ << ShortcutInfo{"AI Assistant", tr("Load Example"), tr("\"Load turtlesim example\""), tr("Load example projects onto the canvas")};
+  shortcuts_ << ShortcutInfo{"AI Assistant", tr("Add Block"), tr("\"Add a turtlesim node\""), tr("Add ROS2 nodes to the canvas at specified position")};
+  shortcuts_ << ShortcutInfo{"AI Assistant", tr("Remove Block"), tr("\"Remove the teleop node\""), tr("Remove a node from the canvas by name")};
+  shortcuts_ << ShortcutInfo{"AI Assistant", tr("Set Parameter"), tr("\"Set background to blue\""), tr("Modify node parameters")};
+  shortcuts_ << ShortcutInfo{"AI Assistant", tr("Create Connection"), tr("\"Connect cmd_vel\""), tr("Create topic connections between nodes")};
+  shortcuts_ << ShortcutInfo{"AI Assistant", tr("Remove Connection"), tr("\"Disconnect the topic\""), tr("Remove topic connections")};
+  shortcuts_ << ShortcutInfo{"AI Assistant", tr("Create Group"), tr("\"Group these nodes\""), tr("Create a visual group around nodes")};
+  shortcuts_ << ShortcutInfo{"AI Assistant", tr("Get Project State"), tr("\"What's on the canvas?\""), tr("Query current canvas contents and connections")};
+  shortcuts_ << ShortcutInfo{"AI Assistant", tr("Get Block Info"), tr("\"Tell me about this node\""), tr("Get detailed information about a specific node")};
+  shortcuts_ << ShortcutInfo{"AI Assistant", tr("List Packages"), tr("\"What packages are available?\""), tr("List available ROS2 packages")};
+  shortcuts_ << ShortcutInfo{"AI Assistant", tr("Undo AI Action"), tr("Undo Button"), tr("Undo the last AI-performed action")};
+  shortcuts_ << ShortcutInfo{"AI Assistant", tr("Attach File"), tr("Paperclip Button"), tr("Attach files or images to chat")};
+  shortcuts_ << ShortcutInfo{"AI Assistant", tr("Paste Image"), tr("Ctrl+V"), tr("Paste screenshot into chat for analysis")};
+  shortcuts_ << ShortcutInfo{"AI Assistant", tr("Quick Questions"), tr("Dropdown Menu"), tr("Select from preset ROS2 questions")};
+
   // Canvas Navigation
   shortcuts_ << ShortcutInfo{"Canvas", tr("Pan Canvas"), tr("Middle-click + Drag"), tr("Pan the canvas view")};
   shortcuts_ << ShortcutInfo{"Canvas", tr("Pan Canvas (Alt)"), tr("Space + Drag"), tr("Alternative pan method")};

@@ -80,6 +80,11 @@ signals:
   void canvasCleared();
   void blockYamlSourceChanged(PackageBlock* block, const QString& yamlSource);
   void openBlockInVSCodeRequested(PackageBlock* block);
+  // AI context menu signals
+  void askAIAboutBlock(PackageBlock* block);
+  void askAIAboutConnection(ConnectionLine* connection);
+  void askAIAboutGroup(NodeGroup* group);
+  void askAIAboutPin(PackageBlock* block, int pinIndex, bool isOutput);
 
 protected:
   void wheelEvent(QWheelEvent* event) override;

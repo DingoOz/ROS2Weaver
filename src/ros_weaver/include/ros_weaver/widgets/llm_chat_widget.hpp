@@ -11,8 +11,15 @@
 #include <QFrame>
 #include <QComboBox>
 #include <QElapsedTimer>
+#include <QJsonObject>
+#include "ros_weaver/core/ollama_manager.hpp"
 
 namespace ros_weaver {
+
+class PackageBlock;
+class ConnectionLine;
+class NodeGroup;
+class WeaverCanvas;
 
 // Individual chat message widget with markdown support
 class ChatMessageWidget : public QWidget {
@@ -55,8 +62,19 @@ public:
   // Send a message programmatically (useful for automated analysis)
   void sendMessage(const QString& message);
 
+  // Set the canvas for AI tool registration and context
+  void setCanvas(WeaverCanvas* canvas);
+
+  // Ask AI about specific elements (triggered from context menu)
+  void askAboutBlock(PackageBlock* block);
+  void askAboutConnection(ConnectionLine* connection);
+  void askAboutGroup(NodeGroup* group);
+  void askAboutPin(PackageBlock* block, int pinIndex, bool isOutput);
+
 signals:
   void messageSent(const QString& message);
+  // Signal to request loading an example (handled by MainWindow)
+  void loadExampleRequested(const QString& exampleName);
 
 protected:
   // Override to handle paste events for images
@@ -68,6 +86,7 @@ private slots:
   void onAttachClicked();
   void onRemoveAttachment();
   void onOllamaStatusChanged(bool running);
+  // Legacy /api/generate callbacks (for fallback)
   void onCompletionStarted();
   void onCompletionToken(const QString& token);
   void onCompletionFinished(const QString& fullResponse);
@@ -76,15 +95,37 @@ private slots:
   void onQuickQuestionSelected(int index);
   void handleClipboardPaste();
 
+  // Native chat API callbacks (/api/chat with tools)
+  void onChatStarted();
+  void onChatToken(const QString& token);
+  void onChatFinished(const QString& fullResponse, const ChatMessage& assistantMessage);
+  void onChatError(const QString& error);
+  void onToolCallsReceived(const QList<OllamaToolCall>& toolCalls);
+
+  // AI Tool callbacks
+  void onAIPermissionRequired(const QString& toolName, const QString& description,
+                               const QJsonObject& params);
+  void onAIToolExecuted(const QString& toolName, bool success, const QString& message);
+  void onAIActionUndone(const QString& description);
+  void onUndoStackChanged(int size);
+
 private:
   void setupUi();
   void setupQuickQuestions();
+  void setupAITools();
+  void setupNativeToolCalling();
   ChatMessageWidget* addMessage(ChatMessageWidget::Role role, const QString& message);
   void updateStatusDisplay();
   void setInputEnabled(bool enabled);
   void scrollToBottom();
   QString gatherROSContext();
   void attachImageFromClipboard(const QImage& image);
+  void processToolCalls(const QString& response);  // Legacy text-based parsing
+  void executeNativeToolCalls(const QList<OllamaToolCall>& toolCalls);  // Native tool execution
+  void sendToolResultsToModel();  // Continue conversation with tool results
+  void showUndoNotification(const QString& actionDescription);
+  QString buildEnhancedSystemPrompt();
+  QList<OllamaTool> buildToolsList();  // Convert AITools to OllamaTools
 
   // UI components
   QWidget* chatContainer_;
@@ -119,6 +160,19 @@ private:
   QString attachedFileContent_;  // For text files
   QString attachedImageBase64_;  // For image files
   bool attachedIsImage_ = false;
+
+  // Canvas reference for AI tools
+  WeaverCanvas* canvas_ = nullptr;
+
+  // Undo button for AI actions
+  QPushButton* undoBtn_ = nullptr;
+
+  // Native tool calling state
+  QList<ChatMessage> conversationHistory_;
+  QList<OllamaTool> currentTools_;
+  QList<OllamaToolCall> pendingToolCalls_;
+  QMap<QString, QString> toolResults_;  // toolCallId -> result
+  bool useNativeToolCalling_ = true;    // Use native /api/chat with tools
 };
 
 }  // namespace ros_weaver
