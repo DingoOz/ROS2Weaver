@@ -77,6 +77,75 @@ void WeaverCanvas::setUndoStack(UndoStack* undoStack) {
   undoStack_ = undoStack;
 }
 
+// Helper to create BlockData from a PackageBlock
+static BlockData createBlockData(PackageBlock* block) {
+  BlockData blockData;
+  blockData.id = block->id();
+  blockData.name = block->packageName();
+  blockData.position = block->pos();
+
+  // Export input pins
+  for (const Pin& pin : block->inputPins()) {
+    PinData pinData;
+    pinData.name = pin.name;
+    pinData.type = "input";
+    switch (pin.dataType) {
+      case Pin::DataType::Topic: pinData.dataType = "topic"; break;
+      case Pin::DataType::Service: pinData.dataType = "service"; break;
+      case Pin::DataType::Action: pinData.dataType = "action"; break;
+      case Pin::DataType::Parameter: pinData.dataType = "parameter"; break;
+    }
+    pinData.messageType = pin.messageType;
+    blockData.inputPins.append(pinData);
+  }
+
+  // Export output pins
+  for (const Pin& pin : block->outputPins()) {
+    PinData pinData;
+    pinData.name = pin.name;
+    pinData.type = "output";
+    switch (pin.dataType) {
+      case Pin::DataType::Topic: pinData.dataType = "topic"; break;
+      case Pin::DataType::Service: pinData.dataType = "service"; break;
+      case Pin::DataType::Action: pinData.dataType = "action"; break;
+      case Pin::DataType::Parameter: pinData.dataType = "parameter"; break;
+    }
+    pinData.messageType = pin.messageType;
+    blockData.outputPins.append(pinData);
+  }
+
+  // Export parameters
+  blockData.parameters = block->parameters();
+  blockData.preferredYamlSource = block->preferredYamlSource();
+
+  return blockData;
+}
+
+// Helper to create ConnectionData from a ConnectionLine
+static ConnectionData createConnectionData(ConnectionLine* conn) {
+  ConnectionData connData;
+  connData.id = conn->id();
+  connData.sourceBlockId = conn->sourceBlock()->id();
+  connData.sourcePinIndex = conn->sourcePinIndex();
+  connData.targetBlockId = conn->targetBlock()->id();
+  connData.targetPinIndex = conn->targetPinIndex();
+  return connData;
+}
+
+// Helper to create NodeGroupData from a NodeGroup
+static NodeGroupData createGroupData(NodeGroup* group) {
+  NodeGroupData groupData;
+  groupData.id = group->id();
+  groupData.title = group->title();
+  groupData.position = group->pos();
+  groupData.size = group->size();
+  groupData.color = group->color();
+  for (PackageBlock* node : group->containedNodes()) {
+    groupData.containedNodeIds.append(node->id());
+  }
+  return groupData;
+}
+
 void WeaverCanvas::setupScene() {
   scene_ = new QGraphicsScene(this);
   setScene(scene_);
@@ -195,6 +264,11 @@ PackageBlock* WeaverCanvas::addPackageBlock(const QString& packageName, const QP
     block->addOutputPin("output", Pin::DataType::Topic, "std_msgs/msg/String");
   }
 
+  // Push undo command if not executing a command (to prevent recursion)
+  if (undoStack_ && !isExecutingCommand_) {
+    undoStack_->push(new AddBlockCommand(this, createBlockData(block)));
+  }
+
   return block;
 }
 
@@ -232,6 +306,14 @@ void WeaverCanvas::onPinUnhovered(PackageBlock* block) {
 void WeaverCanvas::onBlockMoveFinished(PackageBlock* block) {
   if (!block) return;
 
+  // Push MoveBlockCommand if position actually changed
+  QPointF oldPos = block->moveStartPos();
+  QPointF newPos = block->pos();
+
+  if (undoStack_ && !isExecutingCommand_ && oldPos != newPos) {
+    undoStack_->push(new MoveBlockCommand(this, block->id(), oldPos, newPos));
+  }
+
   // Check if block was dragged into a group
   for (NodeGroup* group : nodeGroups_) {
     bool wasInGroup = group->containedNodes().contains(block);
@@ -250,7 +332,24 @@ void WeaverCanvas::onBlockMoveFinished(PackageBlock* block) {
 void WeaverCanvas::removePackageBlock(PackageBlock* block) {
   if (!block) return;
 
+  // Gather data for undo BEFORE modifying anything
+  BlockData blockData;
+  QList<ConnectionData> connectionDataList;
+
+  if (undoStack_ && !isExecutingCommand_) {
+    blockData = createBlockData(block);
+
+    // Gather connection data for all connections attached to this block
+    for (ConnectionLine* conn : block->connections()) {
+      connectionDataList.append(createConnectionData(conn));
+    }
+  }
+
   // Remove all connections associated with this block
+  // Set isExecutingCommand_ to prevent individual RemoveConnectionCommands
+  bool wasExecutingCommand = isExecutingCommand_;
+  isExecutingCommand_ = true;
+
   QList<ConnectionLine*> connections = block->connections();
   for (ConnectionLine* conn : connections) {
     removeConnection(conn);
@@ -263,6 +362,13 @@ void WeaverCanvas::removePackageBlock(PackageBlock* block) {
 
   scene_->removeItem(block);
   delete block;
+
+  isExecutingCommand_ = wasExecutingCommand;
+
+  // Push undo command after deletion (since command skips first redo)
+  if (undoStack_ && !isExecutingCommand_) {
+    undoStack_->push(new RemoveBlockCommand(this, blockData, connectionDataList));
+  }
 }
 
 ConnectionLine* WeaverCanvas::createConnection(PackageBlock* source, int sourcePin,
@@ -298,12 +404,23 @@ ConnectionLine* WeaverCanvas::createConnection(PackageBlock* source, int sourceP
   source->addConnection(connection);
   target->addConnection(connection);
 
+  // Push undo command after connection is fully created
+  if (undoStack_ && !isExecutingCommand_) {
+    undoStack_->push(new AddConnectionCommand(this, createConnectionData(connection)));
+  }
+
   emit connectionCreated(connection);
   return connection;
 }
 
 void WeaverCanvas::removeConnection(ConnectionLine* connection) {
   if (!connection) return;
+
+  // Gather data for undo BEFORE modifying anything
+  ConnectionData connData;
+  if (undoStack_ && !isExecutingCommand_) {
+    connData = createConnectionData(connection);
+  }
 
   // Remove from blocks
   if (connection->sourceBlock()) {
@@ -315,6 +432,11 @@ void WeaverCanvas::removeConnection(ConnectionLine* connection) {
 
   scene_->removeItem(connection);
   delete connection;
+
+  // Push undo command after deletion (since command skips first redo)
+  if (undoStack_ && !isExecutingCommand_) {
+    undoStack_->push(new RemoveConnectionCommand(this, connData));
+  }
 }
 
 QList<ConnectionLine*> WeaverCanvas::connections() const {
@@ -365,6 +487,15 @@ void WeaverCanvas::deleteSelectedItems() {
     }
   }
 
+  // Count total items to delete
+  int totalItems = blocksToDelete.size() + connectionsToDelete.size() + groupsToDelete.size();
+  if (totalItems == 0) return;
+
+  // Use macro for multiple deletions so they can be undone together
+  if (undoStack_ && totalItems > 1) {
+    undoStack_->beginMacro(tr("Delete %1 Items").arg(totalItems));
+  }
+
   // Delete connections first
   for (ConnectionLine* conn : connectionsToDelete) {
     removeConnection(conn);
@@ -378,6 +509,11 @@ void WeaverCanvas::deleteSelectedItems() {
   // Then delete groups
   for (NodeGroup* group : groupsToDelete) {
     removeNodeGroup(group);
+  }
+
+  // End macro if we started one
+  if (undoStack_ && totalItems > 1) {
+    undoStack_->endMacro();
   }
 }
 
@@ -404,8 +540,11 @@ NodeGroup* WeaverCanvas::createGroupFromSelection(const QString& title) {
     return nullptr;
   }
 
-  // Create the group
+  // Create the group (suppress undo for this intermediate step)
+  bool wasExecutingCommand = isExecutingCommand_;
+  isExecutingCommand_ = true;
   NodeGroup* group = createNodeGroup(title);
+  isExecutingCommand_ = wasExecutingCommand;
 
   // Add all selected blocks to the group
   for (PackageBlock* block : selectedBlocks) {
@@ -416,15 +555,31 @@ NodeGroup* WeaverCanvas::createGroupFromSelection(const QString& title) {
   qreal padding = selectedBlocks.size() == 1 ? 50.0 : 30.0;
   group->fitToContents(padding);
 
+  // Push undo command after group is fully set up
+  if (undoStack_ && !isExecutingCommand_) {
+    undoStack_->push(new AddGroupCommand(this, createGroupData(group)));
+  }
+
   return group;
 }
 
 void WeaverCanvas::removeNodeGroup(NodeGroup* group) {
   if (!group) return;
 
+  // Gather data for undo BEFORE modifying anything
+  NodeGroupData groupData;
+  if (undoStack_ && !isExecutingCommand_) {
+    groupData = createGroupData(group);
+  }
+
   nodeGroups_.removeOne(group);
   scene_->removeItem(group);
   delete group;
+
+  // Push undo command after deletion (since command skips first redo)
+  if (undoStack_ && !isExecutingCommand_) {
+    undoStack_->push(new RemoveGroupCommand(this, groupData));
+  }
 }
 
 void WeaverCanvas::zoomIn() {
