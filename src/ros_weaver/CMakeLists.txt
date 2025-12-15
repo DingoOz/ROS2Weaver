@@ -191,14 +191,46 @@ install(DIRECTORY
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
 
-  # Unit tests
+  # Unit tests - Project serialization
   ament_add_gtest(test_project test/test_project.cpp src/core/project.cpp)
   target_include_directories(test_project PRIVATE include)
   target_link_libraries(test_project Qt5::Core Qt5::Gui)
 
+  # Unit tests - Data lineage
   ament_add_gtest(test_data_lineage test/test_data_lineage.cpp src/core/data_lineage.cpp)
   target_include_directories(test_data_lineage PRIVATE include)
   target_link_libraries(test_data_lineage Qt5::Core Qt5::Gui)
+
+  # Unit tests - Code generator (requires MOC for Q_OBJECT signals)
+  ament_add_gtest(test_code_generator
+    test/test_code_generator.cpp
+    src/core/code_generator.cpp
+    src/core/project.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/ros_weaver/core/code_generator.hpp
+  )
+  target_include_directories(test_code_generator PRIVATE include ${CMAKE_CURRENT_BINARY_DIR})
+  target_link_libraries(test_code_generator Qt5::Core Qt5::Gui Qt5::Widgets)
+  set_target_properties(test_code_generator PROPERTIES AUTOMOC ON)
+
+  # Unit tests - Theme manager (requires MOC for Q_OBJECT signals)
+  ament_add_gtest(test_theme_manager
+    test/test_theme_manager.cpp
+    src/core/theme_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/ros_weaver/core/theme_manager.hpp
+  )
+  target_include_directories(test_theme_manager PRIVATE include ${CMAKE_CURRENT_BINARY_DIR})
+  target_link_libraries(test_theme_manager Qt5::Core Qt5::Gui Qt5::Widgets)
+  set_target_properties(test_theme_manager PROPERTIES AUTOMOC ON)
+
+  # Unit tests - Lineage provider
+  ament_add_gtest(test_lineage_provider
+    test/test_lineage_provider.cpp
+    src/core/lineage_provider.cpp
+    src/core/data_lineage.cpp
+    src/core/project.cpp
+  )
+  target_include_directories(test_lineage_provider PRIVATE include)
+  target_link_libraries(test_lineage_provider Qt5::Core Qt5::Gui)
 
   # Lint tests (non-invasive ones only - skip copyright/cpplint/uncrustify for now)
   find_package(ament_cmake_xmllint REQUIRED)
