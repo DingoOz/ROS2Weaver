@@ -4,6 +4,18 @@
 #include <QDateTime>
 #include <QDebug>
 
+// ROS 2 Humble uses time_stamp, Jazzy uses recv_timestamp
+#if __has_include(<rclcpp/version.h>)
+#include <rclcpp/version.h>
+#endif
+
+// Humble is version 16.x, Jazzy is version 28.x
+#if defined(RCLCPP_VERSION_MAJOR) && RCLCPP_VERSION_MAJOR >= 28
+#define ROSBAG2_MSG_TIMESTAMP(msg) (msg)->recv_timestamp
+#else
+#define ROSBAG2_MSG_TIMESTAMP(msg) (msg)->time_stamp
+#endif
+
 namespace ros_weaver {
 
 PlaybackController::PlaybackController(QObject* parent)
@@ -56,7 +68,7 @@ void PlaybackController::play() {
     // Read first message
     pendingMessage_ = bagManager_->readNext();
     if (pendingMessage_) {
-      nextMessageTime_ = rclcpp::Time(pendingMessage_->recv_timestamp);
+      nextMessageTime_ = rclcpp::Time(ROSBAG2_MSG_TIMESTAMP(pendingMessage_));
     }
   } else {
     // Resuming from pause
@@ -126,7 +138,7 @@ void PlaybackController::seek(const rclcpp::Time& time) {
   // Read next message after seek
   pendingMessage_ = bagManager_->readNext();
   if (pendingMessage_) {
-    nextMessageTime_ = rclcpp::Time(pendingMessage_->recv_timestamp);
+    nextMessageTime_ = rclcpp::Time(ROSBAG2_MSG_TIMESTAMP(pendingMessage_));
   }
 
   emit timeChanged(currentTime_.nanoseconds());
@@ -158,14 +170,14 @@ void PlaybackController::stepForward() {
 
   if (pendingMessage_) {
     publishMessage(pendingMessage_);
-    currentTime_ = rclcpp::Time(pendingMessage_->recv_timestamp);
+    currentTime_ = rclcpp::Time(ROSBAG2_MSG_TIMESTAMP(pendingMessage_));
     emit timeChanged(currentTime_.nanoseconds());
     updateProgress();
 
     // Read next
     pendingMessage_ = bagManager_->readNext();
     if (pendingMessage_) {
-      nextMessageTime_ = rclcpp::Time(pendingMessage_->recv_timestamp);
+      nextMessageTime_ = rclcpp::Time(ROSBAG2_MSG_TIMESTAMP(pendingMessage_));
     }
   }
 
@@ -195,7 +207,7 @@ void PlaybackController::stepBackward(int numMessages) {
 
   pendingMessage_ = bagManager_->readNext();
   if (pendingMessage_) {
-    nextMessageTime_ = rclcpp::Time(pendingMessage_->recv_timestamp);
+    nextMessageTime_ = rclcpp::Time(ROSBAG2_MSG_TIMESTAMP(pendingMessage_));
   }
 
   emit timeChanged(currentTime_.nanoseconds());
@@ -364,7 +376,7 @@ void PlaybackController::onPlaybackTimerTick() {
     // Read next message
     pendingMessage_ = bagManager_->readNext();
     if (pendingMessage_) {
-      nextMessageTime_ = rclcpp::Time(pendingMessage_->recv_timestamp);
+      nextMessageTime_ = rclcpp::Time(ROSBAG2_MSG_TIMESTAMP(pendingMessage_));
     } else {
       break;
     }
@@ -394,7 +406,7 @@ void PlaybackController::onPlaybackTimerTick() {
 
       pendingMessage_ = bagManager_->readNext();
       if (pendingMessage_) {
-        nextMessageTime_ = rclcpp::Time(pendingMessage_->recv_timestamp);
+        nextMessageTime_ = rclcpp::Time(ROSBAG2_MSG_TIMESTAMP(pendingMessage_));
       }
     } else {
       playbackTimer_->stop();
@@ -516,7 +528,7 @@ void PlaybackController::publishMessage(const std::shared_ptr<rosbag2_storage::S
 
       it->second->publish(*serialized);
 
-      emit messagePublished(publishTopic, msg->recv_timestamp);
+      emit messagePublished(publishTopic, ROSBAG2_MSG_TIMESTAMP(msg));
     }
     catch (const std::exception& e) {
       qWarning() << "Failed to publish message on" << publishTopic << ":" << e.what();

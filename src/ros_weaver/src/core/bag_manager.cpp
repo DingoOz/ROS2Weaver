@@ -6,6 +6,20 @@
 
 #include <rosbag2_storage/metadata_io.hpp>
 
+// ROS 2 Humble uses time_stamp, Jazzy uses recv_timestamp
+// Check for Jazzy+ by detecting the new member name
+#if __has_include(<rclcpp/version.h>)
+#include <rclcpp/version.h>
+#endif
+
+// Humble is version 16.x, Jazzy is version 28.x
+// In Humble, SerializedBagMessage uses time_stamp; in Jazzy it uses recv_timestamp
+#if defined(RCLCPP_VERSION_MAJOR) && RCLCPP_VERSION_MAJOR >= 28
+#define ROSBAG2_MSG_TIMESTAMP(msg) (msg)->recv_timestamp
+#else
+#define ROSBAG2_MSG_TIMESTAMP(msg) (msg)->time_stamp
+#endif
+
 namespace ros_weaver {
 
 BagManager::BagManager(QObject* parent)
@@ -226,7 +240,7 @@ std::shared_ptr<rosbag2_storage::SerializedBagMessage> BagManager::readNext() {
   try {
     auto msg = reader_->read_next();
     if (msg) {
-      currentReadTime_ = rclcpp::Time(msg->recv_timestamp);
+      currentReadTime_ = rclcpp::Time(ROSBAG2_MSG_TIMESTAMP(msg));
     }
     return msg;
   }
@@ -345,14 +359,25 @@ void BagManager::parseMetadata() {
       info.messageCount = static_cast<int64_t>(topicWithCount.message_count);
 
       // Parse QoS from offered_qos_profiles if available
+      // In Jazzy, offered_qos_profiles is a vector of rclcpp::QoS objects
+      // In Humble, offered_qos_profiles is a YAML string
+#if defined(RCLCPP_VERSION_MAJOR) && RCLCPP_VERSION_MAJOR >= 28
       if (!topicWithCount.topic_metadata.offered_qos_profiles.empty()) {
-        // In ROS2 Jazzy, offered_qos_profiles is a vector of rclcpp::QoS objects
         const auto& firstQos = topicWithCount.topic_metadata.offered_qos_profiles.front();
         info.reliabilityReliable =
             firstQos.reliability() == rclcpp::ReliabilityPolicy::Reliable;
         info.durabilityTransient =
             firstQos.durability() == rclcpp::DurabilityPolicy::TransientLocal;
       }
+#else
+      // Humble: offered_qos_profiles is a YAML string - parse it simply
+      const std::string& qosYaml = topicWithCount.topic_metadata.offered_qos_profiles;
+      if (!qosYaml.empty()) {
+        // Simple string search for reliability and durability settings
+        info.reliabilityReliable = qosYaml.find("reliability: reliable") != std::string::npos;
+        info.durabilityTransient = qosYaml.find("durability: transient_local") != std::string::npos;
+      }
+#endif
 
       topicInfos_.append(info);
     }
