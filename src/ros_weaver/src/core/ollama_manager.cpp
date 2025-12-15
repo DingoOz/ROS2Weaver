@@ -5,6 +5,7 @@
 #include <QNetworkRequest>
 #include <QSettings>
 #include <QDebug>
+#include <QUuid>
 
 namespace ros_weaver {
 
@@ -495,27 +496,21 @@ QColor OllamaManager::defaultCodeBackgroundColor() {
 
 QString OllamaManager::defaultSystemPrompt() {
   return QStringLiteral(
-    "You are a ROS2 assistant integrated with ROS Weaver canvas editor.\n\n"
-    "IMPORTANT: You have tools to control the canvas. When the user asks you to do something on the canvas, you MUST use a tool.\n\n"
-    "TO USE A TOOL, output EXACTLY this format (no other text before it):\n"
-    "<tool_call>{\"tool\": \"TOOL_NAME\", \"parameters\": {PARAMS}}</tool_call>\n\n"
-    "TOOLS:\n"
-    "1. load_example - Load example project\n"
-    "   <tool_call>{\"tool\": \"load_example\", \"parameters\": {\"example_name\": \"turtlesim_teleop\"}}</tool_call>\n\n"
-    "2. add_block - Add a ROS2 node\n"
-    "   <tool_call>{\"tool\": \"add_block\", \"parameters\": {\"package\": \"turtlesim\", \"executable\": \"turtlesim_node\", \"x\": 200, \"y\": 150}}</tool_call>\n\n"
-    "3. remove_block - Remove a block\n"
-    "   <tool_call>{\"tool\": \"remove_block\", \"parameters\": {\"block_name\": \"turtlesim_node\"}}</tool_call>\n\n"
-    "4. set_parameter - Change a parameter\n"
-    "   <tool_call>{\"tool\": \"set_parameter\", \"parameters\": {\"block_name\": \"node\", \"param_name\": \"param\", \"value\": \"val\"}}</tool_call>\n\n"
-    "5. get_project_state - See what's on canvas\n"
-    "   <tool_call>{\"tool\": \"get_project_state\", \"parameters\": {}}</tool_call>\n\n"
-    "RULES:\n"
-    "- \"Load turtlesim example\" -> USE load_example tool\n"
-    "- \"Add a node\" -> USE add_block tool\n"
-    "- \"What's on the canvas?\" -> USE get_project_state tool\n"
-    "- General ROS2 questions -> Answer normally\n\n"
-    "Keep responses SHORT. Use tools when asked to modify the canvas."
+    "You are a ROS2 assistant integrated with ROS Weaver, a visual canvas editor for ROS2 projects.\n\n"
+    "You have access to tools that can control the canvas:\n"
+    "- load_example: Load example projects (turtlesim_teleop, turtlebot3_navigation)\n"
+    "- add_block: Add ROS2 nodes to the canvas\n"
+    "- remove_block: Remove nodes from the canvas\n"
+    "- set_parameter: Modify node parameters\n"
+    "- create_connection: Connect nodes via topics\n"
+    "- remove_connection: Disconnect nodes\n"
+    "- create_group: Group nodes together\n"
+    "- get_project_state: Get current canvas state\n"
+    "- get_block_info: Get details about a specific node\n"
+    "- list_available_packages: List available ROS2 packages\n\n"
+    "When the user asks you to modify the canvas, use the appropriate tool.\n"
+    "For general ROS2 questions, answer directly without using tools.\n"
+    "Keep responses concise and helpful."
   );
 }
 
@@ -569,6 +564,260 @@ void OllamaManager::saveSettings() {
   settings.setValue(KEY_CODE_BACKGROUND_COLOR, codeBackgroundColor_.name());
 
   settings.endGroup();
+}
+
+// ============================================================================
+// Native Tool Calling API Implementation (/api/chat with tools)
+// ============================================================================
+
+void OllamaManager::clearConversation() {
+  conversationHistory_.clear();
+}
+
+OllamaTool OllamaManager::convertFromAITool(const QString& name, const QString& description,
+                                             const QJsonObject& parametersSchema) {
+  OllamaTool tool;
+  tool.name = name;
+  tool.description = description;
+  tool.parameters = parametersSchema;
+  return tool;
+}
+
+void OllamaManager::chatWithTools(const QList<ChatMessage>& messages,
+                                   const QList<OllamaTool>& tools,
+                                   const QStringList& images) {
+  if (!ollamaRunning_ || selectedModel_.isEmpty()) {
+    emit chatError(tr("Ollama is not running or no model selected"));
+    return;
+  }
+
+  // Cancel any existing chat request
+  if (currentChatReply_) {
+    currentChatReply_->abort();
+    currentChatReply_->deleteLater();
+    currentChatReply_ = nullptr;
+  }
+
+  accumulatedChatResponse_.clear();
+  pendingToolCalls_.clear();
+  currentAssistantMessage_ = ChatMessage();
+  currentAssistantMessage_.role = "assistant";
+  currentRequestTools_ = tools;
+
+  QNetworkRequest request(QUrl(endpoint_ + "/api/chat"));
+  request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+  QJsonObject json;
+  json["model"] = selectedModel_;
+  json["stream"] = true;
+
+  // Build messages array
+  QJsonArray messagesArray;
+  for (const ChatMessage& msg : messages) {
+    QJsonObject msgObj;
+    msgObj["role"] = msg.role;
+    msgObj["content"] = msg.content;
+
+    // Add tool_calls for assistant messages if present
+    if (msg.role == "assistant" && !msg.toolCalls.isEmpty()) {
+      msgObj["tool_calls"] = msg.toolCalls;
+    }
+
+    // Add tool_call_id for tool response messages
+    if (msg.role == "tool" && !msg.toolCallId.isEmpty()) {
+      // For Ollama, tool results are just sent as content
+      // The context is maintained by the conversation order
+    }
+
+    messagesArray.append(msgObj);
+  }
+  json["messages"] = messagesArray;
+
+  // Add tools if provided and tool calling is enabled
+  if (toolCallingEnabled_ && !tools.isEmpty()) {
+    QJsonArray toolsArray;
+    for (const OllamaTool& tool : tools) {
+      QJsonObject toolObj;
+      toolObj["type"] = "function";
+
+      QJsonObject functionObj;
+      functionObj["name"] = tool.name;
+      functionObj["description"] = tool.description;
+      functionObj["parameters"] = tool.parameters;
+      toolObj["function"] = functionObj;
+
+      toolsArray.append(toolObj);
+    }
+    json["tools"] = toolsArray;
+  }
+
+  // Add images for multimodal models
+  if (!images.isEmpty()) {
+    // For chat API, images go in the last user message
+    // This is handled by the caller who should include images in the message content
+    // or we can add them to the request options
+  }
+
+  // Add options if configured
+  if (numThreads_ > 0) {
+    QJsonObject options;
+    options["num_thread"] = numThreads_;
+    json["options"] = options;
+  }
+
+  qDebug() << "Sending chat request with" << tools.size() << "tools";
+
+  currentChatReply_ = networkManager_->post(request, QJsonDocument(json).toJson());
+
+  connect(currentChatReply_, &QNetworkReply::readyRead,
+          this, &OllamaManager::onChatReadyRead);
+  connect(currentChatReply_, &QNetworkReply::finished,
+          this, &OllamaManager::onChatFinished);
+
+  emit chatStarted();
+}
+
+void OllamaManager::sendToolResults(const QList<ChatMessage>& messages,
+                                     const QList<OllamaTool>& tools) {
+  // This is essentially another chat request with the tool results included
+  chatWithTools(messages, tools, QStringList());
+}
+
+void OllamaManager::onChatReadyRead() {
+  if (!currentChatReply_) return;
+
+  while (currentChatReply_->canReadLine()) {
+    QByteArray line = currentChatReply_->readLine();
+    if (line.isEmpty()) continue;
+
+    QJsonDocument doc = QJsonDocument::fromJson(line);
+    if (doc.isNull()) continue;
+
+    QJsonObject obj = doc.object();
+
+    // Check for error
+    if (obj.contains("error")) {
+      emit chatError(obj["error"].toString());
+      return;
+    }
+
+    // Get the message object
+    QJsonObject messageObj = obj["message"].toObject();
+    QString role = messageObj["role"].toString();
+
+    // Handle content tokens (streaming)
+    QString content = messageObj["content"].toString();
+    if (!content.isEmpty()) {
+      accumulatedChatResponse_ += content;
+      currentAssistantMessage_.content += content;
+      emit chatToken(content);
+    }
+
+    // Handle tool_calls
+    if (messageObj.contains("tool_calls")) {
+      QJsonArray toolCallsArray = messageObj["tool_calls"].toArray();
+      currentAssistantMessage_.toolCalls = toolCallsArray;
+
+      for (const QJsonValue& tcVal : toolCallsArray) {
+        QJsonObject tcObj = tcVal.toObject();
+        OllamaToolCall toolCall;
+
+        // Generate an ID if not provided
+        toolCall.id = tcObj.contains("id") ?
+            tcObj["id"].toString() :
+            QUuid::createUuid().toString(QUuid::WithoutBraces);
+
+        QJsonObject functionObj = tcObj["function"].toObject();
+        toolCall.functionName = functionObj["name"].toString();
+
+        // Arguments can be a string (JSON) or an object
+        QJsonValue argsVal = functionObj["arguments"];
+        if (argsVal.isString()) {
+          QJsonDocument argsDoc = QJsonDocument::fromJson(argsVal.toString().toUtf8());
+          toolCall.arguments = argsDoc.object();
+        } else if (argsVal.isObject()) {
+          toolCall.arguments = argsVal.toObject();
+        }
+
+        pendingToolCalls_.append(toolCall);
+
+        qDebug() << "Tool call received:" << toolCall.functionName
+                 << "with args:" << QJsonDocument(toolCall.arguments).toJson(QJsonDocument::Compact);
+      }
+    }
+
+    // Check if this is the final message
+    if (obj["done"].toBool()) {
+      // Message complete
+    }
+  }
+}
+
+void OllamaManager::onChatFinished() {
+  if (!currentChatReply_) return;
+
+  if (currentChatReply_->error() == QNetworkReply::NoError) {
+    // Process any remaining data
+    QByteArray remaining = currentChatReply_->readAll();
+    for (const QByteArray& line : remaining.split('\n')) {
+      if (line.isEmpty()) continue;
+
+      QJsonDocument doc = QJsonDocument::fromJson(line);
+      if (doc.isNull()) continue;
+
+      QJsonObject obj = doc.object();
+      QJsonObject messageObj = obj["message"].toObject();
+
+      QString content = messageObj["content"].toString();
+      if (!content.isEmpty()) {
+        accumulatedChatResponse_ += content;
+        currentAssistantMessage_.content += content;
+        emit chatToken(content);
+      }
+
+      // Handle tool_calls in final message
+      if (messageObj.contains("tool_calls") && currentAssistantMessage_.toolCalls.isEmpty()) {
+        QJsonArray toolCallsArray = messageObj["tool_calls"].toArray();
+        currentAssistantMessage_.toolCalls = toolCallsArray;
+
+        for (const QJsonValue& tcVal : toolCallsArray) {
+          QJsonObject tcObj = tcVal.toObject();
+          OllamaToolCall toolCall;
+
+          toolCall.id = tcObj.contains("id") ?
+              tcObj["id"].toString() :
+              QUuid::createUuid().toString(QUuid::WithoutBraces);
+
+          QJsonObject functionObj = tcObj["function"].toObject();
+          toolCall.functionName = functionObj["name"].toString();
+
+          QJsonValue argsVal = functionObj["arguments"];
+          if (argsVal.isString()) {
+            QJsonDocument argsDoc = QJsonDocument::fromJson(argsVal.toString().toUtf8());
+            toolCall.arguments = argsDoc.object();
+          } else if (argsVal.isObject()) {
+            toolCall.arguments = argsVal.toObject();
+          }
+
+          pendingToolCalls_.append(toolCall);
+        }
+      }
+    }
+
+    // Emit appropriate signal based on whether tool calls are pending
+    if (!pendingToolCalls_.isEmpty()) {
+      qDebug() << "Emitting toolCallsReceived with" << pendingToolCalls_.size() << "calls";
+      emit toolCallsReceived(pendingToolCalls_);
+    } else {
+      emit chatFinished(accumulatedChatResponse_, currentAssistantMessage_);
+    }
+
+  } else if (currentChatReply_->error() != QNetworkReply::OperationCanceledError) {
+    emit chatError(currentChatReply_->errorString());
+  }
+
+  currentChatReply_->deleteLater();
+  currentChatReply_ = nullptr;
 }
 
 }  // namespace ros_weaver

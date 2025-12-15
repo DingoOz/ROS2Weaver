@@ -66,11 +66,21 @@ Create complete robot description packages with ros2_control support:
 
 ### Local AI Assistant
 - Ollama integration for local LLM support
+- **Native tool calling** via Ollama's `/api/chat` endpoint for reliable canvas control
 - AI chat panel for ROS2 development assistance
 - Status indicator showing AI availability
 - Customizable chat appearance (fonts, colors, styles)
 
+The AI assistant can control the canvas through native function calling:
+- Load example projects ("Load the turtlesim example")
+- Add/remove ROS2 nodes ("Add a turtlesim node")
+- Create connections between nodes
+- Query project state ("What's on the canvas?")
+- Set node parameters
+
 Users can paste screenshots, use the Local AI to automatically analyse ROS logs, upload files, or chat to gain insights about the current project. All processing happens locally without sending data to the cloud.
+
+**Recommended models for tool calling:** `llama3.1:8b`, `qwen2.5:7b`, `qwen2.5-coder:7b`
 
 ### In-Program Help
 - Interactive guided tour for new users
