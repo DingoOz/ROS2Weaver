@@ -1,9 +1,13 @@
 # ROS Weaver
 
-[![CI](https://github.com/DingoOz/ROS2Weaver/actions/workflows/ci.yml/badge.svg)](https://github.com/DingoOz/ROS2Weaver/actions/workflows/ci.yml)
-[![ROS2 Humble](https://img.shields.io/badge/ROS2-Humble-blue)](https://docs.ros.org/en/humble/)
-[![ROS2 Jazzy](https://img.shields.io/badge/ROS2-Jazzy-blue)](https://docs.ros.org/en/jazzy/)
-[![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-green.svg)](https://opensource.org/licenses/GPL-3.0)
+<div align="right">
+
+[![Humble Build](https://img.shields.io/github/actions/workflow/status/DingoOz/ROS2Weaver/ci.yml?branch=main&label=Humble%20Build)](https://github.com/DingoOz/ROS2Weaver/actions/workflows/ci.yml)
+[![Humble Test](https://img.shields.io/github/actions/workflow/status/DingoOz/ROS2Weaver/ci.yml?branch=main&label=Humble%20Test)](https://github.com/DingoOz/ROS2Weaver/actions/workflows/ci.yml)
+[![Jazzy Build](https://img.shields.io/github/actions/workflow/status/DingoOz/ROS2Weaver/ci.yml?branch=main&label=Jazzy%20Build)](https://github.com/DingoOz/ROS2Weaver/actions/workflows/ci.yml)
+[![Jazzy Test](https://img.shields.io/github/actions/workflow/status/DingoOz/ROS2Weaver/ci.yml?branch=main&label=Jazzy%20Test)](https://github.com/DingoOz/ROS2Weaver/actions/workflows/ci.yml)
+
+</div>
 
 A visual tool for assembling, extending, and iterating on ROS2 packages and nodes.
 
