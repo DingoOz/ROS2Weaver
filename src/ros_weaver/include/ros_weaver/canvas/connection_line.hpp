@@ -49,6 +49,7 @@ public:
   int targetPinIndex() const { return targetPinIndex_; }
 
   QUuid id() const { return id_; }
+  void setId(const QUuid& id) { id_ = id; }  // For undo/redo support
 
   // Update the path when blocks move
   void updatePath();

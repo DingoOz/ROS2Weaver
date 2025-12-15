@@ -98,6 +98,9 @@ MainWindow::MainWindow(QWidget* parent)
   , tfTreePanel_(nullptr)
   , plotPanel_(nullptr)
   , guidedTour_(nullptr)
+  , undoStack_(nullptr)
+  , undoAction_(nullptr)
+  , redoAction_(nullptr)
 {
   setWindowTitle(baseWindowTitle_);
   setMinimumSize(1200, 800);
@@ -106,6 +109,7 @@ MainWindow::MainWindow(QWidget* parent)
   packageIndex_ = new RosPackageIndex(this);
   codeGenerator_ = new CodeGenerator(this);
   externalEditor_ = new ExternalEditor(this);
+  undoStack_ = new UndoStack(this);
 
   // Initialize system discovery components
   systemDiscovery_ = new SystemDiscovery(this);
@@ -222,13 +226,23 @@ void MainWindow::setupMenuBar() {
   // Edit menu
   QMenu* editMenu = menuBar()->addMenu(tr("&Edit"));
 
-  QAction* undoAction = editMenu->addAction(tr("&Undo"));
-  undoAction->setShortcut(QKeySequence::Undo);
-  undoAction->setEnabled(false);  // TODO: Implement undo
+  undoAction_ = editMenu->addAction(tr("&Undo"));
+  undoAction_->setShortcut(QKeySequence::Undo);
+  undoAction_->setEnabled(false);
+  connect(undoAction_, &QAction::triggered, undoStack_, &UndoStack::undo);
+  connect(undoStack_, &UndoStack::canUndoChanged, undoAction_, &QAction::setEnabled);
+  connect(undoStack_, &UndoStack::undoTextChanged, this, [this](const QString& text) {
+    undoAction_->setText(text.isEmpty() ? tr("&Undo") : tr("&Undo %1").arg(text));
+  });
 
-  QAction* redoAction = editMenu->addAction(tr("&Redo"));
-  redoAction->setShortcut(QKeySequence::Redo);
-  redoAction->setEnabled(false);  // TODO: Implement redo
+  redoAction_ = editMenu->addAction(tr("&Redo"));
+  redoAction_->setShortcut(QKeySequence::Redo);
+  redoAction_->setEnabled(false);
+  connect(redoAction_, &QAction::triggered, undoStack_, &UndoStack::redo);
+  connect(undoStack_, &UndoStack::canRedoChanged, redoAction_, &QAction::setEnabled);
+  connect(undoStack_, &UndoStack::redoTextChanged, this, [this](const QString& text) {
+    redoAction_->setText(text.isEmpty() ? tr("&Redo") : tr("&Redo %1").arg(text));
+  });
 
   editMenu->addSeparator();
 
@@ -726,6 +740,7 @@ void MainWindow::setupDockWidgets() {
 void MainWindow::setupCentralWidget() {
   canvas_ = new WeaverCanvas(this);
   canvas_->setObjectName("weaverCanvas");
+  canvas_->setUndoStack(undoStack_);
   setCentralWidget(canvas_);
 
   // Connect canvas signals
@@ -800,6 +815,7 @@ void MainWindow::onNewProject() {
   // Clear param dashboard first to avoid dangling pointer when canvas clears blocks
   paramDashboard_->setCurrentBlock(nullptr);
   canvas_->clearCanvas();
+  undoStack_->clear();
   currentProjectPath_.clear();
   baseWindowTitle_ = "ROS Weaver - Visual ROS2 Package Editor";
   setWindowTitle(baseWindowTitle_ + rosStatusWidget_->titleBarSuffix());
@@ -886,6 +902,10 @@ bool MainWindow::loadProject(const QString& filePath) {
   // Clear param dashboard before import (which clears the canvas)
   paramDashboard_->setCurrentBlock(nullptr);
   canvas_->importFromProject(project);
+
+  // Clear undo stack after loading - loaded state is the new baseline
+  undoStack_->clear();
+  undoStack_->setClean();
   return true;
 }
 

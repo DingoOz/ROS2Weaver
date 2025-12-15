@@ -43,6 +43,7 @@ public:
   void setColor(const QColor& color);
 
   QUuid id() const { return id_; }
+  void setId(const QUuid& id) { id_ = id; }  // For undo/redo support
 
   // Size management
   QSizeF size() const { return size_; }

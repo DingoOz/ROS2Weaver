@@ -67,6 +67,17 @@ set(SOURCES
   src/core/lineage_provider.cpp
   src/core/ai_tool_manager.cpp
   src/core/ai_context_provider.cpp
+  src/core/undo/undo_command.cpp
+  src/core/undo/undo_stack.cpp
+  src/core/undo/commands/add_block_command.cpp
+  src/core/undo/commands/remove_block_command.cpp
+  src/core/undo/commands/move_block_command.cpp
+  src/core/undo/commands/add_connection_command.cpp
+  src/core/undo/commands/remove_connection_command.cpp
+  src/core/undo/commands/add_group_command.cpp
+  src/core/undo/commands/remove_group_command.cpp
+  src/core/undo/commands/modify_group_command.cpp
+  src/core/undo/commands/macro_command.cpp
   src/widgets/param_dashboard.cpp
   src/widgets/ai_permission_dialog.cpp
   src/widgets/lineage_dialog.cpp
@@ -111,6 +122,7 @@ set(HEADERS
   include/ros_weaver/core/lineage_provider.hpp
   include/ros_weaver/core/ai_tool_manager.hpp
   include/ros_weaver/core/ai_context_provider.hpp
+  include/ros_weaver/core/undo/undo_stack.hpp
   include/ros_weaver/widgets/param_dashboard.hpp
   include/ros_weaver/widgets/ai_permission_dialog.hpp
   include/ros_weaver/widgets/lineage_dialog.hpp
@@ -231,6 +243,18 @@ if(BUILD_TESTING)
   )
   target_include_directories(test_lineage_provider PRIVATE include)
   target_link_libraries(test_lineage_provider Qt5::Core Qt5::Gui)
+
+  # Unit tests - Undo stack (requires MOC for Q_OBJECT signals)
+  ament_add_gtest(test_undo_stack
+    test/test_undo_stack.cpp
+    src/core/undo/undo_command.cpp
+    src/core/undo/undo_stack.cpp
+    src/core/undo/commands/macro_command.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/ros_weaver/core/undo/undo_stack.hpp
+  )
+  target_include_directories(test_undo_stack PRIVATE include ${CMAKE_CURRENT_BINARY_DIR})
+  target_link_libraries(test_undo_stack Qt5::Core Qt5::Gui Qt5::Widgets)
+  set_target_properties(test_undo_stack PROPERTIES AUTOMOC ON)
 
   # Lint tests (non-invasive ones only - skip copyright/cpplint/uncrustify for now)
   find_package(ament_cmake_xmllint REQUIRED)

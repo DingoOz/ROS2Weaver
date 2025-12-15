@@ -343,6 +343,7 @@ QVariant PackageBlock::itemChange(GraphicsItemChange change, const QVariant& val
 void PackageBlock::mousePressEvent(QGraphicsSceneMouseEvent* event) {
   if (event->button() == Qt::LeftButton) {
     isDragging_ = true;
+    moveStartPos_ = pos();  // Store position for undo
   }
   QGraphicsObject::mousePressEvent(event);
 }

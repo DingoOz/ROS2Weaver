@@ -56,6 +56,10 @@ public:
   void setPackageName(const QString& name);
 
   QUuid id() const { return id_; }
+  void setId(const QUuid& id) { id_ = id; }  // For undo/redo support
+
+  // Position when drag started (for undo/redo)
+  QPointF moveStartPos() const { return moveStartPos_; }
 
   // Pin management
   void addInputPin(const QString& name, Pin::DataType dataType,
@@ -167,6 +171,7 @@ private:
 
   // Drag state
   bool isDragging_;
+  QPointF moveStartPos_;  // Position when drag started
 
   // Parameters
   QList<BlockParamData> parameters_;

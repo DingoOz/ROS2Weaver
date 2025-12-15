@@ -5,6 +5,15 @@
 #include "ros_weaver/core/project.hpp"
 #include "ros_weaver/core/lineage_provider.hpp"
 #include "ros_weaver/widgets/lineage_dialog.hpp"
+#include "ros_weaver/core/undo/undo_stack.hpp"
+#include "ros_weaver/core/undo/commands/add_block_command.hpp"
+#include "ros_weaver/core/undo/commands/remove_block_command.hpp"
+#include "ros_weaver/core/undo/commands/move_block_command.hpp"
+#include "ros_weaver/core/undo/commands/add_connection_command.hpp"
+#include "ros_weaver/core/undo/commands/remove_connection_command.hpp"
+#include "ros_weaver/core/undo/commands/add_group_command.hpp"
+#include "ros_weaver/core/undo/commands/remove_group_command.hpp"
+#include "ros_weaver/core/undo/commands/macro_command.hpp"
 
 #include <QMenu>
 #include <QInputDialog>
@@ -33,6 +42,8 @@ WeaverCanvas::WeaverCanvas(QWidget* parent)
   , disconnectingLine_(nullptr)
   , isRubberBandSelecting_(false)
   , rubberBand_(nullptr)
+  , undoStack_(nullptr)
+  , isExecutingCommand_(false)
 {
   setupScene();
 
@@ -61,6 +72,10 @@ WeaverCanvas::WeaverCanvas(QWidget* parent)
 }
 
 WeaverCanvas::~WeaverCanvas() = default;
+
+void WeaverCanvas::setUndoStack(UndoStack* undoStack) {
+  undoStack_ = undoStack;
+}
 
 void WeaverCanvas::setupScene() {
   scene_ = new QGraphicsScene(this);

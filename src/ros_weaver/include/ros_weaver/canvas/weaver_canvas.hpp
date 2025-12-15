@@ -16,6 +16,7 @@ class PackageBlock;
 class ConnectionLine;
 class NodeGroup;
 class Project;
+class UndoStack;
 
 class WeaverCanvas : public QGraphicsView {
   Q_OBJECT
@@ -71,6 +72,14 @@ public:
 
   // Set available YAML files for context menu
   void setAvailableYamlFiles(const QStringList& yamlFiles);
+
+  // Undo/redo support
+  void setUndoStack(UndoStack* undoStack);
+  UndoStack* undoStack() const { return undoStack_; }
+
+  // Flag for undo command execution (to prevent recursive command creation)
+  bool isExecutingCommand() const { return isExecutingCommand_; }
+  void setExecutingCommand(bool executing) { isExecutingCommand_ = executing; }
 
 signals:
   void blockSelected(PackageBlock* block);
@@ -148,6 +157,10 @@ private:
 
   // Available YAML files for context menu
   QStringList availableYamlFiles_;
+
+  // Undo/redo support
+  UndoStack* undoStack_;
+  bool isExecutingCommand_;
 
   static constexpr double MIN_ZOOM = 0.1;
   static constexpr double MAX_ZOOM = 5.0;
