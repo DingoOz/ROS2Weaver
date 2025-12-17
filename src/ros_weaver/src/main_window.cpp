@@ -30,6 +30,10 @@
 #include "ros_weaver/widgets/guided_tour.hpp"
 #include "ros_weaver/widgets/topic_echo_dialog.hpp"
 #include "ros_weaver/widgets/rosbag_workbench_panel.hpp"
+#include "ros_weaver/widgets/mcp_explorer_panel.hpp"
+#include "ros_weaver/widgets/ros_control_panel.hpp"
+#include "ros_weaver/wizards/mcp_server_wizard.hpp"
+#include "ros_weaver/core/mcp_manager.hpp"
 #include "ros_weaver/core/context_help.hpp"
 
 #include <QApplication>
@@ -104,6 +108,9 @@ MainWindow::MainWindow(QWidget* parent)
   , redoAction_(nullptr)
   , rosbagWorkbenchPanel_(nullptr)
   , rosbagWorkbenchDock_(nullptr)
+  , mcpExplorerPanel_(nullptr)
+  , mcpExplorerDock_(nullptr)
+  , rosControlPanel_(nullptr)
 {
   setWindowTitle(baseWindowTitle_);
   setMinimumSize(1200, 800);
@@ -309,6 +316,12 @@ void MainWindow::setupMenuBar() {
   showRosbagWorkbenchAction->setChecked(false);  // Hidden by default
   showRosbagWorkbenchAction->setObjectName("showRosbagWorkbenchAction");
   showRosbagWorkbenchAction->setToolTip(tr("Show/hide rosbag playback and SLAM tuning workbench"));
+
+  QAction* showMCPExplorerAction = panelsMenu->addAction(tr("&MCP Explorer"));
+  showMCPExplorerAction->setCheckable(true);
+  showMCPExplorerAction->setChecked(false);  // Hidden by default
+  showMCPExplorerAction->setObjectName("showMCPExplorerAction");
+  showMCPExplorerAction->setToolTip(tr("Show/hide MCP server explorer (star network visualization)"));
 
   panelsMenu->addSeparator();
 
@@ -637,6 +650,23 @@ void MainWindow::setupDockWidgets() {
   plotPanel_->setCanvas(canvas_);
   propertiesTab_->addTab(plotPanel_, tr("Plots"));
 
+  // ROS Control panel tab
+  rosControlPanel_ = new RosControlPanel();
+  rosControlPanel_->setCanvas(canvas_);
+  propertiesTab_->addTab(rosControlPanel_, tr("Controllers"));
+
+  // Connect ROS Control panel signals
+  connect(rosControlPanel_, &RosControlPanel::controllerStateChanged,
+          this, [this](const QString& name, const QString& oldState, const QString& newState) {
+    statusBar()->showMessage(tr("Controller '%1' changed: %2 -> %3")
+        .arg(name, oldState, newState), 5000);
+  });
+
+  connect(rosControlPanel_, &RosControlPanel::errorOccurred,
+          this, [this](const QString& error) {
+    statusBar()->showMessage(tr("ros_control error: %1").arg(error), 5000);
+  });
+
   // Connect TF tree signals
   connect(tfTreePanel_, &TFTreePanel::frameSelected,
           this, [this](const QString& frameName) {
@@ -724,6 +754,56 @@ void MainWindow::setupDockWidgets() {
     connect(showRosbagWorkbenchAction, &QAction::toggled, rosbagWorkbenchDock_, &QDockWidget::setVisible);
     connect(rosbagWorkbenchDock_, &QDockWidget::visibilityChanged, showRosbagWorkbenchAction, &QAction::setChecked);
   }
+
+  // MCP Explorer Dock (floating/undocked by default as per plan)
+  mcpExplorerDock_ = new QDockWidget(tr("MCP Explorer"), this);
+  mcpExplorerDock_->setObjectName("mcpExplorerDock");
+  mcpExplorerDock_->setAllowedAreas(Qt::AllDockWidgetAreas);
+
+  mcpExplorerPanel_ = new MCPExplorerPanel();
+  mcpExplorerDock_->setWidget(mcpExplorerPanel_);
+
+  // Add as floating window initially (undocked)
+  addDockWidget(Qt::RightDockWidgetArea, mcpExplorerDock_);
+  mcpExplorerDock_->setFloating(true);
+  mcpExplorerDock_->resize(500, 400);
+  mcpExplorerDock_->hide();  // Hidden by default, shown via View menu
+
+  // Connect MCP explorer signals
+  connect(mcpExplorerPanel_, &MCPExplorerPanel::addServerRequested, this,
+          [this]() {
+    MCPServerWizard wizard(this);
+    if (wizard.exec() == QDialog::Accepted) {
+      MCPServerConfig config = wizard.resultConfig();
+      auto server = MCPManager::instance().createServer(config);
+      if (server) {
+        MCPManager::instance().registerServer(server);
+      }
+    }
+  });
+
+  connect(mcpExplorerPanel_, &MCPExplorerPanel::serverSettingsRequested, this,
+          [this](const QUuid& serverId) {
+    auto server = MCPManager::instance().server(serverId);
+    if (server) {
+      QMessageBox::information(this, tr("Server Settings"),
+          tr("Settings for: %1\n\nType: %2\nStatus: %3")
+          .arg(server->name())
+          .arg(server->serverType())
+          .arg(server->isConnected() ? "Connected" : "Disconnected"));
+    }
+  });
+
+  // Connect MCP explorer visibility toggle
+  QAction* showMCPExplorerAction = findChild<QAction*>("showMCPExplorerAction");
+  if (showMCPExplorerAction) {
+    connect(showMCPExplorerAction, &QAction::toggled, mcpExplorerDock_, &QDockWidget::setVisible);
+    connect(mcpExplorerDock_, &QDockWidget::visibilityChanged, showMCPExplorerAction, &QAction::setChecked);
+  }
+
+  // Initialize MCP Manager and load configuration
+  MCPManager::instance().loadConfiguration();
+  MCPManager::instance().setCanvas(canvas_);
 
   // Setup AI integration between canvas and LLM chat
   if (outputPanel_->llmChatWidget() && canvas_) {

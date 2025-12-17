@@ -121,6 +121,9 @@ private:
   void registerGetBlockInfoTool();
   void registerListAvailablePackagesTool();
 
+  // MCP tool registration
+  void registerMCPTools();
+
   // Tool registry
   QMap<QString, AITool> tools_;
 

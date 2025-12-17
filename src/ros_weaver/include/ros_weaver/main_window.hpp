@@ -42,6 +42,8 @@ class TFTreePanel;
 class PlotPanel;
 class GuidedTour;
 class RosbagWorkbenchPanel;
+class MCPExplorerPanel;
+class RosControlPanel;
 
 class MainWindow : public QMainWindow {
   Q_OBJECT
@@ -205,6 +207,13 @@ private:
   // Rosbag Workbench
   RosbagWorkbenchPanel* rosbagWorkbenchPanel_;
   QDockWidget* rosbagWorkbenchDock_;
+
+  // MCP Explorer
+  MCPExplorerPanel* mcpExplorerPanel_;
+  QDockWidget* mcpExplorerDock_;
+
+  // ROS Control Panel
+  RosControlPanel* rosControlPanel_;
 };
 
 }  // namespace ros_weaver

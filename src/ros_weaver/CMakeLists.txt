@@ -107,10 +107,17 @@ set(SOURCES
   src/widgets/slam_config_widget.cpp
   src/widgets/bookmark_manager.cpp
   src/core/bag_manager.cpp
+  src/core/bag_recorder.cpp
   src/core/playback_controller.cpp
   src/core/slam_pipeline_manager.cpp
+  src/core/mcp_server.cpp
+  src/core/mcp_manager.cpp
+  src/core/mcp_providers.cpp
   src/wizards/package_wizard.cpp
   src/wizards/robot_wizard.cpp
+  src/wizards/mcp_server_wizard.cpp
+  src/widgets/mcp_explorer_panel.cpp
+  src/widgets/ros_control_panel.cpp
 )
 
 # Header files (for MOC)
@@ -161,10 +168,18 @@ set(HEADERS
   include/ros_weaver/widgets/slam_config_widget.hpp
   include/ros_weaver/widgets/bookmark_manager.hpp
   include/ros_weaver/core/bag_manager.hpp
+  include/ros_weaver/core/bag_recorder.hpp
   include/ros_weaver/core/playback_controller.hpp
   include/ros_weaver/core/slam_pipeline_manager.hpp
+  include/ros_weaver/core/mcp_types.hpp
+  include/ros_weaver/core/mcp_server.hpp
+  include/ros_weaver/core/mcp_manager.hpp
+  include/ros_weaver/core/mcp_providers.hpp
   include/ros_weaver/wizards/package_wizard.hpp
   include/ros_weaver/wizards/robot_wizard.hpp
+  include/ros_weaver/wizards/mcp_server_wizard.hpp
+  include/ros_weaver/widgets/mcp_explorer_panel.hpp
+  include/ros_weaver/widgets/ros_control_panel.hpp
 )
 
 # Create executable
