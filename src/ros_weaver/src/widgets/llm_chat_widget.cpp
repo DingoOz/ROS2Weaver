@@ -1172,8 +1172,71 @@ void LLMChatWidget::processToolCalls(const QString& response) {
     if (!result.data.contains("pending") || !result.data["pending"].toBool()) {
       // Tool executed immediately (no permission needed or auto-approved)
       if (result.success) {
+        // Format the result data for display
+        QString resultDisplay;
+        if (!result.data.isEmpty()) {
+          // Format data in a human-readable way
+          QStringList formattedLines;
+          formattedLines << QString("**%1 Results:**\n").arg(toolName);
+
+          // Helper to recursively format JSON
+          std::function<void(const QJsonObject&, int)> formatObject;
+          formatObject = [&formattedLines, &formatObject](const QJsonObject& obj, int indent) {
+            QString prefix = QString("  ").repeated(indent);
+            for (auto it = obj.begin(); it != obj.end(); ++it) {
+              QString key = it.key();
+              QJsonValue val = it.value();
+
+              if (val.isObject()) {
+                formattedLines << QString("%1**%2:**").arg(prefix, key);
+                formatObject(val.toObject(), indent + 1);
+              } else if (val.isArray()) {
+                formattedLines << QString("%1**%2:** [%3 items]")
+                    .arg(prefix, key, QString::number(val.toArray().size()));
+              } else if (val.isDouble()) {
+                double d = val.toDouble();
+                // Format percentages and sizes nicely
+                if (key.contains("percent", Qt::CaseInsensitive) ||
+                    key.contains("usage", Qt::CaseInsensitive)) {
+                  formattedLines << QString("%1%2: %.1f%%").arg(prefix, key).arg(d);
+                } else if (key.contains("bytes", Qt::CaseInsensitive) ||
+                           key.contains("memory", Qt::CaseInsensitive) ||
+                           key.contains("total", Qt::CaseInsensitive) ||
+                           key.contains("used", Qt::CaseInsensitive) ||
+                           key.contains("free", Qt::CaseInsensitive) ||
+                           key.contains("available", Qt::CaseInsensitive)) {
+                  // Format as human-readable size
+                  double size = d;
+                  QStringList units = {"B", "KB", "MB", "GB", "TB"};
+                  int unitIdx = 0;
+                  while (size >= 1024 && unitIdx < units.size() - 1) {
+                    size /= 1024;
+                    unitIdx++;
+                  }
+                  formattedLines << QString("%1%2: %.2f %3")
+                      .arg(prefix, key).arg(size).arg(units[unitIdx]);
+                } else {
+                  formattedLines << QString("%1%2: %3").arg(prefix, key).arg(d);
+                }
+              } else if (val.isString()) {
+                formattedLines << QString("%1%2: %3").arg(prefix, key, val.toString());
+              } else if (val.isBool()) {
+                formattedLines << QString("%1%2: %3")
+                    .arg(prefix, key, val.toBool() ? "true" : "false");
+              }
+            }
+          };
+
+          formatObject(result.data, 0);
+          resultDisplay = formattedLines.join("\n");
+        } else {
+          resultDisplay = QString("**%1:** %2").arg(toolName, result.message);
+        }
+
+        addMessage(ChatMessageWidget::Role::System, resultDisplay);
+      } else {
         addMessage(ChatMessageWidget::Role::System,
-                   tr("Executed: %1").arg(result.message));
+                   tr("Tool '%1' failed: %2").arg(toolName, result.message));
       }
     }
   }

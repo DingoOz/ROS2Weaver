@@ -4,6 +4,8 @@
 #include "ros_weaver/canvas/connection_line.hpp"
 #include "ros_weaver/canvas/node_group.hpp"
 #include "ros_weaver/core/project.hpp"
+#include "ros_weaver/core/mcp_manager.hpp"
+#include "ros_weaver/core/mcp_providers.hpp"
 #include <QJsonDocument>
 #include <QRegularExpression>
 #include <QDateTime>
@@ -34,6 +36,9 @@ void AIToolManager::registerTools(WeaverCanvas* canvas) {
   registerGetProjectStateTool();
   registerGetBlockInfoTool();
   registerListAvailablePackagesTool();
+
+  // Register MCP tools from all active MCP servers
+  registerMCPTools();
 }
 
 void AIToolManager::registerLoadExampleTool() {
@@ -928,6 +933,711 @@ void AIToolManager::registerListAvailablePackagesTool() {
   tools_[tool.name] = tool;
 }
 
+void AIToolManager::registerMCPTools() {
+  MCPManager& mcpManager = MCPManager::instance();
+
+  // Register a meta-tool to list available MCP servers
+  {
+    AITool tool;
+    tool.name = "mcp_list_servers";
+    tool.description = "List all available MCP servers and their status.";
+    tool.parametersSchema = QJsonObject{
+        {"type", "object"},
+        {"properties", QJsonObject{}}
+    };
+    tool.requiresPermission = false;  // Read-only
+
+    tool.execute = [](const QJsonObject& /*params*/) -> AIToolResult {
+      AIToolResult result;
+      MCPManager& manager = MCPManager::instance();
+
+      QJsonArray serversArray;
+      for (const auto& server : manager.allServers()) {
+        QJsonObject serverObj;
+        serverObj["id"] = server->id().toString();
+        serverObj["name"] = server->name();
+        serverObj["type"] = server->serverType();
+        serverObj["description"] = server->description();
+        serverObj["connected"] = server->isConnected();
+
+        QString stateStr;
+        switch (server->state()) {
+          case MCPServerState::Connected: stateStr = "connected"; break;
+          case MCPServerState::Connecting: stateStr = "connecting"; break;
+          case MCPServerState::Error: stateStr = "error"; break;
+          default: stateStr = "disconnected"; break;
+        }
+        serverObj["state"] = stateStr;
+
+        // List available tools
+        QJsonArray toolsArray;
+        for (const MCPTool& mcpTool : server->availableTools()) {
+          QJsonObject toolObj;
+          toolObj["name"] = mcpTool.name;
+          toolObj["description"] = mcpTool.description;
+          toolsArray.append(toolObj);
+        }
+        serverObj["tools"] = toolsArray;
+
+        serversArray.append(serverObj);
+      }
+
+      result.success = true;
+      result.data["servers"] = serversArray;
+      result.data["count"] = serversArray.size();
+      result.data["active_count"] = manager.activeServers().size();
+      result.message = QString("Found %1 MCP servers (%2 active)")
+          .arg(serversArray.size()).arg(manager.activeServers().size());
+
+      return result;
+    };
+
+    tools_[tool.name] = tool;
+  }
+
+  // Register a meta-tool to call any MCP server tool
+  {
+    AITool tool;
+    tool.name = "mcp_call_tool";
+    tool.description = "Call a tool on an MCP server. Use mcp_list_servers first to see available servers and their tools.";
+    tool.parametersSchema = QJsonObject{
+        {"type", "object"},
+        {"properties", QJsonObject{
+            {"server", QJsonObject{
+                {"type", "string"},
+                {"description", "Name of the MCP server (e.g., 'ROS Logs', 'System Stats')"}
+            }},
+            {"tool", QJsonObject{
+                {"type", "string"},
+                {"description", "Name of the tool to call on the server"}
+            }},
+            {"parameters", QJsonObject{
+                {"type", "object"},
+                {"description", "Parameters to pass to the tool (varies by tool)"}
+            }}
+        }},
+        {"required", QJsonArray{"server", "tool"}}
+    };
+    tool.requiresPermission = false;  // MCP tools handle their own permissions
+
+    tool.execute = [](const QJsonObject& params) -> AIToolResult {
+      AIToolResult result;
+
+      QString serverName = params["server"].toString();
+      QString toolName = params["tool"].toString();
+      QJsonObject toolParams = params["parameters"].toObject();
+
+      MCPManager& manager = MCPManager::instance();
+      MCPToolResult mcpResult = manager.callTool(serverName, toolName, toolParams);
+
+      result.success = mcpResult.success;
+      result.message = mcpResult.message;
+      result.data = mcpResult.data;
+
+      return result;
+    };
+
+    tools_[tool.name] = tool;
+  }
+
+  // Register a meta-tool to read MCP resources
+  {
+    AITool tool;
+    tool.name = "mcp_read_resource";
+    tool.description = "Read a resource from an MCP server.";
+    tool.parametersSchema = QJsonObject{
+        {"type", "object"},
+        {"properties", QJsonObject{
+            {"server", QJsonObject{
+                {"type", "string"},
+                {"description", "Name of the MCP server"}
+            }},
+            {"uri", QJsonObject{
+                {"type", "string"},
+                {"description", "URI of the resource to read"}
+            }}
+        }},
+        {"required", QJsonArray{"server", "uri"}}
+    };
+    tool.requiresPermission = false;
+
+    tool.execute = [](const QJsonObject& params) -> AIToolResult {
+      AIToolResult result;
+
+      QString serverName = params["server"].toString();
+      QString uri = params["uri"].toString();
+
+      MCPManager& manager = MCPManager::instance();
+      MCPResourceContent content = manager.readResource(serverName, uri);
+
+      result.success = !content.textContent.isEmpty() ||
+                       !content.binaryContent.isEmpty();
+      result.message = result.success ? "Resource read successfully" : "Failed to read resource";
+      result.data["uri"] = content.uri;
+      result.data["mimeType"] = content.mimeType;
+      if (content.isBinary) {
+        result.data["isBinary"] = true;
+        result.data["size"] = content.binaryContent.size();
+      } else {
+        result.data["content"] = content.textContent;
+      }
+
+      return result;
+    };
+
+    tools_[tool.name] = tool;
+  }
+
+  // Register convenience shortcuts for common MCP operations
+  // These provide direct access to the most commonly used MCP tools
+
+  // ROS Logs shortcut
+  {
+    AITool tool;
+    tool.name = "get_ros_logs";
+    tool.description = "Get recent ROS 2 log messages. Optionally filter by severity level or node name.";
+    tool.parametersSchema = QJsonObject{
+        {"type", "object"},
+        {"properties", QJsonObject{
+            {"count", QJsonObject{
+                {"type", "integer"},
+                {"description", "Number of log entries to retrieve (default: 50)"}
+            }},
+            {"level", QJsonObject{
+                {"type", "string"},
+                {"description", "Minimum severity level: debug, info, warn, error, fatal"}
+            }},
+            {"node", QJsonObject{
+                {"type", "string"},
+                {"description", "Filter by node name (substring match)"}
+            }}
+        }}
+    };
+    tool.requiresPermission = false;
+
+    tool.execute = [](const QJsonObject& params) -> AIToolResult {
+      AIToolResult result;
+      MCPManager& manager = MCPManager::instance();
+      MCPToolResult mcpResult = manager.callTool("ROS Logs", "get_logs", params);
+      result.success = mcpResult.success;
+      result.message = mcpResult.message;
+      result.data = mcpResult.data;
+      return result;
+    };
+
+    tools_[tool.name] = tool;
+  }
+
+  // ROS Topics shortcut
+  {
+    AITool tool;
+    tool.name = "list_ros_topics";
+    tool.description = "List all active ROS 2 topics with their message types.";
+    tool.parametersSchema = QJsonObject{
+        {"type", "object"},
+        {"properties", QJsonObject{}}
+    };
+    tool.requiresPermission = false;
+
+    tool.execute = [](const QJsonObject& /*params*/) -> AIToolResult {
+      AIToolResult result;
+      MCPManager& manager = MCPManager::instance();
+      MCPToolResult mcpResult = manager.callTool("ROS Topics", "list_topics", QJsonObject{});
+      result.success = mcpResult.success;
+      result.message = mcpResult.message;
+      result.data = mcpResult.data;
+      return result;
+    };
+
+    tools_[tool.name] = tool;
+  }
+
+  // System stats shortcut
+  {
+    AITool tool;
+    tool.name = "get_system_stats";
+    tool.description = "Get system resource statistics including CPU usage, memory, disk space, and temperatures.";
+    tool.parametersSchema = QJsonObject{
+        {"type", "object"},
+        {"properties", QJsonObject{}}
+    };
+    tool.requiresPermission = false;
+
+    tool.execute = [](const QJsonObject& /*params*/) -> AIToolResult {
+      AIToolResult result;
+      MCPManager& manager = MCPManager::instance();
+      MCPToolResult mcpResult = manager.callTool("System Stats", "get_all_stats", QJsonObject{});
+      result.success = mcpResult.success;
+      result.message = mcpResult.message;
+      result.data = mcpResult.data;
+      return result;
+    };
+
+    tools_[tool.name] = tool;
+  }
+
+  // ROSbag status shortcut
+  {
+    AITool tool;
+    tool.name = "get_rosbag_status";
+    tool.description = "Get the current ROSbag recording status.";
+    tool.parametersSchema = QJsonObject{
+        {"type", "object"},
+        {"properties", QJsonObject{}}
+    };
+    tool.requiresPermission = false;
+
+    tool.execute = [](const QJsonObject& /*params*/) -> AIToolResult {
+      AIToolResult result;
+      MCPManager& manager = MCPManager::instance();
+      MCPToolResult mcpResult = manager.callTool("ROSbag", "get_recording_status", QJsonObject{});
+      result.success = mcpResult.success;
+      result.message = mcpResult.message;
+      result.data = mcpResult.data;
+      return result;
+    };
+
+    tools_[tool.name] = tool;
+  }
+
+  // ros2_control shortcuts for direct CLI access
+  // List controllers
+  {
+    AITool tool;
+    tool.name = "list_ros_controllers";
+    tool.description = "List all ros2_control controllers with their current states.";
+    tool.parametersSchema = QJsonObject{
+        {"type", "object"},
+        {"properties", QJsonObject{
+            {"manager", QJsonObject{
+                {"type", "string"},
+                {"description", "Controller manager name (optional, defaults to /controller_manager)"}
+            }}
+        }}
+    };
+    tool.requiresPermission = false;  // Read-only
+
+    tool.execute = [](const QJsonObject& params) -> AIToolResult {
+      AIToolResult result;
+
+      QProcess process;
+      QStringList args = {"control", "list_controllers"};
+
+      QString manager = params["manager"].toString();
+      if (!manager.isEmpty() && manager != "/controller_manager") {
+        args << "-c" << manager;
+      }
+
+      process.start("ros2", args);
+      if (!process.waitForStarted(2000)) {
+        result.success = false;
+        result.message = "Failed to start ros2 command";
+        return result;
+      }
+
+      if (!process.waitForFinished(3000)) {
+        process.kill();
+        process.waitForFinished(1000);
+        result.success = false;
+        result.message = "Command timed out - no controller_manager may be running";
+        return result;
+      }
+
+      QString output = process.readAllStandardOutput();
+      QString error = process.readAllStandardError();
+
+      if (process.exitCode() != 0) {
+        result.success = false;
+        result.message = error.isEmpty() ? "No controller_manager available" : error.trimmed();
+        return result;
+      }
+
+      // Parse output
+      QJsonArray controllers;
+      QStringList lines = output.split('\n', Qt::SkipEmptyParts);
+      for (const QString& line : lines) {
+        QString trimmed = line.trimmed();
+        if (trimmed.isEmpty()) continue;
+
+        QJsonObject ctrl;
+        int bracketStart = trimmed.indexOf('[');
+        if (bracketStart > 0) {
+          ctrl["name"] = trimmed.left(bracketStart).trimmed();
+          int bracketEnd = trimmed.indexOf(']', bracketStart);
+          if (bracketEnd > bracketStart) {
+            ctrl["type"] = trimmed.mid(bracketStart + 1, bracketEnd - bracketStart - 1);
+            ctrl["state"] = trimmed.mid(bracketEnd + 1).trimmed();
+          }
+        }
+        if (!ctrl.isEmpty()) {
+          controllers.append(ctrl);
+        }
+      }
+
+      result.success = true;
+      result.message = QString("Found %1 controllers").arg(controllers.size());
+      result.data["controllers"] = controllers;
+      result.data["count"] = controllers.size();
+      result.data["raw_output"] = output;
+
+      return result;
+    };
+
+    tools_[tool.name] = tool;
+  }
+
+  // Get controller info
+  {
+    AITool tool;
+    tool.name = "get_controller_info";
+    tool.description = "Get detailed information about a specific ros2_control controller.";
+    tool.parametersSchema = QJsonObject{
+        {"type", "object"},
+        {"properties", QJsonObject{
+            {"controller_name", QJsonObject{
+                {"type", "string"},
+                {"description", "Name of the controller to get info about"}
+            }}
+        }},
+        {"required", QJsonArray{"controller_name"}}
+    };
+    tool.requiresPermission = false;
+
+    tool.execute = [](const QJsonObject& params) -> AIToolResult {
+      AIToolResult result;
+
+      QString controllerName = params["controller_name"].toString();
+      if (controllerName.isEmpty()) {
+        result.success = false;
+        result.message = "Controller name is required";
+        return result;
+      }
+
+      QProcess process;
+      process.start("ros2", {"control", "list_controllers", "-v"});
+      if (!process.waitForStarted(2000)) {
+        result.success = false;
+        result.message = "Failed to start ros2 command";
+        return result;
+      }
+      if (!process.waitForFinished(3000)) {
+        process.kill();
+        process.waitForFinished(1000);
+        result.success = false;
+        result.message = "Command timed out - no controller_manager may be running";
+        return result;
+      }
+
+      QString output = process.readAllStandardOutput();
+
+      // Filter output for the requested controller
+      QStringList relevantLines;
+      bool inController = false;
+      for (const QString& line : output.split('\n')) {
+        if (line.contains(controllerName)) {
+          inController = true;
+        }
+        if (inController) {
+          relevantLines.append(line);
+          // Check if we've reached the next controller
+          if (relevantLines.size() > 1 && !line.startsWith(" ") && !line.startsWith("\t")) {
+            break;
+          }
+        }
+      }
+
+      result.success = true;
+      result.message = QString("Info for controller '%1'").arg(controllerName);
+      result.data["name"] = controllerName;
+      result.data["info"] = relevantLines.join("\n");
+
+      return result;
+    };
+
+    tools_[tool.name] = tool;
+  }
+
+  // List hardware interfaces
+  {
+    AITool tool;
+    tool.name = "list_hardware_interfaces";
+    tool.description = "List all ros2_control hardware interfaces and their claim status.";
+    tool.parametersSchema = QJsonObject{
+        {"type", "object"},
+        {"properties", QJsonObject{}}
+    };
+    tool.requiresPermission = false;
+
+    tool.execute = [](const QJsonObject& /*params*/) -> AIToolResult {
+      AIToolResult result;
+
+      QProcess process;
+      process.start("ros2", {"control", "list_hardware_interfaces"});
+      if (!process.waitForStarted(2000)) {
+        result.success = false;
+        result.message = "Failed to start ros2 command";
+        return result;
+      }
+      if (!process.waitForFinished(3000)) {
+        process.kill();
+        process.waitForFinished(1000);
+        result.success = false;
+        result.message = "Command timed out - no controller_manager may be running";
+        return result;
+      }
+
+      QString output = process.readAllStandardOutput();
+
+      // Parse interfaces
+      QJsonArray commandInterfaces;
+      QJsonArray stateInterfaces;
+      QString currentType;
+
+      for (const QString& line : output.split('\n')) {
+        QString trimmed = line.trimmed();
+        if (trimmed == "command interfaces") {
+          currentType = "command";
+          continue;
+        } else if (trimmed == "state interfaces") {
+          currentType = "state";
+          continue;
+        }
+
+        if (!trimmed.isEmpty() && !currentType.isEmpty()) {
+          QJsonObject iface;
+          int bracketPos = trimmed.indexOf('[');
+          if (bracketPos > 0) {
+            iface["name"] = trimmed.left(bracketPos).trimmed();
+            iface["claimed"] = trimmed.contains("[claimed]");
+            iface["available"] = trimmed.contains("[available]");
+          } else {
+            iface["name"] = trimmed;
+          }
+
+          if (currentType == "command") {
+            commandInterfaces.append(iface);
+          } else {
+            stateInterfaces.append(iface);
+          }
+        }
+      }
+
+      result.success = true;
+      result.message = QString("Found %1 command and %2 state interfaces")
+          .arg(commandInterfaces.size()).arg(stateInterfaces.size());
+      result.data["command_interfaces"] = commandInterfaces;
+      result.data["state_interfaces"] = stateInterfaces;
+      result.data["raw_output"] = output;
+
+      return result;
+    };
+
+    tools_[tool.name] = tool;
+  }
+
+  // Activate controller
+  {
+    AITool tool;
+    tool.name = "activate_controller";
+    tool.description = "Activate a ros2_control controller. The controller must be in the 'inactive' state.";
+    tool.parametersSchema = QJsonObject{
+        {"type", "object"},
+        {"properties", QJsonObject{
+            {"controller_name", QJsonObject{
+                {"type", "string"},
+                {"description", "Name of the controller to activate"}
+            }}
+        }},
+        {"required", QJsonArray{"controller_name"}}
+    };
+    tool.requiresPermission = true;  // Modifying state requires permission
+
+    tool.execute = [](const QJsonObject& params) -> AIToolResult {
+      AIToolResult result;
+
+      QString controllerName = params["controller_name"].toString();
+      if (controllerName.isEmpty()) {
+        result.success = false;
+        result.message = "Controller name is required";
+        return result;
+      }
+
+      QProcess process;
+      process.start("ros2", {"control", "switch_controllers",
+                            "--activate", controllerName});
+      if (!process.waitForStarted(2000)) {
+        result.success = false;
+        result.message = "Failed to start ros2 command";
+        return result;
+      }
+      if (!process.waitForFinished(5000)) {
+        process.kill();
+        process.waitForFinished(1000);
+        result.success = false;
+        result.message = "Command timed out - no controller_manager may be running";
+        return result;
+      }
+
+      QString output = process.readAllStandardOutput();
+      QString error = process.readAllStandardError();
+
+      if (process.exitCode() != 0) {
+        result.success = false;
+        result.message = error.isEmpty() ? "Failed to activate controller" : error.trimmed();
+        return result;
+      }
+
+      result.success = true;
+      result.message = QString("Controller '%1' activated").arg(controllerName);
+      result.data["output"] = output;
+
+      return result;
+    };
+
+    tools_[tool.name] = tool;
+  }
+
+  // Deactivate controller
+  {
+    AITool tool;
+    tool.name = "deactivate_controller";
+    tool.description = "Deactivate a ros2_control controller. The controller must be in the 'active' state.";
+    tool.parametersSchema = QJsonObject{
+        {"type", "object"},
+        {"properties", QJsonObject{
+            {"controller_name", QJsonObject{
+                {"type", "string"},
+                {"description", "Name of the controller to deactivate"}
+            }}
+        }},
+        {"required", QJsonArray{"controller_name"}}
+    };
+    tool.requiresPermission = true;
+
+    tool.execute = [](const QJsonObject& params) -> AIToolResult {
+      AIToolResult result;
+
+      QString controllerName = params["controller_name"].toString();
+      if (controllerName.isEmpty()) {
+        result.success = false;
+        result.message = "Controller name is required";
+        return result;
+      }
+
+      QProcess process;
+      process.start("ros2", {"control", "switch_controllers",
+                            "--deactivate", controllerName});
+      if (!process.waitForStarted(2000)) {
+        result.success = false;
+        result.message = "Failed to start ros2 command";
+        return result;
+      }
+      if (!process.waitForFinished(5000)) {
+        process.kill();
+        process.waitForFinished(1000);
+        result.success = false;
+        result.message = "Command timed out - no controller_manager may be running";
+        return result;
+      }
+
+      QString output = process.readAllStandardOutput();
+      QString error = process.readAllStandardError();
+
+      if (process.exitCode() != 0) {
+        result.success = false;
+        result.message = error.isEmpty() ? "Failed to deactivate controller" : error.trimmed();
+        return result;
+      }
+
+      result.success = true;
+      result.message = QString("Controller '%1' deactivated").arg(controllerName);
+      result.data["output"] = output;
+
+      return result;
+    };
+
+    tools_[tool.name] = tool;
+  }
+
+  // Switch controllers (atomic)
+  {
+    AITool tool;
+    tool.name = "switch_controllers";
+    tool.description = "Atomically switch ros2_control controllers. Useful for safely transitioning between control modes.";
+    tool.parametersSchema = QJsonObject{
+        {"type", "object"},
+        {"properties", QJsonObject{
+            {"activate", QJsonObject{
+                {"type", "array"},
+                {"items", QJsonObject{{"type", "string"}}},
+                {"description", "List of controller names to activate"}
+            }},
+            {"deactivate", QJsonObject{
+                {"type", "array"},
+                {"items", QJsonObject{{"type", "string"}}},
+                {"description", "List of controller names to deactivate"}
+            }}
+        }}
+    };
+    tool.requiresPermission = true;
+
+    tool.execute = [](const QJsonObject& params) -> AIToolResult {
+      AIToolResult result;
+
+      QJsonArray activateArray = params["activate"].toArray();
+      QJsonArray deactivateArray = params["deactivate"].toArray();
+
+      if (activateArray.isEmpty() && deactivateArray.isEmpty()) {
+        result.success = false;
+        result.message = "At least one controller to activate or deactivate is required";
+        return result;
+      }
+
+      QStringList args = {"control", "switch_controllers"};
+
+      for (const QJsonValue& val : activateArray) {
+        args << "--activate" << val.toString();
+      }
+      for (const QJsonValue& val : deactivateArray) {
+        args << "--deactivate" << val.toString();
+      }
+
+      QProcess process;
+      process.start("ros2", args);
+      if (!process.waitForStarted(2000)) {
+        result.success = false;
+        result.message = "Failed to start ros2 command";
+        return result;
+      }
+      if (!process.waitForFinished(5000)) {
+        process.kill();
+        process.waitForFinished(1000);
+        result.success = false;
+        result.message = "Command timed out - no controller_manager may be running";
+        return result;
+      }
+
+      QString output = process.readAllStandardOutput();
+      QString error = process.readAllStandardError();
+
+      if (process.exitCode() != 0) {
+        result.success = false;
+        result.message = error.isEmpty() ? "Failed to switch controllers" : error.trimmed();
+        return result;
+      }
+
+      result.success = true;
+      result.message = QString("Switched controllers: activated %1, deactivated %2")
+          .arg(activateArray.size()).arg(deactivateArray.size());
+      result.data["output"] = output;
+
+      return result;
+    };
+
+    tools_[tool.name] = tool;
+  }
+}
+
 QString AIToolManager::getToolsDescription() const {
   QStringList descriptions;
 
@@ -963,7 +1673,69 @@ QJsonArray AIToolManager::getToolsSchema() const {
 QList<QPair<QString, QJsonObject>> AIToolManager::parseToolCalls(const QString& response) const {
   QList<QPair<QString, QJsonObject>> toolCalls;
 
-  // Look for tool calls in format: <tool_call>{"tool": "name", "parameters": {...}}</tool_call>
+  // Helper to normalize tool names (remove underscores, lowercase)
+  auto normalizeToolName = [](const QString& name) -> QString {
+    return name.toLower().remove('_');
+  };
+
+  // Build normalized name lookup
+  QMap<QString, QString> normalizedToActual;
+  for (auto it = tools_.begin(); it != tools_.end(); ++it) {
+    normalizedToActual[normalizeToolName(it.key())] = it.key();
+  }
+
+  // Helper to find tool by name (with fuzzy matching)
+  auto findTool = [&](const QString& name) -> QString {
+    // Direct match first
+    if (tools_.contains(name)) {
+      return name;
+    }
+    // Try normalized match
+    QString normalized = normalizeToolName(name);
+    if (normalizedToActual.contains(normalized)) {
+      return normalizedToActual[normalized];
+    }
+    return QString();
+  };
+
+  // Helper to extract tool call from JSON object
+  auto extractToolCall = [&](const QJsonObject& obj) -> QPair<QString, QJsonObject> {
+    QString toolName;
+    QJsonObject params;
+
+    // Try different key names used by various LLMs
+    if (obj.contains("tool")) {
+      toolName = obj["tool"].toString();
+    } else if (obj.contains("name")) {
+      toolName = obj["name"].toString();
+    } else if (obj.contains("function")) {
+      toolName = obj["function"].toString();
+    }
+
+    if (obj.contains("parameters")) {
+      params = obj["parameters"].toObject();
+    } else if (obj.contains("arguments")) {
+      // arguments can be object or string
+      if (obj["arguments"].isObject()) {
+        params = obj["arguments"].toObject();
+      } else if (obj["arguments"].isString()) {
+        QJsonDocument argsDoc = QJsonDocument::fromJson(obj["arguments"].toString().toUtf8());
+        if (argsDoc.isObject()) {
+          params = argsDoc.object();
+        }
+      }
+    } else if (obj.contains("params")) {
+      params = obj["params"].toObject();
+    }
+
+    QString actualToolName = findTool(toolName);
+    if (!actualToolName.isEmpty()) {
+      return {actualToolName, params};
+    }
+    return {QString(), QJsonObject()};
+  };
+
+  // Pattern 1: <tool_call>{"tool": "name", "parameters": {...}}</tool_call>
   QRegularExpression toolCallRe("<tool_call>\\s*(.+?)\\s*</tool_call>",
                                   QRegularExpression::DotMatchesEverythingOption);
 
@@ -976,12 +1748,77 @@ QList<QPair<QString, QJsonObject>> AIToolManager::parseToolCalls(const QString& 
     QJsonDocument doc = QJsonDocument::fromJson(jsonStr.toUtf8(), &error);
 
     if (error.error == QJsonParseError::NoError && doc.isObject()) {
-      QJsonObject obj = doc.object();
-      QString toolName = obj["tool"].toString();
-      QJsonObject params = obj["parameters"].toObject();
-
-      if (!toolName.isEmpty() && tools_.contains(toolName)) {
+      auto [toolName, params] = extractToolCall(doc.object());
+      if (!toolName.isEmpty()) {
         toolCalls.append({toolName, params});
+      }
+    }
+  }
+
+  // Pattern 2: Bare JSON object with tool call (e.g., {"name":"tool","arguments":{}})
+  // Only if no tool calls found yet
+  if (toolCalls.isEmpty()) {
+    // Find potential JSON objects starting with tool-like keys
+    int searchStart = 0;
+    while (searchStart < response.length()) {
+      int jsonStart = response.indexOf('{', searchStart);
+      if (jsonStart == -1) break;
+
+      // Try to find matching closing brace (handling nesting)
+      int braceCount = 0;
+      int jsonEnd = -1;
+      bool inString = false;
+      bool escaped = false;
+
+      for (int i = jsonStart; i < response.length(); ++i) {
+        QChar c = response[i];
+
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+
+        if (c == '\\') {
+          escaped = true;
+          continue;
+        }
+
+        if (c == '"') {
+          inString = !inString;
+          continue;
+        }
+
+        if (!inString) {
+          if (c == '{') braceCount++;
+          else if (c == '}') {
+            braceCount--;
+            if (braceCount == 0) {
+              jsonEnd = i;
+              break;
+            }
+          }
+        }
+      }
+
+      if (jsonEnd > jsonStart) {
+        QString jsonStr = response.mid(jsonStart, jsonEnd - jsonStart + 1);
+
+        QJsonParseError error;
+        QJsonDocument doc = QJsonDocument::fromJson(jsonStr.toUtf8(), &error);
+
+        if (error.error == QJsonParseError::NoError && doc.isObject()) {
+          QJsonObject obj = doc.object();
+          // Check if this looks like a tool call
+          if (obj.contains("name") || obj.contains("tool") || obj.contains("function")) {
+            auto [toolName, params] = extractToolCall(obj);
+            if (!toolName.isEmpty()) {
+              toolCalls.append({toolName, params});
+            }
+          }
+        }
+        searchStart = jsonEnd + 1;
+      } else {
+        searchStart = jsonStart + 1;
       }
     }
   }

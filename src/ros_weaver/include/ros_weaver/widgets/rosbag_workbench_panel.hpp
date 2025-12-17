@@ -13,6 +13,7 @@ namespace ros_weaver {
 // Forward declarations
 class WeaverCanvas;
 class BagManager;
+class BagRecorder;
 class PlaybackController;
 class SlamPipelineManager;
 class TimelineWidget;
@@ -23,6 +24,8 @@ class BookmarkManager;
 class TopicViewerPanel;
 class PlotPanel;
 class ParamDashboard;
+
+struct RecordingStats;
 
 /**
  * @brief Main rosbag workbench panel integrating all playback and SLAM components
@@ -58,12 +61,19 @@ public:
 
   // Core component access
   BagManager* bagManager() const;
+  BagRecorder* bagRecorder() const;
   PlaybackController* playbackController() const;
   SlamPipelineManager* slamPipelineManager() const;
+
+  // Recording path
+  void setRecordingPath(const QString& path);
+  QString recordingPath() const;
 
 public slots:
   void onOpenBagClicked();
   void onCloseBagClicked();
+  void onRecordClicked();
+  void onSetRecordingPathClicked();
 
 signals:
   void bagOpened(const QString& path);
@@ -73,6 +83,8 @@ signals:
   void playbackStopped();
   void slamLaunched();
   void slamStopped();
+  void recordingStarted(const QString& path);
+  void recordingStopped();
 
 private slots:
   void onBagOpened();
@@ -84,6 +96,10 @@ private slots:
   void onPlaybackFinished();
   void onSeekRequested(qint64 timeNs);
   void onBookmarkSelected(qint64 timeNs);
+  void onRecordingStarted(const QString& path);
+  void onRecordingStopped();
+  void onRecordingError(const QString& error);
+  void onRecordingStatsUpdated(const RecordingStats& stats);
 
 private:
   void setupUi();
@@ -92,16 +108,21 @@ private:
   void createMainContent();
   void updateBagInfo();
   void updatePlaybackInfo();
+  void updateRecordingInfo();
 
   // Core components
   BagManager* bagManager_ = nullptr;
+  BagRecorder* bagRecorder_ = nullptr;
   PlaybackController* playbackController_ = nullptr;
   SlamPipelineManager* slamManager_ = nullptr;
 
   // UI - Toolbar
   QPushButton* openBagButton_ = nullptr;
   QPushButton* closeBagButton_ = nullptr;
+  QPushButton* recordButton_ = nullptr;
+  QPushButton* setRecordingPathButton_ = nullptr;
   QLabel* bagInfoLabel_ = nullptr;
+  QLabel* recordingInfoLabel_ = nullptr;
   QProgressBar* progressBar_ = nullptr;
 
   // UI - Main content

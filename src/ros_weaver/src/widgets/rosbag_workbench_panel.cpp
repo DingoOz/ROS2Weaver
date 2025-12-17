@@ -1,5 +1,6 @@
 #include "ros_weaver/widgets/rosbag_workbench_panel.hpp"
 #include "ros_weaver/core/bag_manager.hpp"
+#include "ros_weaver/core/bag_recorder.hpp"
 #include "ros_weaver/core/playback_controller.hpp"
 #include "ros_weaver/core/slam_pipeline_manager.hpp"
 #include "ros_weaver/widgets/timeline_widget.hpp"
@@ -15,6 +16,7 @@
 #include <QFileInfo>
 #include <QStyle>
 #include <QDebug>
+#include <QDir>
 
 namespace ros_weaver {
 
@@ -22,6 +24,7 @@ RosbagWorkbenchPanel::RosbagWorkbenchPanel(QWidget* parent)
     : QWidget(parent) {
   // Create core components
   bagManager_ = new BagManager(this);
+  bagRecorder_ = new BagRecorder(this);
   playbackController_ = new PlaybackController(this);
   slamManager_ = new SlamPipelineManager(this);
 
@@ -35,8 +38,9 @@ RosbagWorkbenchPanel::RosbagWorkbenchPanel(QWidget* parent)
 }
 
 RosbagWorkbenchPanel::~RosbagWorkbenchPanel() {
-  // Stop playback and SLAM before destruction
+  // Stop playback, recording, and SLAM before destruction
   playbackController_->stop();
+  bagRecorder_->stopRecording();
   slamManager_->stopSlam();
 }
 
@@ -77,12 +81,24 @@ BagManager* RosbagWorkbenchPanel::bagManager() const {
   return bagManager_;
 }
 
+BagRecorder* RosbagWorkbenchPanel::bagRecorder() const {
+  return bagRecorder_;
+}
+
 PlaybackController* RosbagWorkbenchPanel::playbackController() const {
   return playbackController_;
 }
 
 SlamPipelineManager* RosbagWorkbenchPanel::slamPipelineManager() const {
   return slamManager_;
+}
+
+void RosbagWorkbenchPanel::setRecordingPath(const QString& path) {
+  bagRecorder_->setOutputPath(path);
+}
+
+QString RosbagWorkbenchPanel::recordingPath() const {
+  return bagRecorder_->outputPath();
 }
 
 void RosbagWorkbenchPanel::onOpenBagClicked() {
@@ -105,6 +121,82 @@ void RosbagWorkbenchPanel::onOpenBagClicked() {
 
 void RosbagWorkbenchPanel::onCloseBagClicked() {
   closeBag();
+}
+
+void RosbagWorkbenchPanel::onRecordClicked() {
+  if (bagRecorder_->isRecording() || bagRecorder_->isPaused()) {
+    bagRecorder_->stopRecording();
+  } else {
+    if (!bagRecorder_->startRecording()) {
+      // Error handled by signal
+    }
+  }
+}
+
+void RosbagWorkbenchPanel::onSetRecordingPathClicked() {
+  QString currentPath = bagRecorder_->outputPath();
+  QString path = QFileDialog::getExistingDirectory(
+      this,
+      tr("Select Recording Directory"),
+      currentPath,
+      QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
+
+  if (!path.isEmpty()) {
+    bagRecorder_->setOutputPath(path);
+    updateRecordingInfo();
+  }
+}
+
+void RosbagWorkbenchPanel::onRecordingStarted(const QString& path) {
+  recordButton_->setText(tr("Stop Recording"));
+  recordButton_->setIcon(style()->standardIcon(QStyle::SP_MediaStop));
+  recordButton_->setStyleSheet("QPushButton { background-color: #cc4444; color: white; }");
+  setRecordingPathButton_->setEnabled(false);
+  openBagButton_->setEnabled(false);
+
+  updateRecordingInfo();
+  emit recordingStarted(path);
+}
+
+void RosbagWorkbenchPanel::onRecordingStopped() {
+  recordButton_->setText(tr("Record"));
+  recordButton_->setIcon(style()->standardIcon(QStyle::SP_MediaPlay));
+  recordButton_->setStyleSheet("");
+  setRecordingPathButton_->setEnabled(true);
+  openBagButton_->setEnabled(true);
+
+  recordingInfoLabel_->setText(tr("Not recording"));
+  emit recordingStopped();
+}
+
+void RosbagWorkbenchPanel::onRecordingError(const QString& error) {
+  QMessageBox::warning(this, tr("Recording Error"), error);
+}
+
+void RosbagWorkbenchPanel::onRecordingStatsUpdated(const RecordingStats& stats) {
+  // Format duration
+  int seconds = static_cast<int>(stats.durationMs / 1000);
+  int minutes = seconds / 60;
+  seconds = seconds % 60;
+
+  // Format size
+  QString sizeStr;
+  if (stats.bytesWritten >= 1073741824) {
+    sizeStr = QString("%1 GB").arg(stats.bytesWritten / 1073741824.0, 0, 'f', 2);
+  } else if (stats.bytesWritten >= 1048576) {
+    sizeStr = QString("%1 MB").arg(stats.bytesWritten / 1048576.0, 0, 'f', 1);
+  } else {
+    sizeStr = QString("%1 KB").arg(stats.bytesWritten / 1024.0, 0, 'f', 1);
+  }
+
+  QString info = QString("REC %1:%2 | %3 msgs | %4")
+      .arg(minutes, 2, 10, QChar('0'))
+      .arg(seconds, 2, 10, QChar('0'))
+      .arg(stats.messageCount)
+      .arg(sizeStr);
+
+  recordingInfoLabel_->setText(info);
+  recordingInfoLabel_->setStyleSheet("QLabel { color: #cc4444; font-weight: bold; }");
 }
 
 void RosbagWorkbenchPanel::onBagOpened() {
@@ -214,6 +306,12 @@ void RosbagWorkbenchPanel::setupConnections() {
   connect(slamManager_, &SlamPipelineManager::slamStopped, this, [this]() {
     emit slamStopped();
   });
+
+  // Recording signals
+  connect(bagRecorder_, &BagRecorder::recordingStarted, this, &RosbagWorkbenchPanel::onRecordingStarted);
+  connect(bagRecorder_, &BagRecorder::recordingStopped, this, &RosbagWorkbenchPanel::onRecordingStopped);
+  connect(bagRecorder_, &BagRecorder::recordingError, this, &RosbagWorkbenchPanel::onRecordingError);
+  connect(bagRecorder_, &BagRecorder::statisticsUpdated, this, &RosbagWorkbenchPanel::onRecordingStatsUpdated);
 }
 
 void RosbagWorkbenchPanel::createToolbar() {
@@ -237,14 +335,41 @@ void RosbagWorkbenchPanel::createToolbar() {
   toolbarLayout->addWidget(closeBagButton_);
 
   // Separator
-  auto* sep = new QFrame(this);
-  sep->setFrameShape(QFrame::VLine);
-  sep->setFrameShadow(QFrame::Sunken);
-  toolbarLayout->addWidget(sep);
+  auto* sep1 = new QFrame(this);
+  sep1->setFrameShape(QFrame::VLine);
+  sep1->setFrameShadow(QFrame::Sunken);
+  toolbarLayout->addWidget(sep1);
+
+  // Record button
+  recordButton_ = new QPushButton(this);
+  recordButton_->setIcon(style()->standardIcon(QStyle::SP_MediaPlay));
+  recordButton_->setText(tr("Record"));
+  recordButton_->setToolTip(tr("Start/stop recording topics to a new rosbag"));
+  connect(recordButton_, &QPushButton::clicked, this, &RosbagWorkbenchPanel::onRecordClicked);
+  toolbarLayout->addWidget(recordButton_);
+
+  // Set recording path button
+  setRecordingPathButton_ = new QPushButton(this);
+  setRecordingPathButton_->setIcon(style()->standardIcon(QStyle::SP_DirIcon));
+  setRecordingPathButton_->setText(tr("Set Path"));
+  setRecordingPathButton_->setToolTip(tr("Set the directory for saving recordings"));
+  connect(setRecordingPathButton_, &QPushButton::clicked, this, &RosbagWorkbenchPanel::onSetRecordingPathClicked);
+  toolbarLayout->addWidget(setRecordingPathButton_);
+
+  // Separator
+  auto* sep2 = new QFrame(this);
+  sep2->setFrameShape(QFrame::VLine);
+  sep2->setFrameShadow(QFrame::Sunken);
+  toolbarLayout->addWidget(sep2);
 
   // Bag info label
   bagInfoLabel_ = new QLabel(tr("No bag loaded"), this);
   toolbarLayout->addWidget(bagInfoLabel_, 1);
+
+  // Recording info label
+  recordingInfoLabel_ = new QLabel(tr("Not recording"), this);
+  recordingInfoLabel_->setMinimumWidth(200);
+  toolbarLayout->addWidget(recordingInfoLabel_);
 
   // Progress bar
   progressBar_ = new QProgressBar(this);
@@ -345,6 +470,24 @@ void RosbagWorkbenchPanel::updateBagInfo() {
 
 void RosbagWorkbenchPanel::updatePlaybackInfo() {
   // Additional playback info could be shown here
+}
+
+void RosbagWorkbenchPanel::updateRecordingInfo() {
+  if (bagRecorder_->isRecording()) {
+    // Recording info is updated by the stats callback
+    return;
+  }
+
+  QString path = bagRecorder_->outputPath();
+  QDir dir(path);
+  QString dirName = dir.dirName();
+  if (dirName.isEmpty()) {
+    dirName = path;
+  }
+
+  recordingInfoLabel_->setText(tr("Save to: %1").arg(dirName));
+  recordingInfoLabel_->setStyleSheet("");
+  recordingInfoLabel_->setToolTip(path);
 }
 
 }  // namespace ros_weaver
