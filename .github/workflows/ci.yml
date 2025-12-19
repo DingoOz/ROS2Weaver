@@ -132,8 +132,11 @@ jobs:
       - name: Install linters
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-pip
-          pip3 install ament-cpplint ament-cppcheck ament-lint
+          sudo apt-get install -y \
+            ros-jazzy-ament-cpplint \
+            ros-jazzy-ament-cppcheck \
+            ros-jazzy-ament-xmllint \
+            ros-jazzy-ament-lint
 
       - name: Run cpplint
         run: |
