@@ -613,6 +613,9 @@ void RosbagMCPServer::setRecordingState(bool recording, const QString& bagPath) 
     currentBagPath_ = bagPath;
     if (recording) {
         recordingStartTime_ = QDateTime::currentDateTime();
+        isPaused_ = false;
+    } else {
+        isPaused_ = false;
     }
 }
 
@@ -648,6 +651,37 @@ QList<MCPTool> RosbagMCPServer::availableTools() const {
     };
     tools.append(listBags);
 
+    MCPTool startRec;
+    startRec.name = "start_recording";
+    startRec.description = "Start recording ROS topics to a rosbag file. If no topics specified, records all topics.";
+    startRec.inputSchema = QJsonObject{
+        {"type", "object"},
+        {"properties", QJsonObject{
+            {"output_path", QJsonObject{{"type", "string"}, {"description", "Directory path for the recording output (optional, uses default if not specified)"}}},
+            {"topics", QJsonObject{{"type", "array"}, {"items", QJsonObject{{"type", "string"}}}, {"description", "List of topic names to record (optional, records all if not specified)"}}},
+            {"storage_format", QJsonObject{{"type", "string"}, {"enum", QJsonArray{"sqlite3", "mcap"}}, {"description", "Storage format: 'sqlite3' or 'mcap' (default: sqlite3)"}}}
+        }}
+    };
+    tools.append(startRec);
+
+    MCPTool stopRec;
+    stopRec.name = "stop_recording";
+    stopRec.description = "Stop the current rosbag recording";
+    stopRec.inputSchema = QJsonObject{{"type", "object"}};
+    tools.append(stopRec);
+
+    MCPTool pauseRec;
+    pauseRec.name = "pause_recording";
+    pauseRec.description = "Pause the current rosbag recording";
+    pauseRec.inputSchema = QJsonObject{{"type", "object"}};
+    tools.append(pauseRec);
+
+    MCPTool resumeRec;
+    resumeRec.name = "resume_recording";
+    resumeRec.description = "Resume a paused rosbag recording";
+    resumeRec.inputSchema = QJsonObject{{"type", "object"}};
+    tools.append(resumeRec);
+
     return tools;
 }
 
@@ -669,6 +703,7 @@ MCPToolResult RosbagMCPServer::getRecordingStatus() {
     result.success = true;
 
     result.data["recording"] = isRecording_;
+    result.data["paused"] = isPaused_;
     if (isRecording_) {
         result.data["bagPath"] = currentBagPath_;
         result.data["startTime"] = recordingStartTime_.toString(Qt::ISODate);
@@ -678,7 +713,11 @@ MCPToolResult RosbagMCPServer::getRecordingStatus() {
             for (const QString& t : recordingTopics_) topics.append(t);
             result.data["topics"] = topics;
         }
-        result.message = "Recording in progress";
+        if (isPaused_) {
+            result.message = "Recording paused";
+        } else {
+            result.message = "Recording in progress";
+        }
     } else {
         result.message = "Not recording";
     }
@@ -755,6 +794,114 @@ MCPToolResult RosbagMCPServer::listBagsInDirectory(const QString& directory) {
     return result;
 }
 
+MCPToolResult RosbagMCPServer::startRecording(const QString& outputPath, const QStringList& topics, const QString& storageFormat) {
+    MCPToolResult result;
+
+    if (isRecording_) {
+        result.success = false;
+        result.message = "Recording is already in progress";
+        result.data["currentPath"] = currentBagPath_;
+        return result;
+    }
+
+    // Use provided path or default
+    QString path = outputPath.isEmpty() ? defaultOutputPath_ : outputPath;
+
+    // Use provided topics or default (empty means all topics)
+    QStringList topicsToRecord = topics.isEmpty() ? defaultTopics_ : topics;
+
+    // Use provided format or default to sqlite3
+    QString format = storageFormat.isEmpty() ? "sqlite3" : storageFormat;
+
+    // Emit signal to request recording start (will be connected to RosbagWorkbenchPanel)
+    emit startRecordingRequested(path, topicsToRecord, format);
+
+    result.success = true;
+    result.message = "Recording start requested";
+    result.data["outputPath"] = path;
+    result.data["storageFormat"] = format;
+    result.data["recordAllTopics"] = topicsToRecord.isEmpty();
+    if (!topicsToRecord.isEmpty()) {
+        QJsonArray topicsArray;
+        for (const QString& t : topicsToRecord) {
+            topicsArray.append(t);
+        }
+        result.data["topics"] = topicsArray;
+    }
+
+    return result;
+}
+
+MCPToolResult RosbagMCPServer::stopRecording() {
+    MCPToolResult result;
+
+    if (!isRecording_) {
+        result.success = false;
+        result.message = "No recording in progress";
+        return result;
+    }
+
+    // Emit signal to request recording stop
+    emit stopRecordingRequested();
+
+    result.success = true;
+    result.message = "Recording stop requested";
+    result.data["bagPath"] = currentBagPath_;
+    if (recordingStartTime_.isValid()) {
+        result.data["duration"] = recordingStartTime_.secsTo(QDateTime::currentDateTime());
+    }
+
+    return result;
+}
+
+MCPToolResult RosbagMCPServer::pauseRecording() {
+    MCPToolResult result;
+
+    if (!isRecording_) {
+        result.success = false;
+        result.message = "No recording in progress";
+        return result;
+    }
+
+    if (isPaused_) {
+        result.success = false;
+        result.message = "Recording is already paused";
+        return result;
+    }
+
+    // Emit signal to request recording pause
+    emit pauseRecordingRequested();
+
+    result.success = true;
+    result.message = "Recording pause requested";
+
+    return result;
+}
+
+MCPToolResult RosbagMCPServer::resumeRecording() {
+    MCPToolResult result;
+
+    if (!isRecording_) {
+        result.success = false;
+        result.message = "No recording in progress";
+        return result;
+    }
+
+    if (!isPaused_) {
+        result.success = false;
+        result.message = "Recording is not paused";
+        return result;
+    }
+
+    // Emit signal to request recording resume
+    emit resumeRecordingRequested();
+
+    result.success = true;
+    result.message = "Recording resume requested";
+
+    return result;
+}
+
 MCPToolResult RosbagMCPServer::callTool(const QString& toolName, const QJsonObject& params) {
     MCPToolResult result;
     recordToolCall();
@@ -767,6 +914,24 @@ MCPToolResult RosbagMCPServer::callTool(const QString& toolName, const QJsonObje
         result = getBagInfo(params.value("path").toString());
     } else if (toolName == "list_bags") {
         result = listBagsInDirectory(params.value("directory").toString());
+    } else if (toolName == "start_recording") {
+        // Parse topics from JSON array
+        QStringList topics;
+        QJsonArray topicsArray = params.value("topics").toArray();
+        for (const auto& t : topicsArray) {
+            topics.append(t.toString());
+        }
+        result = startRecording(
+            params.value("output_path").toString(),
+            topics,
+            params.value("storage_format").toString()
+        );
+    } else if (toolName == "stop_recording") {
+        result = stopRecording();
+    } else if (toolName == "pause_recording") {
+        result = pauseRecording();
+    } else if (toolName == "resume_recording") {
+        result = resumeRecording();
     } else {
         result.success = false;
         result.message = QString("Unknown tool: %1").arg(toolName);
