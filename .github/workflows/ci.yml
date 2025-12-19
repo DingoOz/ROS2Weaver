@@ -3,7 +3,22 @@ name: CI
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'LICENSE'
   pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'LICENSE'
+
+# Cancel in-progress runs when a new commit is pushed
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   CCACHE_DIR: ${{ github.workspace }}/.ccache
@@ -47,6 +62,14 @@ jobs:
         with:
           required-ros-distributions: ${{ matrix.ros-distro }}
 
+      - name: Cache rosdep packages
+        uses: actions/cache@v4
+        with:
+          path: /home/runner/.ros/rosdep
+          key: rosdep-${{ matrix.ros-distro }}-${{ hashFiles('src/ros_weaver/package.xml') }}
+          restore-keys: |
+            rosdep-${{ matrix.ros-distro }}-
+
       - name: Build package
         uses: ros-tooling/action-ros-ci@v0.4
         with:
@@ -71,9 +94,10 @@ jobs:
           source /opt/ros/${{ matrix.ros-distro }}/setup.bash
           cd ros_ws
           colcon test --packages-select ros_weaver \
+            --parallel-workers $(nproc) \
             --event-handlers console_cohesion+ \
             --return-code-on-test-failure \
-            --ctest-args -V --output-on-failure
+            --ctest-args -V --output-on-failure -j$(nproc)
 
       - name: Show test results
         if: always()
@@ -100,29 +124,31 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Cache APT packages
-        uses: awalsh128/cache-apt-pkgs-action@latest
-        with:
-          packages: libqt5charts5-dev qtbase5-dev qtbase5-dev-tools libqt5widgets5
-          version: 1.0-lint
-
       - name: Setup ROS2
         uses: ros-tooling/setup-ros@v0.7
         with:
           required-ros-distributions: jazzy
 
-      - name: Run linters
-        uses: ros-tooling/action-ros-ci@v0.4
-        with:
-          target-ros2-distro: jazzy
-          package-name: ros_weaver
-          skip-tests: true
-          colcon-defaults: |
-            {
-              "build": {
-                "cmake-args": ["-DBUILD_TESTING=ON"]
-              }
-            }
+      - name: Install linters
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-pip
+          pip3 install ament-cpplint ament-cppcheck ament-lint
+
+      - name: Run cpplint
+        run: |
+          source /opt/ros/jazzy/setup.bash
+          ament_cpplint src/ros_weaver/src src/ros_weaver/include
+
+      - name: Run cppcheck
+        run: |
+          source /opt/ros/jazzy/setup.bash
+          ament_cppcheck src/ros_weaver/src src/ros_weaver/include
+
+      - name: Run xmllint
+        run: |
+          source /opt/ros/jazzy/setup.bash
+          ament_xmllint src/ros_weaver/package.xml
 
   test-summary:
     runs-on: ubuntu-latest
