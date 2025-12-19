@@ -12,6 +12,7 @@
 #include <QProgressBar>
 #include <QTextEdit>
 #include <QAction>
+#include <memory>
 
 #include "ros_weaver/core/system_discovery.hpp"
 #include "ros_weaver/core/canvas_mapper.hpp"
@@ -44,6 +45,7 @@ class GuidedTour;
 class RosbagWorkbenchPanel;
 class MCPExplorerPanel;
 class RosControlPanel;
+class RosbagMCPServer;
 
 class MainWindow : public QMainWindow {
   Q_OBJECT
@@ -133,6 +135,10 @@ private:
   bool saveProject(const QString& filePath);
   bool loadProject(const QString& filePath);
   void loadProjectYamlFiles(const QString& projectDir);
+
+  // MCP Rosbag integration
+  void connectRosbagMCPServers();
+  void connectRosbagMCPServer(std::shared_ptr<RosbagMCPServer> server);
 
   // Central canvas for visual editing
   WeaverCanvas* canvas_;

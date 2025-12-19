@@ -377,9 +377,87 @@ Future improvements to the in-program help system:
 - Multiple language support (i18n)
 - Integration with ROS2 documentation (ros.org links)
 
-## Feature: Undo Function (Planned)
 
-Add undo/redo support for canvas operations.
+
+## Feature: Rosbag Recording (Completed)
+
+**Implemented:**
+- ✅ Record button to capture rosbag in realtime (`BagRecorder` class)
+- ✅ Start/stop/pause/resume recording controls
+- ✅ Topic selection (record all topics or specific topics)
+- ✅ Storage format selection (sqlite3 or mcap)
+- ✅ Real-time statistics display (message count, bytes written, duration)
+- ✅ Configurable output path with directory picker
+- ✅ Full integration with `RosbagWorkbenchPanel`
+- ✅ MCP server (`RosbagMCPServer`) provides recording status to AI
+- ✅ AI-controlled recording via MCP tools: `start_recording`, `stop_recording`, `pause_recording`, `resume_recording`
+- ✅ Bidirectional state sync between MCP server and UI
+
+
+
+## Feature: ros_control MCP Integration (Completed)
+
+**Implemented:**
+- ✅ `ROSControlMCPServer` provides ros2_control lifecycle monitoring via MCP
+- ✅ Tools available: `list_controllers`, `controller_info`, `list_hardware_interfaces`, `switch_controller`
+- ✅ AI can query controller states and switch controllers
+
+**Remaining:**
+- Dedicated ros_control panel in UI for visual lifecycle control and monitoring
+- Bidirectional interaction between UI panel and Local AI
+
+
+
+## Feature: MCP Server System (Completed)
+
+**Core Infrastructure (Completed):**
+- ✅ `MCPServer` abstract base class with lifecycle management
+- ✅ `MCPManager` singleton for server registration, lifecycle, and tool aggregation
+- ✅ `MCPServerConfig` for persistent configuration
+- ✅ Statistics tracking (bytes transferred, tool calls, uptime, errors)
+- ✅ Factory pattern for creating servers by type
+- ✅ Configuration persistence via QSettings
+
+**MCP Providers Implemented:**
+- ✅ **ROS Logs** (`ROSLogsMCPServer`): rosout subscription, log filtering, search
+- ✅ **ROS Topics** (`ROSTopicsMCPServer`): list topics/nodes, topic info, echo messages
+- ✅ **Rosbag** (`RosbagMCPServer`): recording status, bag metadata, list bags
+- ✅ **ROS Control** (`ROSControlMCPServer`): controller listing, hardware interfaces, switch controllers
+- ✅ **System Stats** (`SystemStatsMCPServer`): CPU usage/load, RAM/swap, disk usage, temperatures
+- ✅ **Files** (`FilesMCPServer`): directory listing, file reading, file search (with allowed paths)
+- ✅ Binary/image content support in `MCPToolResult` and `MCPResourceContent`
+
+**MCP Explorer Panel (Completed):**
+- ✅ Star network visualization with Local AI at center
+- ✅ MCP servers arranged in circle around Local AI
+- ✅ Visual state indicators (connected=green, connecting=yellow, error=red, disconnected=gray)
+- ✅ Animated data flow on connections (marching ants effect when active)
+- ✅ Direction arrows indicating send/receive during activity
+- ✅ Glow/pulse animations for activity indication
+- ✅ Stats display showing active servers, total data transferred, tool call count
+- ✅ Right-click context menu for start/stop/remove/settings
+- ✅ Add Server button to launch wizard
+- ✅ Hover tooltips with server stats (uptime, bytes, tool calls)
+
+**MCP Server Wizard (Completed):**
+- ✅ Multi-step wizard (Intro → Type → Basic Config → Settings → Summary)
+- ✅ Server type selection with tool descriptions
+- ✅ Server-specific settings pages for each type
+- ✅ AI suggestion support - wizard can be pre-populated with suggested config
+- ✅ `MCPManager::suggestServer()` analyzes user queries to suggest MCP servers
+
+**AI Integration (Completed):**
+- ✅ MCP tools registered in `AIToolManager` via `registerMCPTools()`
+- ✅ Tool name fuzzy matching in `MCPManager::callTool()`
+- ✅ AI can call MCP tools to query ROS state, system stats, files, etc.
+
+**Remaining:**
+- Make MCP Explorer Panel start undocked by default in MainWindow
+- Add clickable button/dialog in chat when AI suggests creating an MCP server
+- Display MCP thread CPU overhead percentage in stats
+- Add program logs MCP server (may be covered by ROS logs)
+
+
 
 ## Feature: Ollama Tool Usage Update (Planned)
 

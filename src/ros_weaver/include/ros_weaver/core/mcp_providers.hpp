@@ -116,8 +116,23 @@ public:
 
     // External hooks for integration with RosbagWorkbenchPanel
     void setRecordingState(bool recording, const QString& bagPath = QString());
+    void setPausedState(bool paused) { isPaused_ = paused; }
     bool isRecording() const { return isRecording_; }
+    bool isPaused() const { return isPaused_; }
     QString currentBagPath() const { return currentBagPath_; }
+
+    // Recording configuration (can be set by AI before starting)
+    void setDefaultOutputPath(const QString& path) { defaultOutputPath_ = path; }
+    QString defaultOutputPath() const { return defaultOutputPath_; }
+    void setDefaultTopics(const QStringList& topics) { defaultTopics_ = topics; }
+    QStringList defaultTopics() const { return defaultTopics_; }
+
+signals:
+    // Signals emitted when AI requests recording control
+    void startRecordingRequested(const QString& outputPath, const QStringList& topics, const QString& storageFormat);
+    void stopRecordingRequested();
+    void pauseRecordingRequested();
+    void resumeRecordingRequested();
 
 protected:
     void onStart() override;
@@ -127,11 +142,18 @@ private:
     MCPToolResult getRecordingStatus();
     MCPToolResult getBagInfo(const QString& bagPath);
     MCPToolResult listBagsInDirectory(const QString& directory);
+    MCPToolResult startRecording(const QString& outputPath, const QStringList& topics, const QString& storageFormat);
+    MCPToolResult stopRecording();
+    MCPToolResult pauseRecording();
+    MCPToolResult resumeRecording();
 
     bool isRecording_ = false;
+    bool isPaused_ = false;
     QString currentBagPath_;
     QDateTime recordingStartTime_;
     QStringList recordingTopics_;
+    QString defaultOutputPath_;
+    QStringList defaultTopics_;
 };
 
 /**

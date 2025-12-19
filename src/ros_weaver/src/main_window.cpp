@@ -30,10 +30,12 @@
 #include "ros_weaver/widgets/guided_tour.hpp"
 #include "ros_weaver/widgets/topic_echo_dialog.hpp"
 #include "ros_weaver/widgets/rosbag_workbench_panel.hpp"
+#include "ros_weaver/core/bag_recorder.hpp"
 #include "ros_weaver/widgets/mcp_explorer_panel.hpp"
 #include "ros_weaver/widgets/ros_control_panel.hpp"
 #include "ros_weaver/wizards/mcp_server_wizard.hpp"
 #include "ros_weaver/core/mcp_manager.hpp"
+#include "ros_weaver/core/mcp_providers.hpp"
 #include "ros_weaver/core/context_help.hpp"
 
 #include <QApplication>
@@ -804,6 +806,18 @@ void MainWindow::setupDockWidgets() {
   // Initialize MCP Manager and load configuration
   MCPManager::instance().loadConfiguration();
   MCPManager::instance().setCanvas(canvas_);
+
+  // Connect any existing rosbag MCP servers to the workbench panel
+  connectRosbagMCPServers();
+
+  // Also connect when new servers are registered
+  connect(&MCPManager::instance(), &MCPManager::serverRegistered, this,
+          [this](const QUuid& id) {
+    auto server = MCPManager::instance().server(id);
+    if (server && server->serverType() == "rosbag") {
+      connectRosbagMCPServer(std::dynamic_pointer_cast<RosbagMCPServer>(server));
+    }
+  });
 
   // Setup AI integration between canvas and LLM chat
   if (outputPanel_->llmChatWidget() && canvas_) {
@@ -2824,6 +2838,68 @@ void MainWindow::onShowTopicOnCanvas(const QString& topicName) {
   }
 
   statusBar()->showMessage(tr("Topic not found on canvas: %1").arg(topicName), 3000);
+}
+
+void MainWindow::connectRosbagMCPServers() {
+  // Connect all existing rosbag MCP servers to the workbench panel
+  for (const auto& server : MCPManager::instance().allServers()) {
+    if (server->serverType() == "rosbag") {
+      connectRosbagMCPServer(std::dynamic_pointer_cast<RosbagMCPServer>(server));
+    }
+  }
+}
+
+void MainWindow::connectRosbagMCPServer(std::shared_ptr<RosbagMCPServer> server) {
+  if (!server || !rosbagWorkbenchPanel_) return;
+
+  BagRecorder* recorder = rosbagWorkbenchPanel_->bagRecorder();
+  if (!recorder) return;
+
+  // Connect MCP server signals to the bag recorder
+  connect(server.get(), &RosbagMCPServer::startRecordingRequested, recorder,
+          [recorder](const QString& outputPath, const QStringList& topics, const QString& storageFormat) {
+    if (!outputPath.isEmpty()) {
+      recorder->setOutputPath(outputPath);
+    }
+    if (!topics.isEmpty()) {
+      recorder->setTopicsToRecord(topics);
+      recorder->setRecordAllTopics(false);
+    } else {
+      recorder->setRecordAllTopics(true);
+    }
+    recorder->setStorageFormat(storageFormat.isEmpty() ? "sqlite3" : storageFormat);
+    recorder->startRecording();
+  });
+
+  connect(server.get(), &RosbagMCPServer::stopRecordingRequested, recorder, &BagRecorder::stopRecording);
+  connect(server.get(), &RosbagMCPServer::pauseRecordingRequested, recorder, &BagRecorder::pauseRecording);
+  connect(server.get(), &RosbagMCPServer::resumeRecordingRequested, recorder, &BagRecorder::resumeRecording);
+
+  // Connect recorder signals back to MCP server to keep state in sync
+  connect(recorder, &BagRecorder::recordingStarted, server.get(),
+          [server](const QString& path) {
+    server->setRecordingState(true, path);
+  });
+
+  connect(recorder, &BagRecorder::recordingStopped, server.get(),
+          [server]() {
+    server->setRecordingState(false);
+  });
+
+  connect(recorder, &BagRecorder::recordingPaused, server.get(),
+          [server]() {
+    server->setPausedState(true);
+  });
+
+  connect(recorder, &BagRecorder::recordingResumed, server.get(),
+          [server]() {
+    server->setPausedState(false);
+  });
+
+  // Set the default output path from the current recorder setting
+  if (!recorder->outputPath().isEmpty()) {
+    server->setDefaultOutputPath(recorder->outputPath());
+  }
 }
 
 }  // namespace ros_weaver
