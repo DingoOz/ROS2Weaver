@@ -65,6 +65,8 @@ jobs:
             }
 
       - name: Run unit tests
+        env:
+          QT_QPA_PLATFORM: offscreen
         run: |
           source /opt/ros/${{ matrix.ros-distro }}/setup.bash
           cd ros_ws
