@@ -274,6 +274,8 @@ TEST_F(UndoStackTest, CanUndoChangedSignal) {
 
   stack->undo();
   EXPECT_FALSE(canUndoChanged);
+
+  stack->disconnect();  // Prevent dangling reference in TearDown
 }
 
 TEST_F(UndoStackTest, CanRedoChangedSignal) {
@@ -289,6 +291,8 @@ TEST_F(UndoStackTest, CanRedoChangedSignal) {
 
   stack->redo();
   EXPECT_FALSE(canRedoChanged);
+
+  stack->disconnect();  // Prevent dangling reference in TearDown
 }
 
 TEST_F(UndoStackTest, UndoTextChangedSignal) {
@@ -304,6 +308,8 @@ TEST_F(UndoStackTest, UndoTextChangedSignal) {
 
   stack->undo();
   EXPECT_EQ(lastUndoText, "First");
+
+  stack->disconnect();  // Prevent dangling reference in TearDown
 }
 
 TEST_F(UndoStackTest, CleanChangedSignal) {
@@ -323,6 +329,8 @@ TEST_F(UndoStackTest, CleanChangedSignal) {
   stack->setClean();
   EXPECT_TRUE(cleanChanged);
   EXPECT_TRUE(lastCleanState);
+
+  stack->disconnect();  // Prevent dangling reference in TearDown
 }
 
 int main(int argc, char** argv) {
