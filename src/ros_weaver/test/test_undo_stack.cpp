@@ -2,6 +2,7 @@
 // Tests the undo/redo infrastructure without requiring canvas
 
 #include <gtest/gtest.h>
+#include <QCoreApplication>
 #include "ros_weaver/core/undo/undo_stack.hpp"
 #include "ros_weaver/core/undo/undo_command.hpp"
 #include "ros_weaver/core/undo/command_ids.hpp"
@@ -325,6 +326,7 @@ TEST_F(UndoStackTest, CleanChangedSignal) {
 }
 
 int main(int argc, char** argv) {
+  QCoreApplication app(argc, argv);
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
