@@ -113,6 +113,7 @@ set(SOURCES
   src/core/mcp_server.cpp
   src/core/mcp_manager.cpp
   src/core/mcp_providers.cpp
+  src/core/error_handler.cpp
   src/wizards/package_wizard.cpp
   src/wizards/robot_wizard.cpp
   src/wizards/mcp_server_wizard.cpp
@@ -189,6 +190,7 @@ set(HEADERS
   include/ros_weaver/widgets/command_palette.hpp
   include/ros_weaver/widgets/empty_state.hpp
   include/ros_weaver/core/constants.hpp
+  include/ros_weaver/core/error_handler.hpp
 )
 
 # Create executable

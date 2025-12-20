@@ -41,6 +41,7 @@
 #include "ros_weaver/widgets/toast_notification.hpp"
 #include "ros_weaver/widgets/command_palette.hpp"
 #include "ros_weaver/widgets/empty_state.hpp"
+#include "ros_weaver/core/error_handler.hpp"
 
 #include <QApplication>
 #include <QCloseEvent>
@@ -1053,8 +1054,7 @@ bool MainWindow::saveProject(const QString& filePath) {
   project.metadata().name = QFileInfo(filePath).baseName();
 
   if (!project.saveToFile(filePath)) {
-    QMessageBox::warning(this, tr("Save Error"),
-                         tr("Could not save project to %1").arg(filePath));
+    ErrorHandler::showError(tr("Could not save project to %1").arg(filePath));
     return false;
   }
 
@@ -1066,7 +1066,7 @@ bool MainWindow::loadProject(const QString& filePath) {
   Project project = Project::loadFromFile(filePath, &errorMsg);
 
   if (!errorMsg.isEmpty()) {
-    QMessageBox::warning(this, tr("Load Error"), errorMsg);
+    ErrorHandler::showError(errorMsg);
     return false;
   }
 
@@ -2165,15 +2165,14 @@ void MainWindow::onGenerationFinished(bool success) {
     }
   } else {
     outputPanel_->appendBuildError(tr("Code generation failed: %1").arg(codeGenerator_->lastError()));
-    QMessageBox::critical(this, tr("Code Generation Failed"),
-      tr("Failed to generate ROS2 package:\n%1").arg(codeGenerator_->lastError()));
+    ErrorHandler::show(ErrorSeverity::Critical, tr("Code Generation Failed"),
+      tr("Failed to generate ROS2 package:\n%1").arg(codeGenerator_->lastError()), this);
   }
 }
 
 void MainWindow::onOpenProjectInVSCode() {
   if (currentProjectPath_.isEmpty()) {
-    QMessageBox::information(this, tr("No Project Open"),
-      tr("Please save the project first before opening in VS Code."));
+    ErrorHandler::showInfo(tr("Please save the project first before opening in VS Code."));
     return;
   }
 
@@ -2181,44 +2180,35 @@ void MainWindow::onOpenProjectInVSCode() {
   QString projectDir = projectInfo.absolutePath();
 
   if (!ExternalEditor::isVSCodeAvailable()) {
-    QMessageBox::warning(this, tr("VS Code Not Found"),
-      tr("Visual Studio Code was not found on this system.\n\n"
-         "Please install VS Code and ensure the 'code' command is available in your PATH."));
+    ErrorHandler::showWarning(tr("VS Code not found. Please install it and ensure 'code' is in PATH."));
     return;
   }
 
   if (!externalEditor_->openFolderInVSCode(projectDir)) {
-    QMessageBox::warning(this, tr("Failed to Open VS Code"),
-      tr("Could not open VS Code:\n%1").arg(externalEditor_->lastError()));
+    ErrorHandler::showError(tr("Could not open VS Code: %1").arg(externalEditor_->lastError()));
   }
 }
 
 void MainWindow::onOpenGeneratedPackageInVSCode() {
   if (lastGeneratedPackagePath_.isEmpty()) {
-    QMessageBox::information(this, tr("No Package Generated"),
-      tr("No package has been generated yet.\n\n"
-         "Use File → Generate ROS2 Package to generate a package first."));
+    ErrorHandler::showInfo(tr("No package generated yet. Use File → Generate ROS2 Package first."));
     return;
   }
 
   QFileInfo packageInfo(lastGeneratedPackagePath_);
   if (!packageInfo.exists()) {
-    QMessageBox::warning(this, tr("Package Not Found"),
-      tr("The generated package folder no longer exists:\n%1").arg(lastGeneratedPackagePath_));
+    ErrorHandler::showWarning(tr("Generated package folder no longer exists."));
     lastGeneratedPackagePath_.clear();
     return;
   }
 
   if (!ExternalEditor::isVSCodeAvailable()) {
-    QMessageBox::warning(this, tr("VS Code Not Found"),
-      tr("Visual Studio Code was not found on this system.\n\n"
-         "Please install VS Code and ensure the 'code' command is available in your PATH."));
+    ErrorHandler::showWarning(tr("VS Code not found. Please install it and ensure 'code' is in PATH."));
     return;
   }
 
   if (!externalEditor_->openFolderInVSCode(lastGeneratedPackagePath_)) {
-    QMessageBox::warning(this, tr("Failed to Open VS Code"),
-      tr("Could not open VS Code:\n%1").arg(externalEditor_->lastError()));
+    ErrorHandler::showError(tr("Could not open VS Code: %1").arg(externalEditor_->lastError()));
   }
 }
 
@@ -2229,9 +2219,7 @@ void MainWindow::onOpenBlockInVSCode(PackageBlock* block) {
 
   // First check if VS Code is available
   if (!ExternalEditor::isVSCodeAvailable()) {
-    QMessageBox::warning(this, tr("VS Code Not Found"),
-      tr("Visual Studio Code was not found on this system.\n\n"
-         "Please install VS Code and ensure the 'code' command is available in your PATH."));
+    ErrorHandler::showWarning(tr("VS Code not found. Please install it and ensure 'code' is in PATH."));
     return;
   }
 
@@ -2240,8 +2228,7 @@ void MainWindow::onOpenBlockInVSCode(PackageBlock* block) {
     QString packagePath = packageIndex_->findPackagePath(packageName);
     if (!packagePath.isEmpty()) {
       if (!externalEditor_->openFolderInVSCode(packagePath)) {
-        QMessageBox::warning(this, tr("Failed to Open VS Code"),
-          tr("Could not open VS Code:\n%1").arg(externalEditor_->lastError()));
+        ErrorHandler::showError(tr("Could not open VS Code: %1").arg(externalEditor_->lastError()));
       }
       return;
     }
