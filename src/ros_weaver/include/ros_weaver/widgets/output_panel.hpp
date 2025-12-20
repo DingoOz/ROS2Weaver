@@ -103,6 +103,7 @@ private:
   void addLogEntry(const LogEntry& entry);
   QColor getColorForLevel(const QString& level) const;
   QIcon getIconForLevel(const QString& level) const;
+  QString getIconTextForLevel(const QString& level) const;
   bool passesFilter(const LogEntry& entry) const;
 
   // ROS2 node and subscription (run in separate thread)

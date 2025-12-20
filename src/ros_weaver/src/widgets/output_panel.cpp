@@ -1,5 +1,6 @@
 #include "ros_weaver/widgets/output_panel.hpp"
 #include "ros_weaver/widgets/llm_chat_widget.hpp"
+#include "ros_weaver/core/theme_manager.hpp"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -120,15 +121,8 @@ void RosLogViewer::setupUi() {
 
   analyzeErrorsButton_ = new QPushButton(tr("Analyze Errors"));
   analyzeErrorsButton_->setToolTip(tr("Send current errors to LocalLLM for analysis"));
-  analyzeErrorsButton_->setStyleSheet(
-      "QPushButton {"
-      "  background-color: #c0392b;"
-      "  color: white;"
-      "  border-radius: 3px;"
-      "  padding: 4px 8px;"
-      "}"
-      "QPushButton:hover { background-color: #e74c3c; }"
-      "QPushButton:disabled { background-color: #555555; color: #888888; }");
+  auto& theme = ThemeManager::instance();
+  analyzeErrorsButton_->setStyleSheet(theme.destructiveButtonStyle());
   connect(analyzeErrorsButton_, &QPushButton::clicked, this, &RosLogViewer::onAnalyzeErrorsClicked);
 
   autoScrollCheck_ = new QCheckBox(tr("Auto-scroll"));
@@ -299,7 +293,10 @@ void RosLogViewer::addLogEntry(const LogEntry& entry) {
   // Create tree item
   QTreeWidgetItem* item = new QTreeWidgetItem();
   item->setText(0, entry.timestamp.toString("hh:mm:ss.zzz"));
-  item->setText(1, entry.level);
+
+  // Add icon and level text
+  QString levelWithIcon = QString("%1 %2").arg(getIconTextForLevel(entry.level), entry.level);
+  item->setText(1, levelWithIcon);
   item->setText(2, entry.nodeName);
   item->setText(3, entry.message);
 
@@ -308,10 +305,22 @@ void RosLogViewer::addLogEntry(const LogEntry& entry) {
     .arg(entry.file).arg(entry.line).arg(entry.function);
   item->setToolTip(3, tooltip);
 
-  // Color code by level
-  QColor color = getColorForLevel(entry.level);
-  for (int i = 0; i < 4; ++i) {
-    item->setForeground(i, color);
+  // Color code by level - only color the level column for cleaner look
+  QColor levelColor = getColorForLevel(entry.level);
+  item->setForeground(1, levelColor);
+
+  // Use default text color for other columns, but slightly muted for timestamp
+  auto& theme = ThemeManager::instance();
+  item->setForeground(0, theme.textSecondaryColor());
+  item->setForeground(2, theme.textPrimaryColor());
+  item->setForeground(3, theme.textPrimaryColor());
+
+  // Bold for errors and fatals
+  if (entry.level == "ERROR" || entry.level == "FATAL") {
+    QFont boldFont = item->font(1);
+    boldFont.setBold(true);
+    item->setFont(1, boldFont);
+    item->setFont(3, boldFont);
   }
 
   // Add to tree
@@ -334,11 +343,14 @@ QColor RosLogViewer::getColorForLevel(const QString& level) const {
 }
 
 QColor RosLogViewer::colorForLevel(const QString& level) const {
+  auto& theme = ThemeManager::instance();
+
+  // Use theme colors when available, fall back to configured colors
   if (level == "DEBUG") return logColors_.debugColor;
-  if (level == "INFO")  return logColors_.infoColor;
-  if (level == "WARN")  return logColors_.warnColor;
-  if (level == "ERROR") return logColors_.errorColor;
-  if (level == "FATAL") return logColors_.fatalColor;
+  if (level == "INFO")  return theme.textPrimaryColor();
+  if (level == "WARN")  return theme.warningColor();
+  if (level == "ERROR") return theme.errorColor();
+  if (level == "FATAL") return theme.errorColor().darker(120);
   return logColors_.unknownColor;
 }
 
@@ -373,8 +385,17 @@ void RosLogViewer::setColorForLevel(const QString& level, const QColor& color) {
   }
 }
 
+QString RosLogViewer::getIconTextForLevel(const QString& level) const {
+  // Unicode icons for log levels
+  if (level == "DEBUG") return QString::fromUtf8("\xF0\x9F\x94\x8D");  // Magnifying glass
+  if (level == "INFO")  return QString::fromUtf8("\xE2\x84\xB9");      // Info symbol
+  if (level == "WARN")  return QString::fromUtf8("\xE2\x9A\xA0");      // Warning triangle
+  if (level == "ERROR") return QString::fromUtf8("\xE2\x9C\x95");      // X mark
+  if (level == "FATAL") return QString::fromUtf8("\xF0\x9F\x92\x80");  // Skull
+  return QString::fromUtf8("\xE2\x9D\x93");  // Question mark
+}
+
 QIcon RosLogViewer::getIconForLevel(const QString& level) const {
-  // Could add icons here
   Q_UNUSED(level)
   return QIcon();
 }
@@ -417,13 +438,18 @@ void RosLogViewer::onFilterChanged() {
   logTree_->clear();
   displayedCount_ = 0;
 
+  auto& theme = ThemeManager::instance();
+
   for (const LogEntry& entry : allLogEntries_) {
     if (!passesFilter(entry)) continue;
 
     // Create tree item
     QTreeWidgetItem* item = new QTreeWidgetItem();
     item->setText(0, entry.timestamp.toString("hh:mm:ss.zzz"));
-    item->setText(1, entry.level);
+
+    // Add icon and level text
+    QString levelWithIcon = QString("%1 %2").arg(getIconTextForLevel(entry.level), entry.level);
+    item->setText(1, levelWithIcon);
     item->setText(2, entry.nodeName);
     item->setText(3, entry.message);
 
@@ -432,10 +458,19 @@ void RosLogViewer::onFilterChanged() {
       .arg(entry.file).arg(entry.line).arg(entry.function);
     item->setToolTip(3, tooltip);
 
-    // Color code by level
-    QColor color = getColorForLevel(entry.level);
-    for (int i = 0; i < 4; ++i) {
-      item->setForeground(i, color);
+    // Color code by level - only color the level column for cleaner look
+    QColor levelColor = getColorForLevel(entry.level);
+    item->setForeground(1, levelColor);
+    item->setForeground(0, theme.textSecondaryColor());
+    item->setForeground(2, theme.textPrimaryColor());
+    item->setForeground(3, theme.textPrimaryColor());
+
+    // Bold for errors and fatals
+    if (entry.level == "ERROR" || entry.level == "FATAL") {
+      QFont boldFont = item->font(1);
+      boldFont.setBold(true);
+      item->setFont(1, boldFont);
+      item->setFont(3, boldFont);
     }
 
     logTree_->addTopLevelItem(item);
@@ -807,19 +842,20 @@ void OutputPanel::setupUi() {
   progressBar_->setVisible(false);
   buildLayout->addWidget(progressBar_);
 
-  tabWidget_->addTab(buildTab, tr("Output"));
+  // Use Unicode icons for tab labels for better visual clarity
+  tabWidget_->addTab(buildTab, QString::fromUtf8("\xF0\x9F\x94\xA7 ") + tr("Output"));  // Wrench
 
   // ROS Log tab
   rosLogViewer_ = new RosLogViewer();
-  tabWidget_->addTab(rosLogViewer_, tr("ROS Logs"));
+  tabWidget_->addTab(rosLogViewer_, QString::fromUtf8("\xF0\x9F\x93\x9C ") + tr("ROS Logs"));  // Scroll
 
   // Terminal tab
   terminalWidget_ = new TerminalWidget();
-  tabWidget_->addTab(terminalWidget_, tr("Terminal"));
+  tabWidget_->addTab(terminalWidget_, QString::fromUtf8("\xF0\x9F\x92\xBB ") + tr("Terminal"));  // Computer
 
   // LLM Chat tab
   llmChatWidget_ = new LLMChatWidget();
-  tabWidget_->addTab(llmChatWidget_, tr("LocalLLM"));
+  tabWidget_->addTab(llmChatWidget_, QString::fromUtf8("\xF0\x9F\xA4\x96 ") + tr("LocalLLM"));  // Robot
 
   layout->addWidget(tabWidget_);
 

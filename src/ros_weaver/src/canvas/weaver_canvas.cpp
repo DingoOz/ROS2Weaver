@@ -4,6 +4,7 @@
 #include "ros_weaver/canvas/node_group.hpp"
 #include "ros_weaver/core/project.hpp"
 #include "ros_weaver/core/lineage_provider.hpp"
+#include "ros_weaver/core/theme_manager.hpp"
 #include "ros_weaver/widgets/lineage_dialog.hpp"
 #include "ros_weaver/core/undo/undo_stack.hpp"
 #include "ros_weaver/core/undo/commands/add_block_command.hpp"
@@ -689,6 +690,8 @@ bool WeaverCanvas::findPinAtPos(const QPointF& scenePos, PackageBlock*& block,
 void WeaverCanvas::updateTempConnection(const QPointF& endPos) {
   if (!tempConnectionPath_ || !connectionSourceBlock_) return;
 
+  auto& theme = ThemeManager::instance();
+
   QPointF startPos;
   if (connectionFromOutput_) {
     startPos = connectionSourceBlock_->outputPinScenePos(connectionSourcePin_);
@@ -721,7 +724,21 @@ void WeaverCanvas::updateTempConnection(const QPointF& endPos) {
   bool targetIsOutput = false;
 
   if (findPinAtPos(endPos, targetBlock, targetPin, targetIsOutput)) {
-    // Valid target: output -> input or input -> output (opposite types)
+    // Check if same pin type (output->output or input->input = invalid)
+    bool sameType = (connectionFromOutput_ && targetIsOutput) ||
+                    (!connectionFromOutput_ && !targetIsOutput);
+
+    // Check if connecting to self
+    bool selfConnect = (targetBlock == connectionSourceBlock_);
+
+    if (sameType || selfConnect) {
+      // Invalid connection - red with X pattern
+      QPen pen(theme.errorColor(), 3, Qt::DotLine);
+      tempConnectionPath_->setPen(pen);
+      return;
+    }
+
+    // Valid target direction: output -> input or input -> output
     bool validTarget = (connectionFromOutput_ && !targetIsOutput) ||
                        (!connectionFromOutput_ && targetIsOutput);
 
@@ -737,16 +754,23 @@ void WeaverCanvas::updateTempConnection(const QPointF& endPos) {
       }
 
       if (compatible) {
-        // Highlight as valid - bright green
-        QPen pen(QColor(100, 255, 100), 3);
+        // Valid connection - bright green solid line, thicker
+        QPen pen(theme.successColor(), 3);
+        tempConnectionPath_->setPen(pen);
+        return;
+      } else {
+        // Incompatible types - red dashed line
+        QPen pen(theme.errorColor(), 2, Qt::DashLine);
         tempConnectionPath_->setPen(pen);
         return;
       }
     }
   }
 
-  // Default/invalid state
-  QPen pen(dragConnectionColor_, 2, Qt::DashLine);
+  // Default state (not hovering over any pin) - neutral dashed line
+  QColor neutralColor = dragConnectionColor_;
+  neutralColor.setAlpha(180);
+  QPen pen(neutralColor, 2, Qt::DashLine);
   tempConnectionPath_->setPen(pen);
 }
 

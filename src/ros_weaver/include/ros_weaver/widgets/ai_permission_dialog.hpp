@@ -48,6 +48,47 @@ private:
   bool approveAll_ = false;
 };
 
+/**
+ * @brief Inline permission card for AI actions
+ *
+ * A non-blocking widget that can be embedded in the chat to request
+ * permission. Less intrusive than a modal dialog.
+ */
+class AIPermissionCard : public QWidget {
+  Q_OBJECT
+
+public:
+  explicit AIPermissionCard(QWidget* parent = nullptr);
+
+  void setAction(const QString& toolName, const QString& description,
+                 const QJsonObject& params);
+
+signals:
+  void approved(bool approveAll);
+  void denied();
+
+private slots:
+  void onApprove();
+  void onDeny();
+  void onToggleDetails();
+
+private:
+  void setupUi();
+
+  QLabel* titleLabel_;
+  QLabel* descriptionLabel_;
+  QWidget* detailsWidget_;
+  QLabel* detailsLabel_;
+  QPushButton* toggleDetailsBtn_;
+  QCheckBox* approveAllCheckbox_;
+  QPushButton* approveBtn_;
+  QPushButton* denyBtn_;
+
+  QString toolName_;
+  QJsonObject params_;
+  bool detailsVisible_ = false;
+};
+
 // Widget shown in the chat when an action can be undone
 class AIUndoWidget : public QWidget {
   Q_OBJECT

@@ -1,6 +1,7 @@
 #include "ros_weaver/widgets/param_dashboard.hpp"
 #include "ros_weaver/widgets/lineage_dialog.hpp"
 #include "ros_weaver/core/lineage_provider.hpp"
+#include "ros_weaver/core/theme_manager.hpp"
 #include "ros_weaver/canvas/package_block.hpp"
 #include "ros_weaver/core/project.hpp"
 
@@ -58,10 +59,14 @@ void ParamDashboard::setupUi() {
   nodeNameLabel_->setStyleSheet("font-weight: bold; padding: 4px;");
   mainLayout->addWidget(nodeNameLabel_);
 
-  // Validation status label
+  // Validation status label with theme-aware colors
   validationLabel_ = new QLabel();
   validationLabel_->setVisible(false);
-  validationLabel_->setStyleSheet("color: #d9534f; padding: 2px 4px; background: #f2dede; border-radius: 2px;");
+  auto& theme = ThemeManager::instance();
+  validationLabel_->setStyleSheet(QString(
+      "color: %1; padding: 4px 8px; background: %2; border-radius: 4px; font-weight: 500;")
+      .arg(theme.errorColor().name())
+      .arg(theme.errorColor().lighter(170).name()));
   mainLayout->addWidget(validationLabel_);
 
   // YAML source selector row
@@ -599,31 +604,55 @@ QWidget* ParamDashboard::createValueEditor(const ParamDefinition& param, QTreeWi
 }
 
 void ParamDashboard::updateValidationState(QTreeWidgetItem* item, bool isValid, const QString& errorMsg) {
+  auto& theme = ThemeManager::instance();
+
   if (isValid) {
     item->setBackground(0, QBrush());
+    item->setForeground(0, QBrush());
+    // Restore original name if we stored it
+    QString storedName = item->data(0, Qt::UserRole).toString();
+    if (!storedName.isEmpty()) {
+      item->setText(0, storedName);
+    }
+    item->setToolTip(0, "");
     item->setToolTip(1, "");
   } else {
-    item->setBackground(0, QColor(255, 220, 220));
+    // Store original name if not already stored
+    if (item->data(0, Qt::UserRole).toString().isEmpty()) {
+      item->setData(0, Qt::UserRole, item->text(0));
+    }
+    // Add warning icon to name
+    QString originalName = item->data(0, Qt::UserRole).toString();
+    item->setText(0, QString::fromUtf8("\xE2\x9A\xA0 ") + originalName);  // Warning triangle
+    item->setBackground(0, theme.errorColor().lighter(180));
+    item->setForeground(0, theme.errorColor().darker(120));
+    item->setToolTip(0, errorMsg);
     item->setToolTip(1, errorMsg);
   }
 
   // Update overall validation label
   bool allValid = true;
+  int invalidCount = 0;
+  QString firstError;
   for (const auto& p : params_) {
     if (!p.isValid) {
       allValid = false;
-      break;
+      invalidCount++;
+      if (firstError.isEmpty()) {
+        firstError = p.name + ": " + p.validationError;
+      }
     }
   }
 
   if (allValid) {
     validationLabel_->setVisible(false);
   } else {
-    int invalidCount = 0;
-    for (const auto& p : params_) {
-      if (!p.isValid) invalidCount++;
+    QString errorIcon = QString::fromUtf8("\xE2\x9A\xA0 ");  // Warning triangle
+    if (invalidCount == 1) {
+      validationLabel_->setText(errorIcon + firstError);
+    } else {
+      validationLabel_->setText(errorIcon + tr("%1 validation errors").arg(invalidCount));
     }
-    validationLabel_->setText(tr("%1 parameter(s) have validation errors").arg(invalidCount));
     validationLabel_->setVisible(true);
   }
 

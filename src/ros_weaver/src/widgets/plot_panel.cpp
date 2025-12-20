@@ -129,10 +129,12 @@ void PlotPanel::setupUi() {
   applyChartTheme();  // Apply theme to chart
   mainSplitter_->addWidget(chartView_);
 
-  // Set splitter proportions
-  mainSplitter_->setStretchFactor(0, 1);  // Series list
-  mainSplitter_->setStretchFactor(1, 5);  // Chart area (more space for chart)
-  mainSplitter_->setSizes({150, 650});
+  // Set splitter proportions - use stretch factors only, not absolute sizes
+  // to avoid forcing the dock widget to resize when this tab becomes visible
+  mainSplitter_->setStretchFactor(0, 0);  // Series list - fixed size
+  mainSplitter_->setStretchFactor(1, 1);  // Chart area - stretches to fill
+  mainSplitter_->setCollapsible(0, false);
+  mainSplitter_->setCollapsible(1, false);
 
   mainLayout->addWidget(mainSplitter_, 1);  // Splitter takes all available space
 
@@ -225,6 +227,9 @@ void PlotPanel::setupChart() {
   chartView_ = new QChartView(chart_);
   chartView_->setRenderHint(QPainter::Antialiasing);
   chartView_->setRubberBand(QChartView::RectangleRubberBand);
+  // Prevent chart from forcing dock resize - use expanding policy with small minimum
+  chartView_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+  chartView_->setMinimumSize(100, 100);
 }
 
 void PlotPanel::setupSeriesList() {

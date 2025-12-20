@@ -1,5 +1,6 @@
 #include "ros_weaver/widgets/system_mapping_panel.hpp"
 #include "ros_weaver/core/system_discovery.hpp"
+#include "ros_weaver/core/theme_manager.hpp"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -220,6 +221,7 @@ void SystemMappingPanel::updateResults(const MappingResults& results) {
       item->setToolTip(0, result.matchReason);
 
       // Add topic details as children
+      auto& theme = ThemeManager::instance();
       for (const TopicMapping& tm : result.topicMappings) {
         QTreeWidgetItem* topicItem = new QTreeWidgetItem(item);
         QString direction = tm.isPublisher ? QString::fromUtf8("\u2192") : QString::fromUtf8("\u2190");
@@ -228,11 +230,11 @@ void SystemMappingPanel::updateResults(const MappingResults& results) {
         if (!tm.ros2TopicName.isEmpty()) {
           topicItem->setText(1, tm.ros2TopicName);
           topicItem->setText(2, tm.isActive ? tr("Active") : tr("Inactive"));
-          topicItem->setForeground(2, tm.isActive ? QColor("#4CAF50") : QColor("#9E9E9E"));
+          topicItem->setForeground(2, tm.isActive ? theme.successColor() : theme.textSecondaryColor());
         } else {
           topicItem->setText(1, tr("(not found)"));
           topicItem->setText(2, tr("Missing"));
-          topicItem->setForeground(2, QColor("#F44336"));
+          topicItem->setForeground(2, theme.errorColor());
         }
       }
 
@@ -240,7 +242,7 @@ void SystemMappingPanel::updateResults(const MappingResults& results) {
     } else {
       item->setText(1, tr("(not found)"));
       item->setText(2, tr("Not Running"));
-      item->setForeground(2, QColor("#9E9E9E"));
+      item->setForeground(2, ThemeManager::instance().textSecondaryColor());
       unmatchedCanvasRoot_->addChild(item);
     }
   }
@@ -250,7 +252,7 @@ void SystemMappingPanel::updateResults(const MappingResults& results) {
     QTreeWidgetItem* item = new QTreeWidgetItem(unmatchedSystemRoot_);
     item->setText(0, nodeName);
     item->setText(2, tr("Not on Canvas"));
-    item->setForeground(2, QColor("#2196F3"));
+    item->setForeground(2, ThemeManager::instance().primaryColor());
   }
 
   // Update root item labels with counts
@@ -335,11 +337,12 @@ QString SystemMappingPanel::confidenceToIcon(MatchConfidence confidence) const {
 }
 
 QColor SystemMappingPanel::confidenceToColor(MatchConfidence confidence) const {
+  auto& theme = ThemeManager::instance();
   switch (confidence) {
-    case MatchConfidence::High: return QColor("#4CAF50");    // Green
-    case MatchConfidence::Medium: return QColor("#FF9800");  // Orange
-    case MatchConfidence::Low: return QColor("#FF5722");     // Deep orange
-    case MatchConfidence::None: return QColor("#9E9E9E");    // Gray
+    case MatchConfidence::High: return theme.successColor();
+    case MatchConfidence::Medium: return theme.warningColor();
+    case MatchConfidence::Low: return theme.warningColor().darker(120);
+    case MatchConfidence::None: return theme.textSecondaryColor();
   }
   return QColor();
 }
