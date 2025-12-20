@@ -1,4 +1,5 @@
 #include "ros_weaver/widgets/ros_status_widget.hpp"
+#include "ros_weaver/core/theme_manager.hpp"
 
 #include <QHBoxLayout>
 #include <QFont>
@@ -43,27 +44,27 @@ RosStatusWidget::~RosStatusWidget() {
 
 void RosStatusWidget::setupUi() {
   QHBoxLayout* layout = new QHBoxLayout(this);
-  layout->setContentsMargins(4, 0, 4, 0);
+  layout->setContentsMargins(4, 2, 4, 2);
   layout->setSpacing(8);
 
-  // Status icon (colored dot)
+  // Status pill container (icon + text)
   statusIconLabel_ = new QLabel(this);
-  statusIconLabel_->setFixedSize(12, 12);
+  statusIconLabel_->setFixedSize(8, 8);
   statusIconLabel_->setToolTip(tr("ROS2 connection status"));
   layout->addWidget(statusIconLabel_);
 
-  // Status text
-  statusTextLabel_ = new QLabel(tr("ROS2: Checking..."), this);
+  // Status text as part of status pill
+  statusTextLabel_ = new QLabel(tr("ROS2"), this);
   statusTextLabel_->setToolTip(tr("ROS2 connection status"));
   layout->addWidget(statusTextLabel_);
 
   // Separator
-  QLabel* separator = new QLabel("|", this);
-  separator->setStyleSheet("color: gray;");
+  QLabel* separator = new QLabel(QString::fromUtf8("\u2022"), this);  // Bullet point
+  separator->setStyleSheet("color: #666; font-size: 8px;");
   layout->addWidget(separator);
 
-  // Domain ID
-  domainIdLabel_ = new QLabel(tr("Domain ID: --"), this);
+  // Domain ID with pill styling
+  domainIdLabel_ = new QLabel(tr("D:--"), this);
   domainIdLabel_->setToolTip(tr("Current ROS_DOMAIN_ID value"));
   layout->addWidget(domainIdLabel_);
 
@@ -201,35 +202,49 @@ int RosStatusWidget::readDomainId() {
 }
 
 void RosStatusWidget::updateDisplay() {
+  auto& theme = ThemeManager::instance();
+
+  // Get colors from theme
+  QColor successColor = theme.successColor();
+  QColor errorColor = theme.errorColor();
+  QColor warningColor = theme.warningColor();
+  QColor textSecondary = theme.textSecondaryColor();
+
   // Update status icon and text
   QString iconStyle;
+  QString textStyle;
   QString statusText;
   QString tooltip;
 
   switch (ros2Status_) {
     case Ros2Status::Connected:
-      iconStyle = "background-color: #4CAF50; border-radius: 6px;";  // Green
-      statusText = tr("ROS2: Connected");
+      iconStyle = QString("background-color: %1; border-radius: 4px;").arg(successColor.name());
+      textStyle = QString("color: %1; font-weight: 500;").arg(successColor.name());
+      statusText = tr("ROS2");
       tooltip = tr("ROS2 context is active and healthy");
       break;
     case Ros2Status::Disconnected:
-      iconStyle = "background-color: #9E9E9E; border-radius: 6px;";  // Gray
-      statusText = tr("ROS2: Disconnected");
+      iconStyle = QString("background-color: %1; border-radius: 4px;").arg(textSecondary.name());
+      textStyle = QString("color: %1;").arg(textSecondary.name());
+      statusText = tr("ROS2");
       tooltip = tr("ROS2 not initialized or shutdown");
       break;
     case Ros2Status::Error:
-      iconStyle = "background-color: #F44336; border-radius: 6px;";  // Red
-      statusText = tr("ROS2: Error");
+      iconStyle = QString("background-color: %1; border-radius: 4px;").arg(errorColor.name());
+      textStyle = QString("color: %1; font-weight: 500;").arg(errorColor.name());
+      statusText = tr("ROS2");
       tooltip = tr("ROS2 initialization failed or daemon unreachable");
       break;
     case Ros2Status::Warning:
-      iconStyle = "background-color: #FF9800; border-radius: 6px;";  // Yellow/Orange
-      statusText = tr("ROS2: Warning");
+      iconStyle = QString("background-color: %1; border-radius: 4px;").arg(warningColor.name());
+      textStyle = QString("color: %1; font-weight: 500;").arg(warningColor.name());
+      statusText = tr("ROS2");
       tooltip = tr("Partial connectivity or unusual state");
       break;
   }
 
   statusIconLabel_->setStyleSheet(iconStyle);
+  statusTextLabel_->setStyleSheet(textStyle);
   statusTextLabel_->setText(statusText);
   statusIconLabel_->setToolTip(tooltip);
   statusTextLabel_->setToolTip(tooltip);
@@ -238,18 +253,17 @@ void RosStatusWidget::updateDisplay() {
   statusIconLabel_->setVisible(showRos2Status_);
   statusTextLabel_->setVisible(showRos2Status_);
 
-  // Update domain ID display
-  QString domainText = tr("Domain ID: %1").arg(domainId_);
+  // Update domain ID display - compact format
+  QString domainText = tr("D:%1").arg(domainId_);
   domainIdLabel_->setText(domainText);
 
   // Highlight non-default domain ID
   if (highlightNonDefaultDomain_ && domainId_ != 0) {
-    domainIdLabel_->setStyleSheet("color: #FF9800; font-weight: bold;");  // Orange highlight
-    domainIdLabel_->setToolTip(tr("Non-default ROS_DOMAIN_ID (default is 0)\nSource: ROS_DOMAIN_ID environment variable"));
+    domainIdLabel_->setStyleSheet(QString("color: %1; font-weight: bold;").arg(warningColor.name()));
+    domainIdLabel_->setToolTip(tr("Non-default ROS_DOMAIN_ID: %1\n(default is 0)").arg(domainId_));
   } else {
-    domainIdLabel_->setStyleSheet("");
-    domainIdLabel_->setToolTip(tr("Current ROS_DOMAIN_ID value\nSource: %1")
-      .arg(std::getenv("ROS_DOMAIN_ID") ? "ROS_DOMAIN_ID environment variable" : "default (0)"));
+    domainIdLabel_->setStyleSheet(QString("color: %1;").arg(textSecondary.name()));
+    domainIdLabel_->setToolTip(tr("ROS_DOMAIN_ID: %1").arg(domainId_));
   }
 
   domainIdLabel_->setVisible(showDomainId_);
@@ -257,7 +271,7 @@ void RosStatusWidget::updateDisplay() {
   // Find and update separator visibility
   for (QObject* child : children()) {
     QLabel* label = qobject_cast<QLabel*>(child);
-    if (label && label->text() == "|") {
+    if (label && label->text() == QString::fromUtf8("\u2022")) {
       label->setVisible(showRos2Status_ && showDomainId_);
       break;
     }

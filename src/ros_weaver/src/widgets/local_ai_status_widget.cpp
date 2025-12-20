@@ -1,5 +1,6 @@
 #include "ros_weaver/widgets/local_ai_status_widget.hpp"
 #include "ros_weaver/core/ollama_manager.hpp"
+#include "ros_weaver/core/theme_manager.hpp"
 
 #include <QHBoxLayout>
 #include <QTimer>
@@ -49,28 +50,27 @@ LocalAIStatusWidget::~LocalAIStatusWidget() {
 
 void LocalAIStatusWidget::setupUi() {
   QHBoxLayout* layout = new QHBoxLayout(this);
-  layout->setContentsMargins(4, 0, 4, 0);
+  layout->setContentsMargins(4, 2, 4, 2);
   layout->setSpacing(6);
 
   // Separator from ROS status
-  separatorLabel_ = new QLabel("|", this);
-  separatorLabel_->setStyleSheet("color: gray;");
+  separatorLabel_ = new QLabel(QString::fromUtf8("\u2022"), this);  // Bullet point
+  separatorLabel_->setStyleSheet("color: #666; font-size: 8px;");
   layout->addWidget(separatorLabel_);
 
   // Status icon (colored dot)
   statusIconLabel_ = new QLabel(this);
-  statusIconLabel_->setFixedSize(12, 12);
+  statusIconLabel_->setFixedSize(8, 8);
   statusIconLabel_->setToolTip(tr("Local AI (Ollama) connection status"));
   layout->addWidget(statusIconLabel_);
 
   // Status text
-  statusTextLabel_ = new QLabel(tr("LocalAI: Checking..."), this);
+  statusTextLabel_ = new QLabel(tr("AI"), this);
   statusTextLabel_->setToolTip(tr("Local AI (Ollama) connection status"));
   layout->addWidget(statusTextLabel_);
 
   // Token speed label (shown during generation)
   tokenSpeedLabel_ = new QLabel(this);
-  tokenSpeedLabel_->setStyleSheet("color: #4CAF50; font-size: 11px;");
   tokenSpeedLabel_->setToolTip(tr("Token generation speed"));
   tokenSpeedLabel_->setVisible(false);
   layout->addWidget(tokenSpeedLabel_);
@@ -127,10 +127,17 @@ void LocalAIStatusWidget::onOllamaSettingsChanged() {
 
 void LocalAIStatusWidget::updateDisplay() {
   OllamaManager& mgr = OllamaManager::instance();
+  auto& theme = ThemeManager::instance();
 
   bool enabled = mgr.isEnabled();
   bool connected = mgr.isOllamaRunning();
   QString selectedModel = mgr.selectedModel();
+
+  // Get colors from theme
+  QColor successColor = theme.successColor();
+  QColor errorColor = theme.errorColor();
+  QColor warningColor = theme.warningColor();
+  QColor textSecondary = theme.textSecondaryColor();
 
   // Determine visibility
   bool showWidget = showStatus_ && enabled;
@@ -143,45 +150,54 @@ void LocalAIStatusWidget::updateDisplay() {
 
   // Update status icon and text
   QString iconStyle;
+  QString textStyle;
   QString statusText;
   QString tooltip;
 
   if (!enabled) {
-    iconStyle = "background-color: #9E9E9E; border-radius: 6px;";  // Gray
-    statusText = tr("LocalAI: Disabled");
+    iconStyle = QString("background-color: %1; border-radius: 4px;").arg(textSecondary.name());
+    textStyle = QString("color: %1;").arg(textSecondary.name());
+    statusText = tr("AI");
     tooltip = tr("Local AI integration is disabled.\nEnable it in Settings > Local LLM.");
   } else if (connected) {
     if (selectedModel.isEmpty()) {
-      iconStyle = "background-color: #FF9800; border-radius: 6px;";  // Orange
-      statusText = tr("LocalAI: No Model");
+      iconStyle = QString("background-color: %1; border-radius: 4px;").arg(warningColor.name());
+      textStyle = QString("color: %1; font-weight: 500;").arg(warningColor.name());
+      statusText = tr("AI");
       tooltip = tr("Ollama is running but no model is selected.\nSelect a model in Settings > Local LLM.");
     } else {
-      iconStyle = "background-color: #4CAF50; border-radius: 6px;";  // Green
+      iconStyle = QString("background-color: %1; border-radius: 4px;").arg(successColor.name());
+      textStyle = QString("color: %1; font-weight: 500;").arg(successColor.name());
       if (showModelName_) {
-        // Truncate long model names
+        // Truncate long model names - more compact
         QString displayModel = selectedModel;
-        if (displayModel.length() > 20) {
-          displayModel = displayModel.left(17) + "...";
+        if (displayModel.length() > 12) {
+          displayModel = displayModel.left(10) + "..";
         }
-        statusText = tr("LocalAI: %1").arg(displayModel);
+        statusText = displayModel;
       } else {
-        statusText = tr("LocalAI: Ready");
+        statusText = tr("AI");
       }
-      tooltip = tr("Ollama is connected.\nModel: %1\nEndpoint: %2")
+      tooltip = tr("Ollama connected\nModel: %1\nEndpoint: %2")
                     .arg(selectedModel, mgr.endpoint());
     }
   } else {
-    iconStyle = "background-color: #F44336; border-radius: 6px;";  // Red
-    statusText = tr("LocalAI: Offline");
-    tooltip = tr("Ollama is not running or unreachable.\n"
-                 "Start Ollama with: ollama serve\n"
+    iconStyle = QString("background-color: %1; border-radius: 4px;").arg(errorColor.name());
+    textStyle = QString("color: %1; font-weight: 500;").arg(errorColor.name());
+    statusText = tr("AI");
+    tooltip = tr("Ollama is offline.\n"
+                 "Start with: ollama serve\n"
                  "Endpoint: %1").arg(mgr.endpoint());
   }
 
   statusIconLabel_->setStyleSheet(iconStyle);
+  statusTextLabel_->setStyleSheet(textStyle);
   statusTextLabel_->setText(statusText);
   statusIconLabel_->setToolTip(tooltip);
   statusTextLabel_->setToolTip(tooltip);
+
+  // Update token speed label style
+  tokenSpeedLabel_->setStyleSheet(QString("color: %1; font-size: 11px;").arg(successColor.name()));
 }
 
 void LocalAIStatusWidget::onGenerationStarted() {
