@@ -842,19 +842,20 @@ void OutputPanel::setupUi() {
   progressBar_->setVisible(false);
   buildLayout->addWidget(progressBar_);
 
-  tabWidget_->addTab(buildTab, tr("Output"));
+  // Use Unicode icons for tab labels for better visual clarity
+  tabWidget_->addTab(buildTab, QString::fromUtf8("\xF0\x9F\x94\xA7 ") + tr("Output"));  // Wrench
 
   // ROS Log tab
   rosLogViewer_ = new RosLogViewer();
-  tabWidget_->addTab(rosLogViewer_, tr("ROS Logs"));
+  tabWidget_->addTab(rosLogViewer_, QString::fromUtf8("\xF0\x9F\x93\x9C ") + tr("ROS Logs"));  // Scroll
 
   // Terminal tab
   terminalWidget_ = new TerminalWidget();
-  tabWidget_->addTab(terminalWidget_, tr("Terminal"));
+  tabWidget_->addTab(terminalWidget_, QString::fromUtf8("\xF0\x9F\x92\xBB ") + tr("Terminal"));  // Computer
 
   // LLM Chat tab
   llmChatWidget_ = new LLMChatWidget();
-  tabWidget_->addTab(llmChatWidget_, tr("LocalLLM"));
+  tabWidget_->addTab(llmChatWidget_, QString::fromUtf8("\xF0\x9F\xA4\x96 ") + tr("LocalLLM"));  // Robot
 
   layout->addWidget(tabWidget_);
 
