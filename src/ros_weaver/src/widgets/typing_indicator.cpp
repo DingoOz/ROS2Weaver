@@ -1,4 +1,5 @@
 #include "ros_weaver/widgets/typing_indicator.hpp"
+#include "ros_weaver/core/theme_manager.hpp"
 
 #include <QPainter>
 #include <QPainterPath>
@@ -88,16 +89,20 @@ TypingIndicator::~TypingIndicator() {
 }
 
 void TypingIndicator::setupUi() {
+  auto& theme = ThemeManager::instance();
+
   QHBoxLayout* mainLayout = new QHBoxLayout(this);
   mainLayout->setContentsMargins(12, 8, 12, 8);
   mainLayout->setSpacing(8);
 
-  // Container widget with background
+  // Container widget with background using theme colors
   QWidget* container = new QWidget(this);
-  container->setStyleSheet(
-      "background-color: #2d3a2d;"
+  container->setStyleSheet(QString(
+      "background-color: %1;"
       "border-radius: 12px;"
-      "border: 1px solid #3d4a3d;");
+      "border: 1px solid %2;")
+      .arg(theme.elevatedSurfaceColor().name())
+      .arg(theme.borderColor().name()));
 
   QHBoxLayout* containerLayout = new QHBoxLayout(container);
   containerLayout->setContentsMargins(16, 10, 16, 10);
@@ -109,13 +114,14 @@ void TypingIndicator::setupUi() {
   iconLabel->setStyleSheet("font-size: 16px; background: transparent;");
   containerLayout->addWidget(iconLabel);
 
-  // Text label
+  // Text label using theme colors
   textLabel_ = new QLabel(tr("AI is thinking"), container);
-  textLabel_->setStyleSheet(
-      "color: #b0d0b0;"
+  textLabel_->setStyleSheet(QString(
+      "color: %1;"
       "font-size: 13px;"
       "font-weight: 500;"
-      "background: transparent;");
+      "background: transparent;")
+      .arg(theme.successColor().name()));
   containerLayout->addWidget(textLabel_);
 
   // Bouncing dots container
@@ -127,7 +133,7 @@ void TypingIndicator::setupUi() {
 
   for (int i = 0; i < DOT_COUNT; ++i) {
     BouncingDot* dot = new BouncingDot(dotsContainer_);
-    dot->setColor(QColor(76, 175, 80));
+    dot->setColor(theme.successColor());
     dots_.append(dot);
     dotsLayout->addWidget(dot);
   }
@@ -136,10 +142,11 @@ void TypingIndicator::setupUi() {
 
   // Elapsed time label
   elapsedLabel_ = new QLabel(container);
-  elapsedLabel_->setStyleSheet(
-      "color: #708070;"
+  elapsedLabel_->setStyleSheet(QString(
+      "color: %1;"
       "font-size: 11px;"
-      "background: transparent;");
+      "background: transparent;")
+      .arg(theme.textSecondaryColor().name()));
   elapsedLabel_->setVisible(showElapsedTime_);
   containerLayout->addWidget(elapsedLabel_);
 

@@ -1,6 +1,7 @@
 #include "ros_weaver/widgets/param_dashboard.hpp"
 #include "ros_weaver/widgets/lineage_dialog.hpp"
 #include "ros_weaver/core/lineage_provider.hpp"
+#include "ros_weaver/core/theme_manager.hpp"
 #include "ros_weaver/canvas/package_block.hpp"
 #include "ros_weaver/core/project.hpp"
 
@@ -58,10 +59,14 @@ void ParamDashboard::setupUi() {
   nodeNameLabel_->setStyleSheet("font-weight: bold; padding: 4px;");
   mainLayout->addWidget(nodeNameLabel_);
 
-  // Validation status label
+  // Validation status label with theme-aware colors
   validationLabel_ = new QLabel();
   validationLabel_->setVisible(false);
-  validationLabel_->setStyleSheet("color: #d9534f; padding: 2px 4px; background: #f2dede; border-radius: 2px;");
+  auto& theme = ThemeManager::instance();
+  validationLabel_->setStyleSheet(QString(
+      "color: %1; padding: 4px 8px; background: %2; border-radius: 4px; font-weight: 500;")
+      .arg(theme.errorColor().name())
+      .arg(theme.errorColor().lighter(170).name()));
   mainLayout->addWidget(validationLabel_);
 
   // YAML source selector row

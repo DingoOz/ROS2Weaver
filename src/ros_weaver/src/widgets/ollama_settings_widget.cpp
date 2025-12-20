@@ -1,6 +1,7 @@
 #include "ros_weaver/widgets/ollama_settings_widget.hpp"
 #include "ros_weaver/widgets/local_ai_status_widget.hpp"
 #include "ros_weaver/widgets/system_prompt_dialog.hpp"
+#include "ros_weaver/core/theme_manager.hpp"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
@@ -410,16 +411,20 @@ void OllamaSettingsWidget::updateUiState() {
   downloadBtn_->setEnabled(enabled && ollamaRunning && !isPulling_);
   cancelDownloadBtn_->setEnabled(isPulling_);
 
-  // Update status icon
+  // Update status icon using theme colors
+  auto& theme = ThemeManager::instance();
   if (!enabled) {
     statusLabel_->setText(tr("Disabled"));
-    statusIcon_->setStyleSheet("background-color: gray; border-radius: 8px;");
+    statusIcon_->setStyleSheet(QString("background-color: %1; border-radius: 8px;")
+                                   .arg(theme.textSecondaryColor().name()));
   } else if (ollamaRunning) {
     statusLabel_->setText(tr("Connected"));
-    statusIcon_->setStyleSheet("background-color: #4CAF50; border-radius: 8px;");
+    statusIcon_->setStyleSheet(QString("background-color: %1; border-radius: 8px;")
+                                   .arg(theme.successColor().name()));
   } else {
     statusLabel_->setText(tr("Not Connected - Is Ollama running?"));
-    statusIcon_->setStyleSheet("background-color: #f44336; border-radius: 8px;");
+    statusIcon_->setStyleSheet(QString("background-color: %1; border-radius: 8px;")
+                                   .arg(theme.errorColor().name()));
   }
 }
 
@@ -576,7 +581,9 @@ void OllamaSettingsWidget::onTestConnectionClicked() {
   isTestingConnection_ = true;
   testConnectionBtn_->setEnabled(false);
   statusLabel_->setText(tr("Testing connection..."));
-  statusIcon_->setStyleSheet("background-color: #2196F3; border-radius: 8px;");  // Blue for testing
+  auto& theme = ThemeManager::instance();
+  statusIcon_->setStyleSheet(QString("background-color: %1; border-radius: 8px;")
+                                 .arg(theme.primaryColor().name()));  // Primary color for testing
 
   OllamaManager::instance().setEndpoint(endpoint);
   OllamaManager::instance().checkOllamaStatus();
@@ -599,7 +606,9 @@ void OllamaSettingsWidget::onTestConnectionTimeout() {
 
   // Connection failed - show helpful dialog
   statusLabel_->setText(tr("Connection Failed"));
-  statusIcon_->setStyleSheet("background-color: #f44336; border-radius: 8px;");
+  auto& theme = ThemeManager::instance();
+  statusIcon_->setStyleSheet(QString("background-color: %1; border-radius: 8px;")
+                                 .arg(theme.errorColor().name()));
 
   QMessageBox msgBox(this);
   msgBox.setWindowTitle(tr("Ollama Connection Failed"));
