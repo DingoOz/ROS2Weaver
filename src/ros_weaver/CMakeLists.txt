@@ -118,6 +118,10 @@ set(SOURCES
   src/wizards/mcp_server_wizard.cpp
   src/widgets/mcp_explorer_panel.cpp
   src/widgets/ros_control_panel.cpp
+  src/widgets/toast_notification.cpp
+  src/widgets/typing_indicator.cpp
+  src/widgets/command_palette.cpp
+  src/widgets/empty_state.cpp
 )
 
 # Header files (for MOC)
@@ -180,6 +184,11 @@ set(HEADERS
   include/ros_weaver/wizards/mcp_server_wizard.hpp
   include/ros_weaver/widgets/mcp_explorer_panel.hpp
   include/ros_weaver/widgets/ros_control_panel.hpp
+  include/ros_weaver/widgets/toast_notification.hpp
+  include/ros_weaver/widgets/typing_indicator.hpp
+  include/ros_weaver/widgets/command_palette.hpp
+  include/ros_weaver/widgets/empty_state.hpp
+  include/ros_weaver/core/constants.hpp
 )
 
 # Create executable

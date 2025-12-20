@@ -12,6 +12,8 @@
 #include <QProgressBar>
 #include <QTextEdit>
 #include <QAction>
+#include <QTimer>
+#include <QLabel>
 #include <memory>
 
 #include "ros_weaver/core/system_discovery.hpp"
@@ -46,6 +48,7 @@ class RosbagWorkbenchPanel;
 class MCPExplorerPanel;
 class RosControlPanel;
 class RosbagMCPServer;
+class CommandPalette;
 
 class MainWindow : public QMainWindow {
   Q_OBJECT
@@ -124,6 +127,24 @@ private slots:
   void onTopicViewerTopicSelected(const QString& topicName);
   void onShowTopicOnCanvas(const QString& topicName);
 
+  // Project dirty tracking
+  void onProjectModified();
+  void onAutoSave();
+
+  // Command palette
+  void onShowCommandPalette();
+
+  // Layout presets
+  void onSaveLayoutPreset();
+  void onLoadLayoutPreset(const QString& name);
+
+  // Recent projects
+  void onOpenRecentProject();
+  void onClearRecentProjects();
+
+protected:
+  void closeEvent(QCloseEvent* event) override;
+
 private:
   void setupMenuBar();
   void setupToolBar();
@@ -135,6 +156,24 @@ private:
   bool saveProject(const QString& filePath);
   bool loadProject(const QString& filePath);
   void loadProjectYamlFiles(const QString& projectDir);
+
+  // Dirty tracking and auto-save
+  void setProjectDirty(bool dirty);
+  void updateWindowTitle();
+  bool maybeSave();  // Returns false if user cancels
+
+  // Recent projects management
+  void addToRecentProjects(const QString& path);
+  void updateRecentProjectsMenu();
+  QStringList getRecentProjects() const;
+
+  // Command palette setup
+  void setupCommandPalette();
+  void registerCommands();
+
+  // Layout management
+  void saveLayoutState(const QString& name);
+  void restoreLayoutState(const QString& name);
 
   // MCP Rosbag integration
   void connectRosbagMCPServers();
@@ -220,6 +259,28 @@ private:
 
   // ROS Control Panel
   RosControlPanel* rosControlPanel_;
+
+  // Project dirty tracking
+  bool isProjectDirty_;
+
+  // Auto-save functionality
+  QTimer* autoSaveTimer_;
+  bool autoSaveEnabled_;
+  int autoSaveIntervalMs_;
+
+  // Recent projects
+  QMenu* recentProjectsMenu_;
+  static constexpr int MAX_RECENT_PROJECTS = 10;
+
+  // Command palette
+  CommandPalette* commandPalette_;
+
+  // Layout presets
+  QMenu* layoutPresetsMenu_;
+  QStringList layoutPresetNames_;
+
+  // Zoom indicator
+  QLabel* zoomIndicator_;
 };
 
 }  // namespace ros_weaver

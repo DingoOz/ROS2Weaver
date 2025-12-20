@@ -37,8 +37,14 @@
 #include "ros_weaver/core/mcp_manager.hpp"
 #include "ros_weaver/core/mcp_providers.hpp"
 #include "ros_weaver/core/context_help.hpp"
+#include "ros_weaver/core/constants.hpp"
+#include "ros_weaver/widgets/toast_notification.hpp"
+#include "ros_weaver/widgets/command_palette.hpp"
+#include "ros_weaver/widgets/empty_state.hpp"
 
 #include <QApplication>
+#include <QCloseEvent>
+#include <QSettings>
 #include <QDesktopServices>
 #include <QMessageBox>
 #include <QFileDialog>
@@ -113,9 +119,17 @@ MainWindow::MainWindow(QWidget* parent)
   , mcpExplorerPanel_(nullptr)
   , mcpExplorerDock_(nullptr)
   , rosControlPanel_(nullptr)
+  , isProjectDirty_(false)
+  , autoSaveTimer_(nullptr)
+  , autoSaveEnabled_(true)
+  , autoSaveIntervalMs_(constants::timing::AUTO_SAVE_INTERVAL_MS)
+  , recentProjectsMenu_(nullptr)
+  , commandPalette_(nullptr)
+  , layoutPresetsMenu_(nullptr)
+  , zoomIndicator_(nullptr)
 {
   setWindowTitle(baseWindowTitle_);
-  setMinimumSize(1200, 800);
+  setMinimumSize(constants::ui::MIN_WINDOW_WIDTH, constants::ui::MIN_WINDOW_HEIGHT);
 
   // Initialize core components
   packageIndex_ = new RosPackageIndex(this);
@@ -152,9 +166,28 @@ MainWindow::MainWindow(QWidget* parent)
   setupToolBar();
   setupDockWidgets();
   setupStatusBar();
+  setupCommandPalette();
 
   // Initialize context-sensitive help system (F1 key support)
   ContextHelp::instance();
+
+  // Initialize notification manager
+  NotificationManager::instance().setParentWidget(this);
+
+  // Setup auto-save timer
+  autoSaveTimer_ = new QTimer(this);
+  connect(autoSaveTimer_, &QTimer::timeout, this, &MainWindow::onAutoSave);
+  if (autoSaveEnabled_) {
+    autoSaveTimer_->start(autoSaveIntervalMs_);
+  }
+
+  // Connect canvas modification signals for dirty tracking
+  connect(canvas_, &WeaverCanvas::connectionCreated, this, &MainWindow::onProjectModified);
+  connect(canvas_, &WeaverCanvas::groupCreated, this, &MainWindow::onProjectModified);
+  connect(canvas_, &WeaverCanvas::blockYamlSourceChanged, this, &MainWindow::onProjectModified);
+
+  // Connect undo stack signals for dirty tracking
+  connect(undoStack_, &UndoStack::indexChanged, this, &MainWindow::onProjectModified);
 }
 
 MainWindow::~MainWindow() = default;
@@ -178,6 +211,12 @@ void MainWindow::setupMenuBar() {
   QAction* saveAsAction = fileMenu->addAction(tr("Save Project &As..."));
   saveAsAction->setShortcut(QKeySequence::SaveAs);
   connect(saveAsAction, &QAction::triggered, this, &MainWindow::onSaveProjectAs);
+
+  fileMenu->addSeparator();
+
+  // Recent projects submenu
+  recentProjectsMenu_ = fileMenu->addMenu(tr("&Recent Projects"));
+  updateRecentProjectsMenu();
 
   fileMenu->addSeparator();
 
@@ -263,6 +302,12 @@ void MainWindow::setupMenuBar() {
   connect(deleteAction, &QAction::triggered, canvas_, &WeaverCanvas::deleteSelectedItems);
 
   editMenu->addSeparator();
+
+  // Command palette
+  QAction* commandPaletteAction = editMenu->addAction(tr("Command &Palette..."));
+  commandPaletteAction->setShortcut(tr("Ctrl+Shift+P"));
+  commandPaletteAction->setToolTip(tr("Open command palette for quick access to all commands"));
+  connect(commandPaletteAction, &QAction::triggered, this, &MainWindow::onShowCommandPalette);
 
   QAction* settingsAction = editMenu->addAction(tr("&Settings..."));
   settingsAction->setShortcut(tr("Ctrl+,"));
@@ -2900,6 +2945,298 @@ void MainWindow::connectRosbagMCPServer(std::shared_ptr<RosbagMCPServer> server)
   if (!recorder->outputPath().isEmpty()) {
     server->setDefaultOutputPath(recorder->outputPath());
   }
+}
+
+// =============================================================================
+// Project Dirty Tracking and Auto-Save
+// =============================================================================
+
+void MainWindow::onProjectModified() {
+  setProjectDirty(true);
+}
+
+void MainWindow::setProjectDirty(bool dirty) {
+  if (isProjectDirty_ != dirty) {
+    isProjectDirty_ = dirty;
+    updateWindowTitle();
+  }
+}
+
+void MainWindow::updateWindowTitle() {
+  QString title = baseWindowTitle_;
+
+  // Add project name if available
+  if (!currentProjectPath_.isEmpty()) {
+    QFileInfo info(currentProjectPath_);
+    title = info.baseName() + " - " + baseWindowTitle_;
+  }
+
+  // Add dirty indicator
+  if (isProjectDirty_) {
+    title = "* " + title;
+  }
+
+  // Add ROS status suffix if configured
+  if (rosStatusWidget_) {
+    QString suffix = rosStatusWidget_->titleBarSuffix();
+    if (!suffix.isEmpty()) {
+      title += suffix;
+    }
+  }
+
+  setWindowTitle(title);
+}
+
+bool MainWindow::maybeSave() {
+  if (!isProjectDirty_) {
+    return true;
+  }
+
+  QMessageBox::StandardButton ret = QMessageBox::warning(
+      this,
+      tr("Unsaved Changes"),
+      tr("The project has been modified.\nDo you want to save your changes?"),
+      QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel,
+      QMessageBox::Save);
+
+  switch (ret) {
+    case QMessageBox::Save:
+      onSaveProject();
+      return !isProjectDirty_;  // Return true only if save succeeded
+    case QMessageBox::Discard:
+      return true;
+    case QMessageBox::Cancel:
+    default:
+      return false;
+  }
+}
+
+void MainWindow::onAutoSave() {
+  if (!isProjectDirty_ || currentProjectPath_.isEmpty()) {
+    return;
+  }
+
+  // Save to auto-save file
+  QString autoSavePath = currentProjectPath_ + ".autosave";
+  if (saveProject(autoSavePath)) {
+    Toast.showInfo(tr("Auto-saved"), 2000);
+  }
+}
+
+void MainWindow::closeEvent(QCloseEvent* event) {
+  if (maybeSave()) {
+    // Clean up auto-save file
+    if (!currentProjectPath_.isEmpty()) {
+      QString autoSavePath = currentProjectPath_ + ".autosave";
+      QFile::remove(autoSavePath);
+    }
+    event->accept();
+  } else {
+    event->ignore();
+  }
+}
+
+// =============================================================================
+// Recent Projects
+// =============================================================================
+
+void MainWindow::addToRecentProjects(const QString& path) {
+  QSettings settings("ROS Weaver", "ROS Weaver");
+  QStringList recent = settings.value("RecentProjects").toStringList();
+
+  // Remove if already exists, add to front
+  recent.removeAll(path);
+  recent.prepend(path);
+
+  // Limit to max
+  while (recent.size() > MAX_RECENT_PROJECTS) {
+    recent.removeLast();
+  }
+
+  settings.setValue("RecentProjects", recent);
+  updateRecentProjectsMenu();
+}
+
+QStringList MainWindow::getRecentProjects() const {
+  QSettings settings("ROS Weaver", "ROS Weaver");
+  return settings.value("RecentProjects").toStringList();
+}
+
+void MainWindow::updateRecentProjectsMenu() {
+  if (!recentProjectsMenu_) return;
+
+  recentProjectsMenu_->clear();
+
+  QStringList recent = getRecentProjects();
+  if (recent.isEmpty()) {
+    QAction* emptyAction = recentProjectsMenu_->addAction(tr("(No recent projects)"));
+    emptyAction->setEnabled(false);
+  } else {
+    for (int i = 0; i < recent.size(); ++i) {
+      QString path = recent[i];
+      QFileInfo info(path);
+      QString label = QString("%1. %2").arg(i + 1).arg(info.fileName());
+
+      QAction* action = recentProjectsMenu_->addAction(label);
+      action->setData(path);
+      action->setToolTip(path);
+      connect(action, &QAction::triggered, this, &MainWindow::onOpenRecentProject);
+    }
+
+    recentProjectsMenu_->addSeparator();
+    QAction* clearAction = recentProjectsMenu_->addAction(tr("Clear Recent Projects"));
+    connect(clearAction, &QAction::triggered, this, &MainWindow::onClearRecentProjects);
+  }
+}
+
+void MainWindow::onOpenRecentProject() {
+  QAction* action = qobject_cast<QAction*>(sender());
+  if (!action) return;
+
+  QString path = action->data().toString();
+  if (!path.isEmpty() && QFile::exists(path)) {
+    if (maybeSave()) {
+      loadProject(path);
+    }
+  } else {
+    Toast.showError(tr("Project file not found: %1").arg(path));
+    // Remove from recent projects
+    QSettings settings("ROS Weaver", "ROS Weaver");
+    QStringList recent = settings.value("RecentProjects").toStringList();
+    recent.removeAll(path);
+    settings.setValue("RecentProjects", recent);
+    updateRecentProjectsMenu();
+  }
+}
+
+void MainWindow::onClearRecentProjects() {
+  QSettings settings("ROS Weaver", "ROS Weaver");
+  settings.remove("RecentProjects");
+  updateRecentProjectsMenu();
+  Toast.showInfo(tr("Recent projects cleared"));
+}
+
+// =============================================================================
+// Command Palette
+// =============================================================================
+
+void MainWindow::setupCommandPalette() {
+  commandPalette_ = new CommandPalette(this);
+  registerCommands();
+
+  // Connect command executed signal for any custom handling
+  connect(commandPalette_, &CommandPalette::commandExecuted,
+          this, [this](const QString& id) {
+    Q_UNUSED(id)
+    // Could log command usage or track analytics here
+  });
+}
+
+void MainWindow::registerCommands() {
+  if (!commandPalette_) return;
+
+  // File commands
+  commandPalette_->addCommand("file.new", tr("New Project"), tr("File"),
+                              findChild<QAction*>("newAction"));
+  commandPalette_->addCommand("file.open", tr("Open Project"), tr("File"),
+                              findChild<QAction*>("openAction"));
+  commandPalette_->addCommand("file.save", tr("Save Project"), tr("File"),
+                              findChild<QAction*>("saveAction"));
+  commandPalette_->addCommand("file.saveAs", tr("Save Project As"), tr("File"),
+                              findChild<QAction*>("saveAsAction"));
+  commandPalette_->addCommand("file.generate", tr("Generate ROS2 Package"), tr("File"),
+                              nullptr, tr("Generate code from current project"));
+
+  // Edit commands
+  commandPalette_->addCommand("edit.undo", tr("Undo"), tr("Edit"), undoAction_);
+  commandPalette_->addCommand("edit.redo", tr("Redo"), tr("Edit"), redoAction_);
+
+  // View commands
+  commandPalette_->addCommand("view.zoomIn", tr("Zoom In"), tr("View"), nullptr);
+  commandPalette_->addCommand("view.zoomOut", tr("Zoom Out"), tr("View"), nullptr);
+  commandPalette_->addCommand("view.resetZoom", tr("Reset Zoom"), tr("View"), nullptr);
+  commandPalette_->addCommand("view.fitAll", tr("Fit All Nodes"), tr("View"), nullptr);
+
+  // ROS2 commands
+  commandPalette_->addCommand("ros2.scan", tr("Scan Running System"), tr("ROS2"),
+                              scanSystemAction_);
+  commandPalette_->addCommand("ros2.build", tr("Build Workspace"), tr("ROS2"), nullptr);
+  commandPalette_->addCommand("ros2.rviz", tr("Launch RViz2"), tr("ROS2"), nullptr);
+
+  // Panels
+  commandPalette_->addCommand("panel.output", tr("Show Output Panel"), tr("Panels"), nullptr);
+  commandPalette_->addCommand("panel.topics", tr("Show Topic Viewer"), tr("Panels"), nullptr);
+  commandPalette_->addCommand("panel.tf", tr("Show TF Tree"), tr("Panels"), nullptr);
+  commandPalette_->addCommand("panel.params", tr("Show Parameters"), tr("Panels"), nullptr);
+  commandPalette_->addCommand("panel.logs", tr("Show ROS Logs"), tr("Panels"), nullptr);
+
+  // Help
+  commandPalette_->addCommand("help.shortcuts", tr("Keyboard Shortcuts"), tr("Help"), nullptr);
+  commandPalette_->addCommand("help.tour", tr("Guided Tour"), tr("Help"), nullptr);
+  commandPalette_->addCommand("help.manual", tr("User Manual"), tr("Help"), nullptr);
+}
+
+void MainWindow::onShowCommandPalette() {
+  if (commandPalette_) {
+    commandPalette_->showPalette();
+  }
+}
+
+// =============================================================================
+// Layout Presets
+// =============================================================================
+
+void MainWindow::onSaveLayoutPreset() {
+  bool ok;
+  QString name = QInputDialog::getText(this, tr("Save Layout Preset"),
+                                        tr("Preset name:"), QLineEdit::Normal,
+                                        tr("My Layout"), &ok);
+  if (ok && !name.isEmpty()) {
+    saveLayoutState(name);
+    Toast.showSuccess(tr("Layout saved: %1").arg(name));
+  }
+}
+
+void MainWindow::onLoadLayoutPreset(const QString& name) {
+  restoreLayoutState(name);
+  Toast.showInfo(tr("Layout loaded: %1").arg(name));
+}
+
+void MainWindow::saveLayoutState(const QString& name) {
+  QSettings settings("ROS Weaver", "ROS Weaver");
+  settings.beginGroup("LayoutPresets");
+  settings.beginGroup(name);
+
+  settings.setValue("geometry", saveGeometry());
+  settings.setValue("state", saveState());
+
+  settings.endGroup();
+  settings.endGroup();
+
+  // Update presets list
+  if (!layoutPresetNames_.contains(name)) {
+    layoutPresetNames_.append(name);
+    settings.setValue("LayoutPresets/names", layoutPresetNames_);
+  }
+}
+
+void MainWindow::restoreLayoutState(const QString& name) {
+  QSettings settings("ROS Weaver", "ROS Weaver");
+  settings.beginGroup("LayoutPresets");
+  settings.beginGroup(name);
+
+  QByteArray geometry = settings.value("geometry").toByteArray();
+  QByteArray state = settings.value("state").toByteArray();
+
+  if (!geometry.isEmpty()) {
+    restoreGeometry(geometry);
+  }
+  if (!state.isEmpty()) {
+    restoreState(state);
+  }
+
+  settings.endGroup();
+  settings.endGroup();
 }
 
 }  // namespace ros_weaver
