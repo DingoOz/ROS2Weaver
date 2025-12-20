@@ -1092,21 +1092,37 @@ void LLMChatWidget::askAboutPin(PackageBlock* block, int pinIndex, bool isOutput
 void LLMChatWidget::onAIPermissionRequired(const QString& toolName,
                                             const QString& description,
                                             const QJsonObject& params) {
-  AIPermissionDialog* dialog = new AIPermissionDialog(this);
-  dialog->setAction(toolName, description, params);
+  // Create inline permission card instead of modal dialog
+  AIPermissionCard* card = new AIPermissionCard(this);
+  card->setAction(toolName, description, params);
 
-  connect(dialog, &AIPermissionDialog::permissionGranted, this,
-          [toolName, params](bool approveAll) {
+  // Insert into chat layout (before spacers)
+  QLayoutItem* spacerItem = chatLayout_->takeAt(chatLayout_->count() - 1);  // bottomSpacer
+  chatLayout_->takeAt(chatLayout_->count() - 1);  // remove stretch
+  chatLayout_->addWidget(card);
+  chatLayout_->addStretch();
+  chatLayout_->addItem(spacerItem);
+
+  // Scroll to bottom to show the card
+  QTimer::singleShot(50, this, [this]() {
+    scrollArea_->verticalScrollBar()->setValue(
+        scrollArea_->verticalScrollBar()->maximum());
+  });
+
+  // Connect approval signal
+  connect(card, &AIPermissionCard::approved, this,
+          [this, card, toolName, params](bool approveAll) {
             AIToolManager::instance().onPermissionGranted(toolName, params, approveAll);
+            card->deleteLater();
           });
 
-  connect(dialog, &AIPermissionDialog::permissionDenied, this,
-          [toolName]() {
+  // Connect denial signal
+  connect(card, &AIPermissionCard::denied, this,
+          [this, card, toolName]() {
             AIToolManager::instance().onPermissionDenied(toolName);
+            addMessage(ChatMessageWidget::Role::System, tr("Action denied: %1").arg(toolName));
+            card->deleteLater();
           });
-
-  dialog->exec();
-  dialog->deleteLater();
 }
 
 void LLMChatWidget::onAIToolExecuted(const QString& toolName, bool success,

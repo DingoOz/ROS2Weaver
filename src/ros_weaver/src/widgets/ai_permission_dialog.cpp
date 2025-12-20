@@ -192,6 +192,173 @@ void AIPermissionDialog::onDeny() {
   reject();
 }
 
+// ============== AIPermissionCard ==============
+
+AIPermissionCard::AIPermissionCard(QWidget* parent)
+    : QWidget(parent) {
+  setupUi();
+}
+
+void AIPermissionCard::setupUi() {
+  QVBoxLayout* mainLayout = new QVBoxLayout(this);
+  mainLayout->setContentsMargins(12, 10, 12, 10);
+  mainLayout->setSpacing(8);
+
+  // Card background
+  setStyleSheet(
+      "AIPermissionCard {"
+      "  background-color: #2d3a4a;"
+      "  border: 1px solid #4a6070;"
+      "  border-radius: 8px;"
+      "  border-left: 4px solid #FF9800;"
+      "}");
+
+  // Header row with icon and title
+  QHBoxLayout* headerLayout = new QHBoxLayout();
+  headerLayout->setSpacing(8);
+
+  QLabel* iconLabel = new QLabel(QString::fromUtf8("\xF0\x9F\x94\x90"), this);  // Lock icon
+  iconLabel->setStyleSheet("font-size: 16px; background: transparent;");
+  headerLayout->addWidget(iconLabel);
+
+  titleLabel_ = new QLabel(tr("Permission Required"), this);
+  titleLabel_->setStyleSheet("font-size: 13px; font-weight: bold; color: #FF9800; background: transparent;");
+  headerLayout->addWidget(titleLabel_, 1);
+
+  mainLayout->addLayout(headerLayout);
+
+  // Description
+  descriptionLabel_ = new QLabel(this);
+  descriptionLabel_->setWordWrap(true);
+  descriptionLabel_->setStyleSheet("font-size: 12px; color: #c0c0c0; background: transparent;");
+  mainLayout->addWidget(descriptionLabel_);
+
+  // Collapsible details section
+  detailsWidget_ = new QWidget(this);
+  detailsWidget_->setVisible(false);
+  QVBoxLayout* detailsLayout = new QVBoxLayout(detailsWidget_);
+  detailsLayout->setContentsMargins(0, 4, 0, 4);
+
+  detailsLabel_ = new QLabel(detailsWidget_);
+  detailsLabel_->setWordWrap(true);
+  detailsLabel_->setStyleSheet(
+      "font-size: 11px; color: #909090; background: #1e2830;"
+      "border-radius: 4px; padding: 6px; font-family: monospace;");
+  detailsLayout->addWidget(detailsLabel_);
+
+  mainLayout->addWidget(detailsWidget_);
+
+  // Toggle details button
+  toggleDetailsBtn_ = new QPushButton(tr("Show details"), this);
+  toggleDetailsBtn_->setFlat(true);
+  toggleDetailsBtn_->setCursor(Qt::PointingHandCursor);
+  toggleDetailsBtn_->setStyleSheet(
+      "QPushButton { color: #6090c0; font-size: 11px; text-align: left; "
+      "background: transparent; border: none; padding: 0; }"
+      "QPushButton:hover { color: #80b0e0; text-decoration: underline; }");
+  connect(toggleDetailsBtn_, &QPushButton::clicked, this, &AIPermissionCard::onToggleDetails);
+  mainLayout->addWidget(toggleDetailsBtn_);
+
+  // Approve all checkbox
+  approveAllCheckbox_ = new QCheckBox(tr("Approve all for this session"), this);
+  approveAllCheckbox_->setStyleSheet(
+      "QCheckBox { color: #808080; font-size: 11px; background: transparent; }");
+  mainLayout->addWidget(approveAllCheckbox_);
+
+  // Buttons
+  QHBoxLayout* buttonLayout = new QHBoxLayout();
+  buttonLayout->setSpacing(8);
+
+  denyBtn_ = new QPushButton(tr("Deny"), this);
+  denyBtn_->setFixedHeight(28);
+  denyBtn_->setCursor(Qt::PointingHandCursor);
+  denyBtn_->setStyleSheet(
+      "QPushButton {"
+      "  background-color: #5a3d3d;"
+      "  border: 1px solid #6a4d4d;"
+      "  border-radius: 4px;"
+      "  color: #f0b0b0;"
+      "  font-size: 12px;"
+      "  padding: 4px 16px;"
+      "}"
+      "QPushButton:hover { background-color: #6a4d4d; }");
+  connect(denyBtn_, &QPushButton::clicked, this, &AIPermissionCard::onDeny);
+  buttonLayout->addWidget(denyBtn_);
+
+  buttonLayout->addStretch();
+
+  approveBtn_ = new QPushButton(tr("Approve"), this);
+  approveBtn_->setFixedHeight(28);
+  approveBtn_->setCursor(Qt::PointingHandCursor);
+  approveBtn_->setStyleSheet(
+      "QPushButton {"
+      "  background-color: #3d5a3d;"
+      "  border: 1px solid #4d6a4d;"
+      "  border-radius: 4px;"
+      "  color: #b0f0b0;"
+      "  font-size: 12px;"
+      "  font-weight: bold;"
+      "  padding: 4px 16px;"
+      "}"
+      "QPushButton:hover { background-color: #4d6a4d; }");
+  connect(approveBtn_, &QPushButton::clicked, this, &AIPermissionCard::onApprove);
+  buttonLayout->addWidget(approveBtn_);
+
+  mainLayout->addLayout(buttonLayout);
+}
+
+void AIPermissionCard::setAction(const QString& toolName, const QString& description,
+                                  const QJsonObject& params) {
+  toolName_ = toolName;
+  params_ = params;
+
+  // Format title based on tool
+  QString actionType;
+  if (toolName == "load_example") actionType = tr("Load Example Project");
+  else if (toolName == "add_block") actionType = tr("Add Block");
+  else if (toolName == "remove_block") actionType = tr("Remove Block");
+  else if (toolName == "set_parameter") actionType = tr("Modify Parameter");
+  else if (toolName == "create_connection") actionType = tr("Create Connection");
+  else if (toolName == "remove_connection") actionType = tr("Remove Connection");
+  else if (toolName == "create_group") actionType = tr("Create Group");
+  else actionType = toolName;
+
+  titleLabel_->setText(tr("AI wants to: %1").arg(actionType));
+  descriptionLabel_->setText(description);
+
+  // Format details
+  QString detailsText;
+  for (const QString& key : params.keys()) {
+    QJsonValue value = params[key];
+    QString valueStr;
+    if (value.isString()) valueStr = value.toString();
+    else if (value.isDouble()) valueStr = QString::number(value.toDouble());
+    else if (value.isArray()) {
+      QStringList items;
+      for (const QJsonValue& item : value.toArray()) {
+        items << item.toString();
+      }
+      valueStr = QString("[%1]").arg(items.join(", "));
+    }
+    detailsText += QString("%1: %2\n").arg(key, valueStr);
+  }
+  detailsLabel_->setText(detailsText.trimmed());
+}
+
+void AIPermissionCard::onApprove() {
+  emit approved(approveAllCheckbox_->isChecked());
+}
+
+void AIPermissionCard::onDeny() {
+  emit denied();
+}
+
+void AIPermissionCard::onToggleDetails() {
+  detailsVisible_ = !detailsVisible_;
+  detailsWidget_->setVisible(detailsVisible_);
+  toggleDetailsBtn_->setText(detailsVisible_ ? tr("Hide details") : tr("Show details"));
+}
+
 // ============== AIUndoWidget ==============
 
 AIUndoWidget::AIUndoWidget(const QString& actionDescription, QWidget* parent)
