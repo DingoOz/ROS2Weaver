@@ -12,6 +12,7 @@
 #include <QApplication>
 #include <QRegularExpression>
 #include <QDebug>
+#include <iostream>
 
 namespace ros_weaver {
 
@@ -26,16 +27,26 @@ RosControlPanel::RosControlPanel(QWidget* parent)
   setupUi();
   setupConnections();
 
-  // Initial refresh after a short delay
-  QTimer::singleShot(500, this, &RosControlPanel::refreshAll);
+  // Initial refresh after a short delay - use async version to avoid blocking UI
+  QTimer::singleShot(500, this, &RosControlPanel::refreshAllAsync);
 }
 
 RosControlPanel::~RosControlPanel() {
+  std::cerr << "RosControlPanel destructor: starting" << std::endl;
   stopMonitoring();
+
+  // Stop async refresh thread if running
+  refreshThreadRunning_ = false;
+  if (refreshThread_ && refreshThread_->joinable()) {
+    refreshThread_->join();
+  }
+  refreshThread_.reset();
+
   if (commandProcess_) {
     commandProcess_->kill();
     commandProcess_->waitForFinished(1000);
   }
+  std::cerr << "RosControlPanel destructor: complete" << std::endl;
 }
 
 void RosControlPanel::setupUi() {
@@ -259,6 +270,50 @@ QString RosControlPanel::runRos2ControlCommand(const QStringList& args, int time
 
   // Add controller manager if not default
   QString manager = managerCombo_->currentData().toString();
+  if (!manager.isEmpty() && manager != "/controller_manager") {
+    fullArgs << "-c" << manager;
+  }
+
+  process.start("ros2", fullArgs);
+
+  if (!process.waitForStarted(2000)) {
+    qWarning() << "Failed to start ros2 control command:" << fullArgs;
+    return QString();
+  }
+
+  if (!process.waitForFinished(timeoutMs)) {
+    qWarning() << "ros2 control command timed out:" << fullArgs;
+    // Kill the process to prevent "destroyed while running" warning
+    process.kill();
+    process.waitForFinished(1000);
+    return QString();
+  }
+
+  QString stdErr = process.readAllStandardError();
+
+  if (process.exitCode() != 0) {
+    // Check for common errors
+    if (stdErr.contains("waiting for service") ||
+        stdErr.contains("Could not contact service") ||
+        stdErr.contains("timed out")) {
+      qDebug() << "ros2_control not available (no controller_manager running)";
+    } else {
+      qWarning() << "ros2 control command failed:" << fullArgs << stdErr;
+    }
+    return QString();
+  }
+
+  return process.readAllStandardOutput();
+}
+
+QString RosControlPanel::runRos2ControlCommandForManager(
+    const QStringList& args, const QString& manager, int timeoutMs) {
+  // Thread-safe version that doesn't access UI elements
+  QProcess process;
+  QStringList fullArgs = {"control"};
+  fullArgs.append(args);
+
+  // Add controller manager if not default
   if (!manager.isEmpty() && manager != "/controller_manager") {
     fullArgs << "-c" << manager;
   }
@@ -686,6 +741,68 @@ void RosControlPanel::refreshHardwareInterfaces() {
 void RosControlPanel::refreshAll() {
   refreshControllers();
   refreshHardwareInterfaces();
+}
+
+void RosControlPanel::refreshAllAsync() {
+  // Don't start a new thread if one is already running
+  if (refreshThreadRunning_.load()) {
+    return;
+  }
+
+  // Wait for previous thread to complete if any
+  if (refreshThread_ && refreshThread_->joinable()) {
+    refreshThread_->join();
+  }
+
+  // Get the current manager from UI before starting thread
+  QString manager = managerCombo_->currentData().toString();
+
+  statusLabel_->setText(tr("Discovering controllers..."));
+  refreshThreadRunning_ = true;
+  asyncRefreshHasData_ = false;
+
+  // Run the blocking ros2 control commands in a background thread
+  refreshThread_ = std::make_unique<std::thread>([this, manager]() {
+    // Use shorter timeout for async operations
+    QString controllersOutput = runRos2ControlCommandForManager(
+        {"list_controllers"}, manager, ASYNC_CLI_TIMEOUT_MS);
+
+    if (!refreshThreadRunning_.load()) return;  // Cancelled
+
+    QString interfacesOutput = runRos2ControlCommandForManager(
+        {"list_hardware_interfaces"}, manager, ASYNC_CLI_TIMEOUT_MS);
+
+    if (!refreshThreadRunning_.load()) return;  // Cancelled
+
+    // Parse results (thread-safe, no UI access)
+    pendingControllers_ = parseControllerList(controllersOutput);
+    pendingInterfaces_ = parseHardwareInterfaces(interfacesOutput);
+    asyncRefreshHasData_ = !controllersOutput.isNull() || !interfacesOutput.isNull();
+
+    refreshThreadRunning_ = false;
+
+    // Signal completion on main thread
+    QMetaObject::invokeMethod(this, "onAsyncRefreshComplete", Qt::QueuedConnection);
+  });
+}
+
+void RosControlPanel::onAsyncRefreshComplete() {
+  // Update UI with results from background thread
+  if (asyncRefreshHasData_) {
+    controllers_ = pendingControllers_;
+    interfaces_ = pendingInterfaces_;
+    updateControllerTree(controllers_);
+    updateInterfaceTree(interfaces_);
+    updateStatusLabel();
+  } else {
+    // No data - ros2_control not available
+    controllers_.clear();
+    interfaces_.clear();
+    updateControllerTree(controllers_);
+    updateInterfaceTree(interfaces_);
+    statusLabel_->setText(tr("No controller_manager available"));
+    statusLabel_->setStyleSheet("color: #888;");
+  }
 }
 
 void RosControlPanel::startMonitoring() {

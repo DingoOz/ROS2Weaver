@@ -26,6 +26,7 @@
 #include <QMap>
 #include <QFileInfo>
 #include <cmath>
+#include <iostream>
 #include <rclcpp/rclcpp.hpp>
 
 namespace ros_weaver {
@@ -45,6 +46,7 @@ WeaverCanvas::WeaverCanvas(QWidget* parent)
   , rubberBand_(nullptr)
   , undoStack_(nullptr)
   , isExecutingCommand_(false)
+  , zoomIndicator_(nullptr)
 {
   setupScene();
 
@@ -70,9 +72,24 @@ WeaverCanvas::WeaverCanvas(QWidget* parent)
 
   // Center the view
   centerOn(0, 0);
+
+  // Create zoom indicator label
+  zoomIndicator_ = new QLabel(this);
+  zoomIndicator_->setStyleSheet(
+    "QLabel {"
+    "  color: rgba(255, 255, 255, 80);"
+    "  background: transparent;"
+    "  font-size: 11px;"
+    "  padding: 4px 8px;"
+    "}"
+  );
+  zoomIndicator_->setAttribute(Qt::WA_TransparentForMouseEvents);
+  updateZoomIndicator();
 }
 
-WeaverCanvas::~WeaverCanvas() = default;
+WeaverCanvas::~WeaverCanvas() {
+  std::cerr << "WeaverCanvas destructor" << std::endl;
+}
 
 void WeaverCanvas::setUndoStack(UndoStack* undoStack) {
   undoStack_ = undoStack;
@@ -465,6 +482,16 @@ void WeaverCanvas::clearCanvas() {
   connectionSourcePin_ = -1;
   disconnectingLine_ = nullptr;
 
+  // CRITICAL: Detach all connections from blocks BEFORE scene_->clear()
+  // This prevents use-after-free when ConnectionLine destructors run
+  // after PackageBlock objects have already been deleted (Qt deletes
+  // scene items in undefined order)
+  for (QGraphicsItem* item : scene_->items()) {
+    if (ConnectionLine* conn = dynamic_cast<ConnectionLine*>(item)) {
+      conn->detach();
+    }
+  }
+
   scene_->clear();
   drawGrid();
   emit canvasCleared();
@@ -587,6 +614,7 @@ void WeaverCanvas::zoomIn() {
   if (zoomFactor_ < MAX_ZOOM) {
     zoomFactor_ += ZOOM_STEP;
     setTransform(QTransform::fromScale(zoomFactor_, zoomFactor_));
+    updateZoomIndicator();
   }
 }
 
@@ -594,12 +622,14 @@ void WeaverCanvas::zoomOut() {
   if (zoomFactor_ > MIN_ZOOM) {
     zoomFactor_ -= ZOOM_STEP;
     setTransform(QTransform::fromScale(zoomFactor_, zoomFactor_));
+    updateZoomIndicator();
   }
 }
 
 void WeaverCanvas::resetZoom() {
   zoomFactor_ = 1.0;
   setTransform(QTransform());
+  updateZoomIndicator();
 }
 
 void WeaverCanvas::fitToContents() {
@@ -646,6 +676,8 @@ void WeaverCanvas::fitToContents() {
     setTransform(QTransform::fromScale(zoomFactor_, zoomFactor_));
     centerOn(itemsBounds.center());
   }
+
+  updateZoomIndicator();
 }
 
 PackageBlock* WeaverCanvas::blockAtPos(const QPointF& scenePos) {
@@ -1563,6 +1595,30 @@ void WeaverCanvas::importFromProject(const Project& project) {
 
 void WeaverCanvas::setAvailableYamlFiles(const QStringList& yamlFiles) {
   availableYamlFiles_ = yamlFiles;
+}
+
+void WeaverCanvas::updateZoomIndicator() {
+  if (!zoomIndicator_) return;
+
+  int zoomPercent = static_cast<int>(std::round(zoomFactor_ * 100));
+  zoomIndicator_->setText(QString("%1%").arg(zoomPercent));
+  zoomIndicator_->adjustSize();
+  positionZoomIndicator();
+}
+
+void WeaverCanvas::positionZoomIndicator() {
+  if (!zoomIndicator_) return;
+
+  // Position in the bottom right corner with a small margin
+  int margin = 8;
+  int x = width() - zoomIndicator_->width() - margin;
+  int y = height() - zoomIndicator_->height() - margin;
+  zoomIndicator_->move(x, y);
+}
+
+void WeaverCanvas::resizeEvent(QResizeEvent* event) {
+  QGraphicsView::resizeEvent(event);
+  positionZoomIndicator();
 }
 
 }  // namespace ros_weaver

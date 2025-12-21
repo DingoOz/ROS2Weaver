@@ -7,8 +7,10 @@
 #include <QMouseEvent>
 #include <QKeyEvent>
 #include <QContextMenuEvent>
+#include <QResizeEvent>
 #include <QMap>
 #include <QRubberBand>
+#include <QLabel>
 
 namespace ros_weaver {
 
@@ -105,6 +107,7 @@ protected:
   void dragEnterEvent(QDragEnterEvent* event) override;
   void dragMoveEvent(QDragMoveEvent* event) override;
   void dropEvent(QDropEvent* event) override;
+  void resizeEvent(QResizeEvent* event) override;
 
 private slots:
   void onPinHovered(PackageBlock* block, int pinIndex, bool isOutput);
@@ -127,6 +130,10 @@ private:
   // Check if a connection would be valid
   bool isValidConnection(PackageBlock* source, int sourcePin,
                          PackageBlock* target, int targetPin);
+
+  // Update zoom level indicator
+  void updateZoomIndicator();
+  void positionZoomIndicator();
 
   QGraphicsScene* scene_;
   double zoomFactor_;
@@ -161,6 +168,9 @@ private:
   // Undo/redo support
   UndoStack* undoStack_;
   bool isExecutingCommand_;
+
+  // Zoom indicator
+  QLabel* zoomIndicator_;
 
   static constexpr double MIN_ZOOM = 0.1;
   static constexpr double MAX_ZOOM = 5.0;
