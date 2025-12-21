@@ -17,6 +17,11 @@
 #include <QProcess>
 #include <QVBoxLayout>
 #include <QDateTime>
+#include <QFuture>
+#include <QFutureWatcher>
+#include <memory>
+#include <thread>
+#include <atomic>
 
 namespace ros_weaver {
 
@@ -95,6 +100,7 @@ public slots:
   void refreshControllers();
   void refreshHardwareInterfaces();
   void refreshAll();
+  void refreshAllAsync();  // Non-blocking version for initial load
 
   // Auto-refresh control
   void startMonitoring();
@@ -122,6 +128,7 @@ private slots:
   void onInterfaceContextMenu(const QPoint& pos);
   void onFilterChanged();
   void onCommandFinished(int exitCode, QProcess::ExitStatus exitStatus);
+  void onAsyncRefreshComplete();
 
 private:
   void setupUi();
@@ -134,6 +141,8 @@ private:
 
   // CLI execution helpers
   QString runRos2ControlCommand(const QStringList& args, int timeoutMs = 5000);
+  QString runRos2ControlCommandForManager(const QStringList& args,
+                                          const QString& manager, int timeoutMs);
 
   // Parsing helpers
   QList<ControllerInfo> parseControllerList(const QString& output);
@@ -202,9 +211,17 @@ private:
   QString pendingAction_;
   QString pendingController_;
 
+  // Async refresh thread
+  std::unique_ptr<std::thread> refreshThread_;
+  std::atomic<bool> refreshThreadRunning_{false};
+  QList<ControllerInfo> pendingControllers_;
+  QList<HardwareInterfaceInfo> pendingInterfaces_;
+  bool asyncRefreshHasData_ = false;
+
   // Configuration
   static constexpr int DEFAULT_REFRESH_INTERVAL_MS = 2000;
   static constexpr int CLI_TIMEOUT_MS = 5000;
+  static constexpr int ASYNC_CLI_TIMEOUT_MS = 2000;  // Shorter timeout for async initial load
 };
 
 }  // namespace ros_weaver
