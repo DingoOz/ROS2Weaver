@@ -2,6 +2,7 @@
 #include "ros_weaver/widgets/llm_chat_widget.hpp"
 #include "ros_weaver/core/theme_manager.hpp"
 
+#include <iostream>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -40,7 +41,9 @@ RosLogViewer::RosLogViewer(QWidget* parent)
 }
 
 RosLogViewer::~RosLogViewer() {
+  std::cerr << "RosLogViewer destructor: starting" << std::endl;
   stopListening();
+  std::cerr << "RosLogViewer destructor: complete" << std::endl;
 }
 
 void RosLogViewer::setupUi() {
@@ -217,6 +220,7 @@ void RosLogViewer::startListening() {
 }
 
 void RosLogViewer::stopListening() {
+  std::cerr << "RosLogViewer::stopListening() - isListening_=" << isListening_ << std::endl;
   if (!isListening_) return;
 
   shouldStop_ = true;
@@ -224,7 +228,9 @@ void RosLogViewer::stopListening() {
 
   // Wait for spin thread to finish
   if (spinThread_.joinable()) {
+    std::cerr << "RosLogViewer: joining spin thread..." << std::endl;
     spinThread_.join();
+    std::cerr << "RosLogViewer: spin thread joined" << std::endl;
   }
 
   // Clean up subscription and node
@@ -239,6 +245,7 @@ void RosLogViewer::stopListening() {
   statusLabel_->setStyleSheet("color: gray;");
 
   emit connectionStatusChanged(false);
+  std::cerr << "RosLogViewer::stopListening() complete" << std::endl;
 }
 
 void RosLogViewer::rosSpinThread() {
@@ -297,6 +304,7 @@ void RosLogViewer::addLogEntry(const LogEntry& entry) {
   // Add icon and level text
   QString levelWithIcon = QString("%1 %2").arg(getIconTextForLevel(entry.level), entry.level);
   item->setText(1, levelWithIcon);
+  item->setData(1, Qt::UserRole, entry.level);  // Store raw level for color lookup
   item->setText(2, entry.nodeName);
   item->setText(3, entry.message);
 
@@ -359,7 +367,7 @@ void RosLogViewer::setLogLevelColors(const LogLevelColors& colors) {
   // Refresh existing items with new colors
   for (int i = 0; i < logTree_->topLevelItemCount(); ++i) {
     QTreeWidgetItem* item = logTree_->topLevelItem(i);
-    QString level = item->text(1);
+    QString level = item->data(1, Qt::UserRole).toString();  // Get raw level, not display text with icon
     QColor color = colorForLevel(level);
     for (int j = 0; j < 4; ++j) {
       item->setForeground(j, color);
@@ -377,7 +385,7 @@ void RosLogViewer::setColorForLevel(const QString& level, const QColor& color) {
   // Refresh items of this level
   for (int i = 0; i < logTree_->topLevelItemCount(); ++i) {
     QTreeWidgetItem* item = logTree_->topLevelItem(i);
-    if (item->text(1) == level) {
+    if (item->data(1, Qt::UserRole).toString() == level) {  // Compare raw level, not display text with icon
       for (int j = 0; j < 4; ++j) {
         item->setForeground(j, color);
       }
@@ -450,6 +458,7 @@ void RosLogViewer::onFilterChanged() {
     // Add icon and level text
     QString levelWithIcon = QString("%1 %2").arg(getIconTextForLevel(entry.level), entry.level);
     item->setText(1, levelWithIcon);
+    item->setData(1, Qt::UserRole, entry.level);  // Store raw level for color lookup
     item->setText(2, entry.nodeName);
     item->setText(3, entry.message);
 
