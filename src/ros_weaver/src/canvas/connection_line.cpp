@@ -56,11 +56,26 @@ ConnectionLine::~ConnectionLine() {
   }
 
   // Remove this connection from source and target blocks
+  // Note: If detach() was called, these pointers are already null
   if (sourceBlock_) {
     sourceBlock_->removeConnection(this);
   }
   if (targetBlock_) {
     targetBlock_->removeConnection(this);
+  }
+}
+
+void ConnectionLine::detach() {
+  // Safely remove this connection from blocks BEFORE scene clearing
+  // This must be called before scene_->clear() to avoid use-after-free
+  // when blocks are deleted before connections in undefined order
+  if (sourceBlock_) {
+    sourceBlock_->removeConnection(this);
+    sourceBlock_ = nullptr;
+  }
+  if (targetBlock_) {
+    targetBlock_->removeConnection(this);
+    targetBlock_ = nullptr;
   }
 }
 

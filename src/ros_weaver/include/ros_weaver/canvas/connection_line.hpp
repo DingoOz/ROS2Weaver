@@ -99,6 +99,10 @@ public:
   // Trigger activity pulse (called when message received)
   void pulseActivity();
 
+  // Safely detach from blocks before canvas clearing
+  // This prevents use-after-free when scene_->clear() deletes items in undefined order
+  void detach();
+
 signals:
   void clicked(ConnectionLine* connection);
   void doubleClicked(ConnectionLine* connection);
