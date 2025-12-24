@@ -191,7 +191,11 @@ MainWindow::MainWindow(QWidget* parent)
   connect(undoStack_, &UndoStack::indexChanged, this, &MainWindow::onProjectModified);
 }
 
-MainWindow::~MainWindow() = default;
+MainWindow::~MainWindow() {
+  qDebug() << "MainWindow destructor starting";
+  // Child widgets are destroyed after this destructor body completes
+  qDebug() << "MainWindow destructor ending";
+}
 
 void MainWindow::setupMenuBar() {
   // File menu

@@ -6,6 +6,7 @@
 #include <QSettings>
 #include <QJsonDocument>
 #include <QJsonArray>
+#include <iostream>
 
 namespace ros_weaver {
 
@@ -24,7 +25,9 @@ MCPManager::MCPManager()
 }
 
 MCPManager::~MCPManager() {
+    std::cerr << "MCPManager destructor: starting (singleton)" << std::endl;
     stopAll();
+    std::cerr << "MCPManager destructor: complete" << std::endl;
 }
 
 void MCPManager::registerServer(std::shared_ptr<MCPServer> server) {
@@ -157,9 +160,13 @@ void MCPManager::startAll() {
 }
 
 void MCPManager::stopAll() {
+    std::cerr << "MCPManager::stopAll() - stopping " << servers_.size() << " servers" << std::endl;
     for (auto& server : servers_) {
+        std::cerr << "MCPManager: stopping server " << server->name().toStdString() << std::endl;
         server->stop();
+        std::cerr << "MCPManager: server " << server->name().toStdString() << " stopped" << std::endl;
     }
+    std::cerr << "MCPManager::stopAll() complete" << std::endl;
 }
 
 void MCPManager::startServer(const QUuid& id) {

@@ -217,13 +217,13 @@ private:
   mutable std::mutex framesMutex_;
   QString selectedFrame_;
 
-  // Update tracking
-  QMap<QString, int> frameUpdateCounts_;
-  qint64 lastRateCalcTime_;
-
   // Timers
   QTimer* updateTimer_;
   bool liveUpdateEnabled_;
+
+  // Update tracking
+  QMap<QString, int> frameUpdateCounts_;
+  qint64 lastRateCalcTime_;
 
   // Configuration
   static constexpr int UPDATE_INTERVAL_MS = 100;

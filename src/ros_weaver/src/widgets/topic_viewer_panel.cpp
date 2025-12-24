@@ -14,6 +14,7 @@
 #include <QDateTime>
 #include <QApplication>
 #include <QClipboard>
+#include <iostream>
 
 namespace ros_weaver {
 
@@ -76,8 +77,11 @@ TopicViewerPanel::TopicViewerPanel(QWidget* parent)
 }
 
 TopicViewerPanel::~TopicViewerPanel() {
+  std::cerr << "TopicViewerPanel destructor: starting" << std::endl;
   stopMonitoring();
+  std::cerr << "TopicViewerPanel: shutdownRosNode..." << std::endl;
   shutdownRosNode();
+  std::cerr << "TopicViewerPanel destructor: complete" << std::endl;
 }
 
 void TopicViewerPanel::setupUi() {
@@ -317,6 +321,7 @@ void TopicViewerPanel::initializeRosNode() {
 }
 
 void TopicViewerPanel::shutdownRosNode() {
+  std::cerr << "TopicViewerPanel::shutdownRosNode() starting" << std::endl;
   spinning_ = false;
 
   // Clear subscriptions first
@@ -327,15 +332,20 @@ void TopicViewerPanel::shutdownRosNode() {
 
   // Wait for discovery thread to complete to avoid use-after-free
   if (discoveryThread_ && discoveryThread_->joinable()) {
+    std::cerr << "TopicViewerPanel: joining discoveryThread..." << std::endl;
     discoveryThread_->join();
+    std::cerr << "TopicViewerPanel: discoveryThread joined" << std::endl;
   }
   discoveryThread_.reset();
 
   if (spinThread_ && spinThread_->joinable()) {
+    std::cerr << "TopicViewerPanel: joining spinThread..." << std::endl;
     spinThread_->join();
+    std::cerr << "TopicViewerPanel: spinThread joined" << std::endl;
   }
   spinThread_.reset();
   rosNode_.reset();
+  std::cerr << "TopicViewerPanel::shutdownRosNode() complete" << std::endl;
 }
 
 void TopicViewerPanel::refreshTopics() {

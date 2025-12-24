@@ -5,6 +5,7 @@
 #include <QFont>
 #include <QToolTip>
 #include <cstdlib>
+#include <iostream>
 
 #include <rclcpp/rclcpp.hpp>
 
@@ -36,10 +37,12 @@ RosStatusWidget::RosStatusWidget(QWidget* parent)
 }
 
 RosStatusWidget::~RosStatusWidget() {
+  std::cerr << "RosStatusWidget destructor: starting" << std::endl;
   if (healthCheckTimer_) {
     healthCheckTimer_->stop();
   }
   saveSettings();
+  std::cerr << "RosStatusWidget destructor: complete" << std::endl;
 }
 
 void RosStatusWidget::setupUi() {

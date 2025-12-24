@@ -240,10 +240,30 @@ void AIToolManager::registerRemoveBlockTool() {
     blockData.name = targetBlock->packageName();
     blockData.position = targetBlock->pos();
     for (const Pin& pin : targetBlock->inputPins()) {
-      blockData.inputPins.append({pin.name, pin.messageType});
+      PinData pinData;
+      pinData.name = pin.name;
+      pinData.type = "input";
+      switch (pin.dataType) {
+        case Pin::DataType::Topic: pinData.dataType = "topic"; break;
+        case Pin::DataType::Service: pinData.dataType = "service"; break;
+        case Pin::DataType::Action: pinData.dataType = "action"; break;
+        case Pin::DataType::Parameter: pinData.dataType = "parameter"; break;
+      }
+      pinData.messageType = pin.messageType;
+      blockData.inputPins.append(pinData);
     }
     for (const Pin& pin : targetBlock->outputPins()) {
-      blockData.outputPins.append({pin.name, pin.messageType});
+      PinData pinData;
+      pinData.name = pin.name;
+      pinData.type = "output";
+      switch (pin.dataType) {
+        case Pin::DataType::Topic: pinData.dataType = "topic"; break;
+        case Pin::DataType::Service: pinData.dataType = "service"; break;
+        case Pin::DataType::Action: pinData.dataType = "action"; break;
+        case Pin::DataType::Parameter: pinData.dataType = "parameter"; break;
+      }
+      pinData.messageType = pin.messageType;
+      blockData.outputPins.append(pinData);
     }
     blockData.parameters = targetBlock->parameters();
 
@@ -934,8 +954,6 @@ void AIToolManager::registerListAvailablePackagesTool() {
 }
 
 void AIToolManager::registerMCPTools() {
-  MCPManager& mcpManager = MCPManager::instance();
-
   // Register a meta-tool to list available MCP servers
   {
     AITool tool;

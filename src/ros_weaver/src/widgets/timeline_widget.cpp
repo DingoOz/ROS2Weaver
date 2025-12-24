@@ -357,7 +357,6 @@ void TimelineWidget::drawPlayhead(QPainter& painter) {
   }
 
   int x = xFromTime(currentTime_);
-  int trackY = height() / 2;
 
   // Vertical line
   painter.setPen(QPen(QColor(255, 100, 100), 2));

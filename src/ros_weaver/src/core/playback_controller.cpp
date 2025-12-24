@@ -3,6 +3,7 @@
 
 #include <QDateTime>
 #include <QDebug>
+#include <iostream>
 
 // ROS 2 Humble uses time_stamp, Jazzy uses recv_timestamp
 #if __has_include(<rclcpp/version.h>)
@@ -35,8 +36,11 @@ PlaybackController::PlaybackController(QObject* parent)
 }
 
 PlaybackController::~PlaybackController() {
+  std::cerr << "PlaybackController destructor: calling stop()" << std::endl;
   stop();
+  std::cerr << "PlaybackController destructor: stop() returned, calling shutdownRosNode()" << std::endl;
   shutdownRosNode();
+  std::cerr << "PlaybackController destructor: complete" << std::endl;
 }
 
 void PlaybackController::play() {
@@ -449,16 +453,20 @@ void PlaybackController::initializeRosNode() {
 }
 
 void PlaybackController::shutdownRosNode() {
+  std::cerr << "PlaybackController::shutdownRosNode() starting" << std::endl;
   spinning_ = false;
 
   if (spinThread_ && spinThread_->joinable()) {
+    std::cerr << "PlaybackController: joining spin thread..." << std::endl;
     spinThread_->join();
+    std::cerr << "PlaybackController: spin thread joined" << std::endl;
   }
   spinThread_.reset();
 
   destroyPublishers();
   clockPublisher_.reset();
   node_.reset();
+  std::cerr << "PlaybackController::shutdownRosNode() completed" << std::endl;
 }
 
 void PlaybackController::createPublishers() {
