@@ -17,6 +17,7 @@
 #include <QStyle>
 #include <QDebug>
 #include <QDir>
+#include <iostream>
 
 namespace ros_weaver {
 
@@ -38,10 +39,15 @@ RosbagWorkbenchPanel::RosbagWorkbenchPanel(QWidget* parent)
 }
 
 RosbagWorkbenchPanel::~RosbagWorkbenchPanel() {
+  std::cerr << "RosbagWorkbenchPanel destructor: starting" << std::endl;
   // Stop playback, recording, and SLAM before destruction
+  std::cerr << "RosbagWorkbenchPanel: stopping playback..." << std::endl;
   playbackController_->stop();
+  std::cerr << "RosbagWorkbenchPanel: stopping recording..." << std::endl;
   bagRecorder_->stopRecording();
+  std::cerr << "RosbagWorkbenchPanel: stopping SLAM..." << std::endl;
   slamManager_->stopSlam();
+  std::cerr << "RosbagWorkbenchPanel destructor: complete" << std::endl;
 }
 
 void RosbagWorkbenchPanel::setCanvas(WeaverCanvas* canvas) {

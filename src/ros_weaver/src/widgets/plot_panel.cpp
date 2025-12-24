@@ -17,6 +17,7 @@
 #include <QTreeWidget>
 #include <QScreen>
 #include <QSettings>
+#include <iostream>
 
 #include <std_msgs/msg/float32.hpp>
 #include <std_msgs/msg/float64.hpp>
@@ -103,10 +104,12 @@ PlotPanel::PlotPanel(QWidget* parent)
 }
 
 PlotPanel::~PlotPanel() {
+  std::cerr << "PlotPanel destructor: starting" << std::endl;
   if (updateTimer_) {
     updateTimer_->stop();
   }
   shutdownRosNode();
+  std::cerr << "PlotPanel destructor: complete" << std::endl;
 }
 
 void PlotPanel::setupUi() {

@@ -3,6 +3,7 @@
 #include <QDateTime>
 #include <QThread>
 #include <QDebug>
+#include <iostream>
 
 namespace ros_weaver {
 
@@ -36,8 +37,10 @@ SystemDiscovery::SystemDiscovery(QObject* parent)
 }
 
 SystemDiscovery::~SystemDiscovery() {
+  std::cerr << "SystemDiscovery destructor: starting" << std::endl;
   stopScan();
   shutdownRosNode();
+  std::cerr << "SystemDiscovery destructor: complete" << std::endl;
 }
 
 void SystemDiscovery::initializeRosNode() {

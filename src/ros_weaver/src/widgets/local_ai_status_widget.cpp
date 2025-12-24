@@ -4,6 +4,7 @@
 
 #include <QHBoxLayout>
 #include <QTimer>
+#include <iostream>
 
 namespace ros_weaver {
 
@@ -45,7 +46,9 @@ LocalAIStatusWidget::LocalAIStatusWidget(QWidget* parent)
 }
 
 LocalAIStatusWidget::~LocalAIStatusWidget() {
+  std::cerr << "LocalAIStatusWidget destructor: starting" << std::endl;
   saveSettings();
+  std::cerr << "LocalAIStatusWidget destructor: complete" << std::endl;
 }
 
 void LocalAIStatusWidget::setupUi() {

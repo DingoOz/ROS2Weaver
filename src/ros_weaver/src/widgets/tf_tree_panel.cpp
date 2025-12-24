@@ -13,6 +13,7 @@
 #include <QDateTime>
 #include <QScrollArea>
 #include <QFileInfo>
+#include <iostream>
 
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/LinearMath/Quaternion.h>
@@ -56,8 +57,10 @@ TFTreePanel::TFTreePanel(QWidget* parent)
 }
 
 TFTreePanel::~TFTreePanel() {
+  std::cerr << "TFTreePanel destructor: starting" << std::endl;
   stopListening();
   shutdownRosNode();
+  std::cerr << "TFTreePanel destructor: complete" << std::endl;
 }
 
 void TFTreePanel::setupUi() {

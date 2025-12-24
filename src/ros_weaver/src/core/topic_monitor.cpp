@@ -1,6 +1,7 @@
 #include "ros_weaver/core/topic_monitor.hpp"
 
 #include <QDebug>
+#include <iostream>
 
 namespace ros_weaver {
 
@@ -15,7 +16,9 @@ TopicMonitor::TopicMonitor(QObject* parent)
 
 TopicMonitor::~TopicMonitor()
 {
+  std::cerr << "TopicMonitor destructor: starting" << std::endl;
   stopMonitoring();
+  std::cerr << "TopicMonitor destructor: complete" << std::endl;
 }
 
 void TopicMonitor::startMonitoring()

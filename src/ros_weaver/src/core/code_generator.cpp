@@ -293,7 +293,7 @@ QString CodeGenerator::generatePackageXml(const Project& project, const Generato
 }
 
 QString CodeGenerator::generateNodeCpp(const BlockData& block,
-                                        const QList<ConnectionData>& connections,
+                                        [[maybe_unused]] const QList<ConnectionData>& connections,
                                         const QList<ParamDefinition>& params) {
   QString content;
   QTextStream stream(&content);
