@@ -143,9 +143,10 @@ static BlockData createBlockData(PackageBlock* block) {
 static ConnectionData createConnectionData(ConnectionLine* conn) {
   ConnectionData connData;
   connData.id = conn->id();
-  connData.sourceBlockId = conn->sourceBlock()->id();
+  // Guard against null blocks (could happen if connection is in detached state)
+  connData.sourceBlockId = conn->sourceBlock() ? conn->sourceBlock()->id() : QUuid();
   connData.sourcePinIndex = conn->sourcePinIndex();
-  connData.targetBlockId = conn->targetBlock()->id();
+  connData.targetBlockId = conn->targetBlock() ? conn->targetBlock()->id() : QUuid();
   connData.targetPinIndex = conn->targetPinIndex();
   return connData;
 }
@@ -1427,9 +1428,6 @@ void WeaverCanvas::exportToProject(Project& project) const {
   project.connections().clear();
   project.nodeGroups().clear();
 
-  // Map from PackageBlock pointers to their UUIDs for connection export
-  QMap<PackageBlock*, QUuid> blockIdMap;
-
   // Export all blocks
   for (QGraphicsItem* item : scene_->items()) {
     if (PackageBlock* block = dynamic_cast<PackageBlock*>(item)) {
@@ -1475,7 +1473,6 @@ void WeaverCanvas::exportToProject(Project& project) const {
       blockData.preferredYamlSource = block->preferredYamlSource();
 
       project.addBlock(blockData);
-      blockIdMap[block] = blockData.id;
     }
   }
 

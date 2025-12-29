@@ -182,7 +182,6 @@ private slots:
   void onStatusCheckFinished(QNetworkReply* reply);
   void onPullReadyRead();
   void onPullFinished();
-  void onDeleteFinished(QNetworkReply* reply);
   void onCompletionReadyRead();
   void onCompletionFinished();
   // Chat API slots
