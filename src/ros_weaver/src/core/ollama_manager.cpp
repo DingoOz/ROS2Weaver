@@ -215,24 +215,16 @@ void OllamaManager::deleteModel(const QString& modelName) {
 
   QNetworkReply* reply = networkManager_->sendCustomRequest(request, "DELETE", QJsonDocument(json).toJson());
   connect(reply, &QNetworkReply::finished, this, [this, reply, modelName]() {
-    onDeleteFinished(reply);
+    bool success = (reply->error() == QNetworkReply::NoError);
+
+    emit modelDeleted(modelName, success);
+
+    if (success) {
+      refreshLocalModels();
+    }
+
+    reply->deleteLater();
   });
-}
-
-void OllamaManager::onDeleteFinished(QNetworkReply* reply) {
-  bool success = (reply->error() == QNetworkReply::NoError);
-
-  // Extract model name from the original request
-  QJsonDocument doc = QJsonDocument::fromJson(reply->request().attribute(QNetworkRequest::User).toByteArray());
-  QString modelName = doc.object()["name"].toString();
-
-  emit modelDeleted(modelName, success);
-
-  if (success) {
-    refreshLocalModels();
-  }
-
-  reply->deleteLater();
 }
 
 void OllamaManager::generateCompletion(const QString& prompt, const QString& systemPrompt,
