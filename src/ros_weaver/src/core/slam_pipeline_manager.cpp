@@ -156,37 +156,46 @@ bool SlamPipelineManager::launchSlamToolboxSync(const QMap<QString, QVariant>& p
 }
 
 void SlamPipelineManager::setParameter(const QString& name, const QVariant& value) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  bool shouldRerun = false;
 
-  currentParams_[name] = value;
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
 
-  // If SLAM is running, apply parameter dynamically
-  if (status_ == SlamNodeStatus::Running && paramClient_) {
-    try {
-      rclcpp::Parameter param;
+    currentParams_[name] = value;
 
-      if (value.type() == QVariant::Bool) {
-        param = rclcpp::Parameter(name.toStdString(), value.toBool());
-      } else if (value.type() == QVariant::Int) {
-        param = rclcpp::Parameter(name.toStdString(), value.toInt());
-      } else if (value.type() == QVariant::Double) {
-        param = rclcpp::Parameter(name.toStdString(), value.toDouble());
-      } else {
-        param = rclcpp::Parameter(name.toStdString(), value.toString().toStdString());
+    // If SLAM is running, apply parameter dynamically
+    if (status_ == SlamNodeStatus::Running && paramClient_) {
+      try {
+        rclcpp::Parameter param;
+
+        if (value.type() == QVariant::Bool) {
+          param = rclcpp::Parameter(name.toStdString(), value.toBool());
+        } else if (value.type() == QVariant::Int) {
+          param = rclcpp::Parameter(name.toStdString(), value.toInt());
+        } else if (value.type() == QVariant::Double) {
+          param = rclcpp::Parameter(name.toStdString(), value.toDouble());
+        } else {
+          param = rclcpp::Parameter(name.toStdString(), value.toString().toStdString());
+        }
+
+        auto future = paramClient_->set_parameters({param});
+        // Note: In production, should handle future result asynchronously
       }
+      catch (const std::exception& e) {
+        qWarning() << "Failed to set parameter" << name << ":" << e.what();
+      }
+    }
 
-      auto future = paramClient_->set_parameters({param});
-      // Note: In production, should handle future result asynchronously
-    }
-    catch (const std::exception& e) {
-      qWarning() << "Failed to set parameter" << name << ":" << e.what();
-    }
+    // Check if we need to trigger rerun (while still holding lock)
+    shouldRerun = autoRerunEnabled_;
   }
+  // Lock released here
 
   emit parameterChanged(name, value);
 
-  // Trigger rerun if auto-rerun is enabled
-  if (autoRerunEnabled_) {
+  // Trigger rerun outside the lock to avoid deadlock
+  // (triggerRerun() calls stopSlam() which also acquires mutex_)
+  if (shouldRerun) {
     triggerRerun();
   }
 }
