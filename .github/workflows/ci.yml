@@ -174,5 +174,10 @@ jobs:
           echo "| test_code_generator | Code generation (15 tests) | :white_check_mark: |" >> $GITHUB_STEP_SUMMARY
           echo "| test_theme_manager | Theme management (22 tests) | :white_check_mark: |" >> $GITHUB_STEP_SUMMARY
           echo "| test_lineage_provider | Lineage provider (30 tests) | :white_check_mark: |" >> $GITHUB_STEP_SUMMARY
+          echo "| test_undo_stack | Undo/redo system (15 tests) | :white_check_mark: |" >> $GITHUB_STEP_SUMMARY
+          echo "| test_slam_pipeline_manager | SLAM pipeline & thread safety (44 tests) | :white_check_mark: |" >> $GITHUB_STEP_SUMMARY
+          echo "| test_canvas_mapper | Canvas-to-ROS2 mapping (37 tests) | :white_check_mark: |" >> $GITHUB_STEP_SUMMARY
+          echo "| test_topic_monitor | Topic monitoring & rate calc (31 tests) | :white_check_mark: |" >> $GITHUB_STEP_SUMMARY
+          echo "| test_bag_manager | Rosbag2 file management (32 tests) | :white_check_mark: |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Total: 99 unit tests**" >> $GITHUB_STEP_SUMMARY
+          echo "**Total: 258 unit tests**" >> $GITHUB_STEP_SUMMARY

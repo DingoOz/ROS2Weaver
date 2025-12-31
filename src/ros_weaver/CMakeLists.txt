@@ -38,6 +38,7 @@ find_package(Qt5 REQUIRED COMPONENTS
   Widgets
   Network
   Charts
+  Test
 )
 
 # Include directories
@@ -305,6 +306,55 @@ if(BUILD_TESTING)
   target_include_directories(test_undo_stack PRIVATE include ${CMAKE_CURRENT_BINARY_DIR})
   target_link_libraries(test_undo_stack Qt5::Core Qt5::Gui Qt5::Widgets)
   set_target_properties(test_undo_stack PROPERTIES AUTOMOC ON)
+
+  # Unit tests - SLAM pipeline manager
+  ament_add_gtest(test_slam_pipeline_manager
+    test/test_slam_pipeline_manager.cpp
+    src/core/slam_pipeline_manager.cpp
+    src/core/playback_controller.cpp
+    src/core/bag_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/ros_weaver/core/slam_pipeline_manager.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/ros_weaver/core/playback_controller.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/ros_weaver/core/bag_manager.hpp
+  )
+  target_include_directories(test_slam_pipeline_manager PRIVATE include ${CMAKE_CURRENT_BINARY_DIR})
+  target_link_libraries(test_slam_pipeline_manager Qt5::Core Qt5::Gui Qt5::Widgets Qt5::Test)
+  ament_target_dependencies(test_slam_pipeline_manager rclcpp rosbag2_cpp rosbag2_storage)
+  set_target_properties(test_slam_pipeline_manager PROPERTIES AUTOMOC ON)
+
+  # Unit tests - Canvas mapper
+  ament_add_gtest(test_canvas_mapper
+    test/test_canvas_mapper.cpp
+    src/core/canvas_mapper.cpp
+    src/core/project.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/ros_weaver/core/canvas_mapper.hpp
+  )
+  target_include_directories(test_canvas_mapper PRIVATE include ${CMAKE_CURRENT_BINARY_DIR})
+  target_link_libraries(test_canvas_mapper Qt5::Core Qt5::Gui Qt5::Widgets Qt5::Test)
+  ament_target_dependencies(test_canvas_mapper rclcpp)
+  set_target_properties(test_canvas_mapper PROPERTIES AUTOMOC ON)
+
+  # Unit tests - Topic monitor
+  ament_add_gtest(test_topic_monitor
+    test/test_topic_monitor.cpp
+    src/core/topic_monitor.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/ros_weaver/core/topic_monitor.hpp
+  )
+  target_include_directories(test_topic_monitor PRIVATE include ${CMAKE_CURRENT_BINARY_DIR})
+  target_link_libraries(test_topic_monitor Qt5::Core Qt5::Gui Qt5::Widgets Qt5::Test)
+  ament_target_dependencies(test_topic_monitor rclcpp std_msgs)
+  set_target_properties(test_topic_monitor PROPERTIES AUTOMOC ON)
+
+  # Unit tests - Bag manager (struct tests only - no BagManager instance tests that require rosbag)
+  ament_add_gtest(test_bag_manager
+    test/test_bag_manager.cpp
+    src/core/bag_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/ros_weaver/core/bag_manager.hpp
+  )
+  target_include_directories(test_bag_manager PRIVATE include ${CMAKE_CURRENT_BINARY_DIR})
+  target_link_libraries(test_bag_manager Qt5::Core Qt5::Gui Qt5::Widgets Qt5::Test)
+  ament_target_dependencies(test_bag_manager rclcpp rosbag2_cpp rosbag2_storage)
+  set_target_properties(test_bag_manager PROPERTIES AUTOMOC ON)
 
   # Lint tests (non-invasive ones only - skip copyright/cpplint/uncrustify for now)
   find_package(ament_cmake_xmllint REQUIRED)
