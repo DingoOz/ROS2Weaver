@@ -46,6 +46,7 @@ WeaverCanvas::WeaverCanvas(QWidget* parent)
   , rubberBand_(nullptr)
   , undoStack_(nullptr)
   , isExecutingCommand_(false)
+  , isSpacePressed_(false)
   , zoomIndicator_(nullptr)
 {
   setupScene();
@@ -546,6 +547,112 @@ void WeaverCanvas::deleteSelectedItems() {
   }
 }
 
+void WeaverCanvas::duplicateSelectedItems() {
+  QList<QGraphicsItem*> selected = scene_->selectedItems();
+
+  QList<PackageBlock*> blocksToDuplicate;
+  for (QGraphicsItem* item : selected) {
+    if (PackageBlock* block = dynamic_cast<PackageBlock*>(item)) {
+      blocksToDuplicate.append(block);
+    }
+  }
+
+  if (blocksToDuplicate.isEmpty()) return;
+
+  // Use macro for multiple duplications
+  if (undoStack_ && blocksToDuplicate.size() > 1) {
+    undoStack_->beginMacro(tr("Duplicate %1 Items").arg(blocksToDuplicate.size()));
+  }
+
+  // Deselect all first
+  scene_->clearSelection();
+
+  // Duplicate each block with an offset
+  constexpr double OFFSET = 30.0;
+  for (PackageBlock* original : blocksToDuplicate) {
+    // Helper to convert Pin::DataType to string
+    auto dataTypeToString = [](Pin::DataType dt) -> QString {
+      switch (dt) {
+        case Pin::DataType::Topic: return "topic";
+        case Pin::DataType::Service: return "service";
+        case Pin::DataType::Action: return "action";
+        case Pin::DataType::Parameter: return "parameter";
+        default: return "topic";
+      }
+    };
+
+    // Create input and output pin lists
+    QList<QPair<QString, QString>> inputPinList;
+    QList<QPair<QString, QString>> outputPinList;
+
+    for (const Pin& pin : original->inputPins()) {
+      inputPinList.append(qMakePair(dataTypeToString(pin.dataType), pin.name));
+    }
+    for (const Pin& pin : original->outputPins()) {
+      outputPinList.append(qMakePair(dataTypeToString(pin.dataType), pin.name));
+    }
+
+    // Create duplicated block at offset position
+    QPointF newPos = original->pos() + QPointF(OFFSET, OFFSET);
+    PackageBlock* duplicate = addCustomBlock(
+        original->packageName(),
+        newPos,
+        inputPinList,
+        outputPinList
+    );
+
+    if (duplicate) {
+      duplicate->setSelected(true);
+      // Copy parameters if any
+      if (original->hasParameters()) {
+        duplicate->setParameters(original->parameters());
+      }
+    }
+  }
+
+  // End macro if we started one
+  if (undoStack_ && blocksToDuplicate.size() > 1) {
+    undoStack_->endMacro();
+  }
+}
+
+void WeaverCanvas::selectAllItems() {
+  for (QGraphicsItem* item : scene_->items()) {
+    if (dynamic_cast<PackageBlock*>(item) ||
+        dynamic_cast<ConnectionLine*>(item) ||
+        dynamic_cast<NodeGroup*>(item)) {
+      item->setSelected(true);
+    }
+  }
+}
+
+void WeaverCanvas::ungroupSelectedGroups() {
+  QList<QGraphicsItem*> selected = scene_->selectedItems();
+
+  QList<NodeGroup*> groupsToUngroup;
+  for (QGraphicsItem* item : selected) {
+    if (NodeGroup* group = dynamic_cast<NodeGroup*>(item)) {
+      groupsToUngroup.append(group);
+    }
+  }
+
+  if (groupsToUngroup.isEmpty()) return;
+
+  // Use macro for multiple ungroupings
+  if (undoStack_ && groupsToUngroup.size() > 1) {
+    undoStack_->beginMacro(tr("Ungroup %1 Groups").arg(groupsToUngroup.size()));
+  }
+
+  for (NodeGroup* group : groupsToUngroup) {
+    removeNodeGroup(group);
+  }
+
+  // End macro if we started one
+  if (undoStack_ && groupsToUngroup.size() > 1) {
+    undoStack_->endMacro();
+  }
+}
+
 NodeGroup* WeaverCanvas::createNodeGroup(const QString& title) {
   NodeGroup* group = new NodeGroup(title);
   scene_->addItem(group);
@@ -846,6 +953,15 @@ void WeaverCanvas::mousePressEvent(QMouseEvent* event) {
     return;
   }
 
+  // Space + Left click for panning (alternative)
+  if (event->button() == Qt::LeftButton && isSpacePressed_) {
+    isPanning_ = true;
+    lastPanPoint_ = event->pos();
+    setCursor(Qt::ClosedHandCursor);
+    event->accept();
+    return;
+  }
+
   // Left click - check for pin interaction
   if (event->button() == Qt::LeftButton) {
     QPointF scenePos = mapToScene(event->pos());
@@ -1103,9 +1219,54 @@ void WeaverCanvas::keyPressEvent(QKeyEvent* event) {
     return;
   }
 
+  // Space key enables pan mode
+  if (event->key() == Qt::Key_Space && !event->isAutoRepeat()) {
+    isSpacePressed_ = true;
+    setCursor(Qt::OpenHandCursor);
+    event->accept();
+    return;
+  }
+
   // Delete selected items
   if (event->key() == Qt::Key_Delete || event->key() == Qt::Key_Backspace) {
     deleteSelectedItems();
+    event->accept();
+    return;
+  }
+
+  // D - Duplicate selected items
+  if (event->key() == Qt::Key_D && !event->modifiers()) {
+    duplicateSelectedItems();
+    event->accept();
+    return;
+  }
+
+  // Ctrl+A - Select all items
+  if (event->key() == Qt::Key_A && event->modifiers() == Qt::ControlModifier) {
+    selectAllItems();
+    event->accept();
+    return;
+  }
+
+  // Ctrl+G - Group selected items
+  if (event->key() == Qt::Key_G && event->modifiers() == Qt::ControlModifier) {
+    QList<PackageBlock*> selectedBlocks;
+    for (QGraphicsItem* item : scene_->selectedItems()) {
+      if (PackageBlock* block = dynamic_cast<PackageBlock*>(item)) {
+        selectedBlocks.append(block);
+      }
+    }
+    if (selectedBlocks.size() >= 2) {
+      createGroupFromSelection(tr("Group"));
+    }
+    event->accept();
+    return;
+  }
+
+  // Ctrl+Shift+G - Ungroup selected groups
+  if (event->key() == Qt::Key_G &&
+      event->modifiers() == (Qt::ControlModifier | Qt::ShiftModifier)) {
+    ungroupSelectedGroups();
     event->accept();
     return;
   }
@@ -1118,6 +1279,20 @@ void WeaverCanvas::keyPressEvent(QKeyEvent* event) {
   }
 
   QGraphicsView::keyPressEvent(event);
+}
+
+void WeaverCanvas::keyReleaseEvent(QKeyEvent* event) {
+  // Space key release ends pan mode
+  if (event->key() == Qt::Key_Space && !event->isAutoRepeat()) {
+    isSpacePressed_ = false;
+    if (!isPanning_) {
+      setCursor(Qt::ArrowCursor);
+    }
+    event->accept();
+    return;
+  }
+
+  QGraphicsView::keyReleaseEvent(event);
 }
 
 void WeaverCanvas::contextMenuEvent(QContextMenuEvent* event) {

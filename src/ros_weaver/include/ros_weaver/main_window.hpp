@@ -49,6 +49,13 @@ class MCPExplorerPanel;
 class RosControlPanel;
 class RosbagMCPServer;
 class CommandPalette;
+class SchemaViewerWidget;
+class ReadmePreviewPanel;
+class IssueListPanel;
+class AdvancedSearchPanel;
+class ThemeEditorDialog;
+class RemappingEditor;
+class CanvasTabWidget;
 
 class MainWindow : public QMainWindow {
   Q_OBJECT
@@ -62,6 +69,11 @@ private slots:
   void onOpenProject();
   void onSaveProject();
   void onSaveProjectAs();
+  void onExportToPlantUML();
+  void onExportToMermaid();
+  void onExportToGraphviz();
+  void onImportFromDot();
+  void onImportFromCaret();
   void onGenerateCode();
   void onGenerateCodeWizard();
   void onRobotWizard();
@@ -142,6 +154,29 @@ private slots:
   void onOpenRecentProject();
   void onClearRecentProjects();
 
+  // Static analysis
+  void onRunAnalysis();
+  void onAnalysisCompleted(const struct AnalysisResult& result);
+  void onNavigateToIssue(const QUuid& blockId);
+
+  // Theme editor
+  void onShowThemeEditor();
+
+  // Simulation launcher
+  void onLaunchGazebo();
+  void onLaunchIgnition();
+  void onStopSimulation();
+
+  // Remapping editor
+  void onEditRemappings(PackageBlock* block);
+
+  // Canvas tab management
+  void onNewCanvas();
+  void onCloseCanvas();
+  void onDuplicateCanvas();
+  void onRenameCanvas();
+  void onCurrentCanvasChanged(WeaverCanvas* canvas);
+
 protected:
   void closeEvent(QCloseEvent* event) override;
 
@@ -179,7 +214,10 @@ private:
   void connectRosbagMCPServers();
   void connectRosbagMCPServer(std::shared_ptr<RosbagMCPServer> server);
 
-  // Central canvas for visual editing
+  // Multi-canvas tab widget
+  CanvasTabWidget* canvasTabWidget_;
+
+  // Convenience pointer to current canvas (updated when tab changes)
   WeaverCanvas* canvas_;
 
   // Dock widgets
@@ -259,6 +297,21 @@ private:
 
   // ROS Control Panel
   RosControlPanel* rosControlPanel_;
+
+  // Schema Viewer
+  SchemaViewerWidget* schemaViewerWidget_;
+  QDockWidget* schemaViewerDock_;
+
+  // README Preview Panel
+  ReadmePreviewPanel* readmePreviewPanel_;
+  QDockWidget* readmePreviewDock_;
+
+  // Issue List Panel (static analysis)
+  IssueListPanel* issueListPanel_;
+  QDockWidget* issueListDock_;
+
+  // Advanced Search Panel
+  AdvancedSearchPanel* advancedSearchPanel_;
 
   // Project dirty tracking
   bool isProjectDirty_;

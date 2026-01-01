@@ -48,6 +48,15 @@ public:
   // Delete all selected items
   void deleteSelectedItems();
 
+  // Duplicate selected items
+  void duplicateSelectedItems();
+
+  // Select all items
+  void selectAllItems();
+
+  // Ungroup selected groups
+  void ungroupSelectedGroups();
+
   // Node group management
   NodeGroup* createNodeGroup(const QString& title = "Group");
   NodeGroup* createGroupFromSelection(const QString& title = "Group");
@@ -103,6 +112,7 @@ protected:
   void mouseMoveEvent(QMouseEvent* event) override;
   void mouseReleaseEvent(QMouseEvent* event) override;
   void keyPressEvent(QKeyEvent* event) override;
+  void keyReleaseEvent(QKeyEvent* event) override;
   void contextMenuEvent(QContextMenuEvent* event) override;
   void dragEnterEvent(QDragEnterEvent* event) override;
   void dragMoveEvent(QDragMoveEvent* event) override;
@@ -168,6 +178,9 @@ private:
   // Undo/redo support
   UndoStack* undoStack_;
   bool isExecutingCommand_;
+
+  // Space key for panning
+  bool isSpacePressed_;
 
   // Zoom indicator
   QLabel* zoomIndicator_;

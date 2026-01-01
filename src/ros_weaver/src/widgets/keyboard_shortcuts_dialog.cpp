@@ -160,6 +160,12 @@ void KeyboardShortcutsDialog::loadShortcuts() {
   shortcuts_ << ShortcutInfo{"Canvas", tr("Select Item"), tr("Click"), tr("Select a single item")};
   shortcuts_ << ShortcutInfo{"Canvas", tr("Multi-Select"), tr("Ctrl + Click"), tr("Add/remove from selection")};
   shortcuts_ << ShortcutInfo{"Canvas", tr("Deselect All"), tr("Click Empty"), tr("Click empty area to deselect")};
+  shortcuts_ << ShortcutInfo{"Canvas", tr("Deselect All"), tr("Escape"), tr("Deselect all items")};
+  shortcuts_ << ShortcutInfo{"Canvas", tr("Duplicate Selected"), tr("D"), tr("Duplicate selected blocks")};
+  shortcuts_ << ShortcutInfo{"Canvas", tr("Select All"), tr("Ctrl+A"), tr("Select all items on canvas")};
+  shortcuts_ << ShortcutInfo{"Canvas", tr("Group Selected"), tr("Ctrl+G"), tr("Create a group from selected blocks")};
+  shortcuts_ << ShortcutInfo{"Canvas", tr("Ungroup Selected"), tr("Ctrl+Shift+G"), tr("Remove selected groups")};
+  shortcuts_ << ShortcutInfo{"Canvas", tr("Cancel Action"), tr("Escape"), tr("Cancel current drag or connection")};
 }
 
 void KeyboardShortcutsDialog::filterShortcuts(const QString& filter) {

@@ -124,6 +124,9 @@ private:
   // MCP tool registration
   void registerMCPTools();
 
+  // Architecture tools
+  void registerArchitectureTools();
+
   // Tool registry
   QMap<QString, AITool> tools_;
 

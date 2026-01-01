@@ -11,6 +11,9 @@
 #include <QSizeF>
 #include <QColor>
 #include <QUuid>
+#include <QByteArray>
+#include <QMap>
+#include <QVariant>
 
 namespace ros_weaver {
 
@@ -103,6 +106,49 @@ struct YamlFileInfo {
   static YamlFileInfo fromJson(const QJsonObject& json);
 };
 
+// Canvas view state for restoring zoom and pan position
+struct CanvasViewState {
+  QPointF viewCenter;           // Center point of the view
+  double zoomLevel = 1.0;       // Current zoom level
+  QList<QUuid> expandedGroups;  // Groups that are expanded in the view
+
+  QJsonObject toJson() const;
+  static CanvasViewState fromJson(const QJsonObject& json);
+};
+
+// Layout preset for saving/restoring dock widget arrangements
+struct LayoutPreset {
+  QString name;               // User-friendly name for the preset
+  QByteArray dockState;       // QMainWindow::saveState() result
+  QByteArray windowGeometry;  // QWidget::saveGeometry() result
+
+  QJsonObject toJson() const;
+  static LayoutPreset fromJson(const QJsonObject& json);
+};
+
+// Custom metadata for extensibility
+struct CustomMetadata {
+  QMap<QString, QVariant> data;
+
+  QJsonObject toJson() const;
+  static CustomMetadata fromJson(const QJsonObject& json);
+};
+
+// Canvas data for multi-canvas support
+struct CanvasData {
+  QUuid id;
+  QString name;
+  QString description;
+  bool isActive = false;
+  QList<BlockData> blocks;
+  QList<ConnectionData> connections;
+  QList<NodeGroupData> groups;
+  CanvasViewState viewState;
+
+  QJsonObject toJson() const;
+  static CanvasData fromJson(const QJsonObject& json);
+};
+
 // Main project class
 class Project {
 public:
@@ -138,6 +184,38 @@ public:
   QList<YamlFileInfo>& yamlFiles() { return yamlFiles_; }
   QString findYamlFileForNode(const QString& nodeName) const;
 
+  // Canvas View State
+  CanvasViewState& viewState() { return viewState_; }
+  const CanvasViewState& viewState() const { return viewState_; }
+  void setViewState(const CanvasViewState& state) { viewState_ = state; }
+
+  // Layout Presets
+  void addLayoutPreset(const LayoutPreset& preset);
+  void removeLayoutPreset(const QString& name);
+  const QList<LayoutPreset>& layoutPresets() const { return layoutPresets_; }
+  QList<LayoutPreset>& layoutPresets() { return layoutPresets_; }
+  LayoutPreset* findLayoutPreset(const QString& name);
+
+  // Custom Metadata (for extensibility)
+  CustomMetadata& customMetadata() { return customMetadata_; }
+  const CustomMetadata& customMetadata() const { return customMetadata_; }
+  void setCustomMetadata(const QString& key, const QVariant& value);
+  QVariant getCustomMetadata(const QString& key, const QVariant& defaultValue = QVariant()) const;
+
+  // Multi-Canvas support
+  void addCanvas(const CanvasData& canvas);
+  void removeCanvas(const QUuid& id);
+  const QList<CanvasData>& canvases() const { return canvases_; }
+  QList<CanvasData>& canvases() { return canvases_; }
+  void clearCanvases();
+  int activeCanvasIndex() const { return activeCanvasIndex_; }
+  void setActiveCanvasIndex(int index) { activeCanvasIndex_ = index; }
+
+  // Clear operations
+  void clearBlocks();
+  void clearConnections();
+  void clearNodeGroups();
+
   // Clear all data
   void clear();
 
@@ -161,6 +239,11 @@ private:
   QList<ConnectionData> connections_;
   QList<NodeGroupData> nodeGroups_;
   QList<YamlFileInfo> yamlFiles_;
+  CanvasViewState viewState_;
+  QList<LayoutPreset> layoutPresets_;
+  CustomMetadata customMetadata_;
+  QList<CanvasData> canvases_;
+  int activeCanvasIndex_ = 0;
   QString filePath_;
   bool hasUnsavedChanges_;
 };

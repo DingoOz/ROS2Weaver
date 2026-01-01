@@ -73,6 +73,8 @@ qrc_*.cpp
 # Planning and Claude session files (ignore most .md except key docs)
 *.md
 !README.md
+!CHANGELOG.md
+!ROADMAP.md
 !Architecture.md
 !ROS Weaver Development Plan.md
 !tests/README.md

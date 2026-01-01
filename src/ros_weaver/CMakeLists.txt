@@ -115,6 +115,24 @@ set(SOURCES
   src/core/mcp_manager.cpp
   src/core/mcp_providers.cpp
   src/core/error_handler.cpp
+  src/core/graph_exporter.cpp
+  src/core/ros_docs_provider.cpp
+  src/core/dot_importer.cpp
+  src/core/caret_importer.cpp
+  src/core/static_analyzer.cpp
+  src/core/live_param_validator.cpp
+  src/core/ai_error_advisor.cpp
+  src/core/architecture_generator.cpp
+  src/core/architecture_optimizer.cpp
+  src/core/git_integration.cpp
+  src/core/playback_animator.cpp
+  src/core/simulation_launcher.cpp
+  src/widgets/schema_viewer_widget.cpp
+  src/widgets/advanced_search_panel.cpp
+  src/widgets/theme_editor_dialog.cpp
+  src/widgets/issue_list_panel.cpp
+  src/widgets/readme_preview_panel.cpp
+  src/widgets/remapping_editor.cpp
   src/wizards/package_wizard.cpp
   src/wizards/robot_wizard.cpp
   src/wizards/mcp_server_wizard.cpp
@@ -124,6 +142,7 @@ set(SOURCES
   src/widgets/typing_indicator.cpp
   src/widgets/command_palette.cpp
   src/widgets/empty_state.cpp
+  src/widgets/canvas_tab_widget.cpp
 )
 
 # Header files (for MOC)
@@ -192,6 +211,25 @@ set(HEADERS
   include/ros_weaver/widgets/empty_state.hpp
   include/ros_weaver/core/constants.hpp
   include/ros_weaver/core/error_handler.hpp
+  include/ros_weaver/core/graph_exporter.hpp
+  include/ros_weaver/core/ros_docs_provider.hpp
+  include/ros_weaver/core/dot_importer.hpp
+  include/ros_weaver/core/caret_importer.hpp
+  include/ros_weaver/core/static_analyzer.hpp
+  include/ros_weaver/core/live_param_validator.hpp
+  include/ros_weaver/core/ai_error_advisor.hpp
+  include/ros_weaver/core/architecture_generator.hpp
+  include/ros_weaver/core/architecture_optimizer.hpp
+  include/ros_weaver/core/git_integration.hpp
+  include/ros_weaver/core/playback_animator.hpp
+  include/ros_weaver/core/simulation_launcher.hpp
+  include/ros_weaver/widgets/schema_viewer_widget.hpp
+  include/ros_weaver/widgets/advanced_search_panel.hpp
+  include/ros_weaver/widgets/theme_editor_dialog.hpp
+  include/ros_weaver/widgets/issue_list_panel.hpp
+  include/ros_weaver/widgets/readme_preview_panel.hpp
+  include/ros_weaver/widgets/remapping_editor.hpp
+  include/ros_weaver/widgets/canvas_tab_widget.hpp
 )
 
 # Create executable
@@ -355,6 +393,17 @@ if(BUILD_TESTING)
   target_link_libraries(test_bag_manager Qt5::Core Qt5::Gui Qt5::Widgets Qt5::Test)
   ament_target_dependencies(test_bag_manager rclcpp rosbag2_cpp rosbag2_storage)
   set_target_properties(test_bag_manager PROPERTIES AUTOMOC ON)
+
+  # Unit tests - Graph exporter
+  ament_add_gtest(test_graph_exporter
+    test/test_graph_exporter.cpp
+    src/core/graph_exporter.cpp
+    src/core/project.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/ros_weaver/core/graph_exporter.hpp
+  )
+  target_include_directories(test_graph_exporter PRIVATE include ${CMAKE_CURRENT_BINARY_DIR})
+  target_link_libraries(test_graph_exporter Qt5::Core Qt5::Gui Qt5::Widgets)
+  set_target_properties(test_graph_exporter PROPERTIES AUTOMOC ON)
 
   # Lint tests (non-invasive ones only - skip copyright/cpplint/uncrustify for now)
   find_package(ament_cmake_xmllint REQUIRED)
