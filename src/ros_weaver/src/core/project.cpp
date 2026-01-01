@@ -307,9 +307,195 @@ YamlFileInfo YamlFileInfo::fromJson(const QJsonObject& json) {
   return info;
 }
 
+// CanvasViewState serialization
+QJsonObject CanvasViewState::toJson() const {
+  QJsonObject json;
+
+  QJsonObject centerJson;
+  centerJson["x"] = viewCenter.x();
+  centerJson["y"] = viewCenter.y();
+  json["viewCenter"] = centerJson;
+
+  json["zoomLevel"] = zoomLevel;
+
+  if (!expandedGroups.isEmpty()) {
+    QJsonArray groupsArray;
+    for (const QUuid& groupId : expandedGroups) {
+      groupsArray.append(groupId.toString());
+    }
+    json["expandedGroups"] = groupsArray;
+  }
+
+  return json;
+}
+
+CanvasViewState CanvasViewState::fromJson(const QJsonObject& json) {
+  CanvasViewState state;
+
+  if (json.contains("viewCenter")) {
+    QJsonObject centerJson = json["viewCenter"].toObject();
+    state.viewCenter = QPointF(centerJson["x"].toDouble(), centerJson["y"].toDouble());
+  }
+
+  state.zoomLevel = json["zoomLevel"].toDouble(1.0);
+
+  if (json.contains("expandedGroups")) {
+    QJsonArray groupsArray = json["expandedGroups"].toArray();
+    for (const auto& val : groupsArray) {
+      state.expandedGroups.append(QUuid::fromString(val.toString()));
+    }
+  }
+
+  return state;
+}
+
+// LayoutPreset serialization
+QJsonObject LayoutPreset::toJson() const {
+  QJsonObject json;
+  json["name"] = name;
+  json["dockState"] = QString::fromLatin1(dockState.toBase64());
+  json["windowGeometry"] = QString::fromLatin1(windowGeometry.toBase64());
+  return json;
+}
+
+LayoutPreset LayoutPreset::fromJson(const QJsonObject& json) {
+  LayoutPreset preset;
+  preset.name = json["name"].toString();
+  preset.dockState = QByteArray::fromBase64(json["dockState"].toString().toLatin1());
+  preset.windowGeometry = QByteArray::fromBase64(json["windowGeometry"].toString().toLatin1());
+  return preset;
+}
+
+// CustomMetadata serialization
+QJsonObject CustomMetadata::toJson() const {
+  QJsonObject json;
+  for (auto it = data.constBegin(); it != data.constEnd(); ++it) {
+    QJsonValue value;
+    const QVariant& var = it.value();
+
+    if (var.type() == QVariant::String) {
+      value = var.toString();
+    } else if (var.type() == QVariant::Int) {
+      value = var.toInt();
+    } else if (var.type() == QVariant::Double) {
+      value = var.toDouble();
+    } else if (var.type() == QVariant::Bool) {
+      value = var.toBool();
+    } else if (var.type() == QVariant::StringList) {
+      QJsonArray arr;
+      for (const QString& s : var.toStringList()) {
+        arr.append(s);
+      }
+      value = arr;
+    } else {
+      value = var.toString();  // Fallback to string
+    }
+
+    json[it.key()] = value;
+  }
+  return json;
+}
+
+CustomMetadata CustomMetadata::fromJson(const QJsonObject& json) {
+  CustomMetadata meta;
+  for (auto it = json.constBegin(); it != json.constEnd(); ++it) {
+    const QJsonValue& val = it.value();
+
+    if (val.isString()) {
+      meta.data[it.key()] = val.toString();
+    } else if (val.isDouble()) {
+      // Check if it's an integer
+      double d = val.toDouble();
+      if (d == static_cast<int>(d)) {
+        meta.data[it.key()] = static_cast<int>(d);
+      } else {
+        meta.data[it.key()] = d;
+      }
+    } else if (val.isBool()) {
+      meta.data[it.key()] = val.toBool();
+    } else if (val.isArray()) {
+      QStringList list;
+      for (const auto& arrVal : val.toArray()) {
+        list.append(arrVal.toString());
+      }
+      meta.data[it.key()] = list;
+    }
+  }
+  return meta;
+}
+
+// CanvasData serialization
+QJsonObject CanvasData::toJson() const {
+  QJsonObject json;
+  json["id"] = id.toString();
+  json["name"] = name;
+  json["description"] = description;
+  json["isActive"] = isActive;
+
+  // Blocks
+  QJsonArray blocksArray;
+  for (const auto& block : blocks) {
+    blocksArray.append(block.toJson());
+  }
+  json["blocks"] = blocksArray;
+
+  // Connections
+  QJsonArray connectionsArray;
+  for (const auto& conn : connections) {
+    connectionsArray.append(conn.toJson());
+  }
+  json["connections"] = connectionsArray;
+
+  // Groups
+  QJsonArray groupsArray;
+  for (const auto& group : groups) {
+    groupsArray.append(group.toJson());
+  }
+  json["groups"] = groupsArray;
+
+  // View state
+  json["viewState"] = viewState.toJson();
+
+  return json;
+}
+
+CanvasData CanvasData::fromJson(const QJsonObject& json) {
+  CanvasData canvas;
+  canvas.id = QUuid::fromString(json["id"].toString());
+  canvas.name = json["name"].toString();
+  canvas.description = json["description"].toString();
+  canvas.isActive = json["isActive"].toBool();
+
+  // Blocks
+  QJsonArray blocksArray = json["blocks"].toArray();
+  for (const auto& blockVal : blocksArray) {
+    canvas.blocks.append(BlockData::fromJson(blockVal.toObject()));
+  }
+
+  // Connections
+  QJsonArray connectionsArray = json["connections"].toArray();
+  for (const auto& connVal : connectionsArray) {
+    canvas.connections.append(ConnectionData::fromJson(connVal.toObject()));
+  }
+
+  // Groups
+  QJsonArray groupsArray = json["groups"].toArray();
+  for (const auto& groupVal : groupsArray) {
+    canvas.groups.append(NodeGroupData::fromJson(groupVal.toObject()));
+  }
+
+  // View state
+  if (json.contains("viewState")) {
+    canvas.viewState = CanvasViewState::fromJson(json["viewState"].toObject());
+  }
+
+  return canvas;
+}
+
 // Project implementation
 Project::Project()
-  : hasUnsavedChanges_(false)
+  : activeCanvasIndex_(0)
+  , hasUnsavedChanges_(false)
 {
   metadata_.version = "1.0";
   metadata_.createdDate = QDateTime::currentDateTime().toString(Qt::ISODate);
@@ -391,11 +577,89 @@ QString Project::findYamlFileForNode(const QString& nodeName) const {
   return QString();
 }
 
+void Project::addLayoutPreset(const LayoutPreset& preset) {
+  // Replace if exists with same name
+  for (int i = 0; i < layoutPresets_.size(); ++i) {
+    if (layoutPresets_[i].name == preset.name) {
+      layoutPresets_[i] = preset;
+      hasUnsavedChanges_ = true;
+      return;
+    }
+  }
+  layoutPresets_.append(preset);
+  hasUnsavedChanges_ = true;
+}
+
+void Project::removeLayoutPreset(const QString& name) {
+  for (int i = 0; i < layoutPresets_.size(); ++i) {
+    if (layoutPresets_[i].name == name) {
+      layoutPresets_.removeAt(i);
+      hasUnsavedChanges_ = true;
+      break;
+    }
+  }
+}
+
+LayoutPreset* Project::findLayoutPreset(const QString& name) {
+  for (int i = 0; i < layoutPresets_.size(); ++i) {
+    if (layoutPresets_[i].name == name) {
+      return &layoutPresets_[i];
+    }
+  }
+  return nullptr;
+}
+
+void Project::setCustomMetadata(const QString& key, const QVariant& value) {
+  customMetadata_.data[key] = value;
+  hasUnsavedChanges_ = true;
+}
+
+QVariant Project::getCustomMetadata(const QString& key, const QVariant& defaultValue) const {
+  return customMetadata_.data.value(key, defaultValue);
+}
+
+// Multi-canvas support
+void Project::addCanvas(const CanvasData& canvas) {
+  canvases_.append(canvas);
+  hasUnsavedChanges_ = true;
+}
+
+void Project::removeCanvas(const QUuid& id) {
+  for (int i = 0; i < canvases_.size(); ++i) {
+    if (canvases_[i].id == id) {
+      canvases_.removeAt(i);
+      hasUnsavedChanges_ = true;
+      break;
+    }
+  }
+}
+
+void Project::clearCanvases() {
+  canvases_.clear();
+}
+
+void Project::clearBlocks() {
+  blocks_.clear();
+}
+
+void Project::clearConnections() {
+  connections_.clear();
+}
+
+void Project::clearNodeGroups() {
+  nodeGroups_.clear();
+}
+
 void Project::clear() {
   blocks_.clear();
   connections_.clear();
   nodeGroups_.clear();
   yamlFiles_.clear();
+  viewState_ = CanvasViewState();
+  layoutPresets_.clear();
+  customMetadata_.data.clear();
+  canvases_.clear();
+  activeCanvasIndex_ = 0;
   metadata_ = ProjectMetadata();
   metadata_.version = "1.0";
   metadata_.createdDate = QDateTime::currentDateTime().toString(Qt::ISODate);
@@ -444,6 +708,33 @@ QJsonObject Project::toJson() const {
     json["yamlFiles"] = yamlFilesArray;
   }
 
+  // Canvas View State
+  json["viewState"] = viewState_.toJson();
+
+  // Layout Presets
+  if (!layoutPresets_.isEmpty()) {
+    QJsonArray presetsArray;
+    for (const auto& preset : layoutPresets_) {
+      presetsArray.append(preset.toJson());
+    }
+    json["layoutPresets"] = presetsArray;
+  }
+
+  // Custom Metadata
+  if (!customMetadata_.data.isEmpty()) {
+    json["customMetadata"] = customMetadata_.toJson();
+  }
+
+  // Multi-Canvas support
+  if (!canvases_.isEmpty()) {
+    QJsonArray canvasesArray;
+    for (const auto& canvas : canvases_) {
+      canvasesArray.append(canvas.toJson());
+    }
+    json["canvases"] = canvasesArray;
+    json["activeCanvasIndex"] = activeCanvasIndex_;
+  }
+
   return json;
 }
 
@@ -479,6 +770,33 @@ Project Project::fromJson(const QJsonObject& json) {
     for (const auto& yamlVal : yamlFilesArray) {
       project.yamlFiles_.append(YamlFileInfo::fromJson(yamlVal.toObject()));
     }
+  }
+
+  // Canvas View State
+  if (json.contains("viewState")) {
+    project.viewState_ = CanvasViewState::fromJson(json["viewState"].toObject());
+  }
+
+  // Layout Presets
+  if (json.contains("layoutPresets")) {
+    QJsonArray presetsArray = json["layoutPresets"].toArray();
+    for (const auto& presetVal : presetsArray) {
+      project.layoutPresets_.append(LayoutPreset::fromJson(presetVal.toObject()));
+    }
+  }
+
+  // Custom Metadata
+  if (json.contains("customMetadata")) {
+    project.customMetadata_ = CustomMetadata::fromJson(json["customMetadata"].toObject());
+  }
+
+  // Multi-Canvas support
+  if (json.contains("canvases")) {
+    QJsonArray canvasesArray = json["canvases"].toArray();
+    for (const auto& canvasVal : canvasesArray) {
+      project.canvases_.append(CanvasData::fromJson(canvasVal.toObject()));
+    }
+    project.activeCanvasIndex_ = json["activeCanvasIndex"].toInt(0);
   }
 
   project.hasUnsavedChanges_ = false;

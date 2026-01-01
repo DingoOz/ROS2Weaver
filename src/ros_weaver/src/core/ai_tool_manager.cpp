@@ -6,6 +6,8 @@
 #include "ros_weaver/core/project.hpp"
 #include "ros_weaver/core/mcp_manager.hpp"
 #include "ros_weaver/core/mcp_providers.hpp"
+#include "ros_weaver/core/architecture_generator.hpp"
+#include "ros_weaver/core/architecture_optimizer.hpp"
 #include <QJsonDocument>
 #include <QRegularExpression>
 #include <QDateTime>
@@ -39,6 +41,9 @@ void AIToolManager::registerTools(WeaverCanvas* canvas) {
 
   // Register MCP tools from all active MCP servers
   registerMCPTools();
+
+  // Register architecture generation/optimization tools
+  registerArchitectureTools();
 }
 
 void AIToolManager::registerLoadExampleTool() {
@@ -2031,6 +2036,424 @@ void AIToolManager::onPermissionDenied(const QString& toolName) {
   emit toolExecuted(toolName, false, "Permission denied by user");
   pendingToolName_.clear();
   pendingParams_ = QJsonObject();
+}
+
+void AIToolManager::registerArchitectureTools() {
+  // Generate SLAM stack
+  {
+    AITool tool;
+    tool.name = "generate_slam_stack";
+    tool.description = "Generate a SLAM (Simultaneous Localization and Mapping) architecture "
+                       "with sensor preprocessing, mapping, and localization nodes.";
+    tool.parametersSchema = QJsonObject{
+        {"type", "object"},
+        {"properties", QJsonObject{
+            {"slam_method", QJsonObject{
+                {"type", "string"},
+                {"description", "SLAM method to use"},
+                {"enum", QJsonArray{"slam_toolbox", "cartographer", "rtabmap"}}
+            }},
+            {"use_lidar", QJsonObject{
+                {"type", "boolean"},
+                {"description", "Include LiDAR sensor (default: true)"}
+            }},
+            {"use_depth_camera", QJsonObject{
+                {"type", "boolean"},
+                {"description", "Include depth camera (default: false)"}
+            }}
+        }}
+    };
+    tool.requiresPermission = true;
+
+    tool.execute = [this](const QJsonObject& params) -> AIToolResult {
+      AIToolResult result;
+
+      QMap<QString, QString> options;
+      options["slam_method"] = params["slam_method"].toString("slam_toolbox");
+      options["use_lidar"] = params["use_lidar"].toBool(true) ? "true" : "false";
+      options["use_depth_camera"] = params["use_depth_camera"].toBool(false) ? "true" : "false";
+
+      ArchitectureGenerationResult genResult =
+          ArchitectureGenerator::instance().generateFromTemplate(
+              ArchitectureTemplate::SlamStack, options);
+
+      if (genResult.success && canvas_) {
+        Project tempProject;
+        ArchitectureGenerator::instance().applyToProject(genResult, tempProject);
+        canvas_->importFromProject(tempProject);
+
+        result.success = true;
+        result.message = QString("Generated SLAM stack with %1 nodes")
+            .arg(genResult.nodes.size());
+        result.data["nodes_created"] = genResult.nodes.size();
+        result.data["connections_created"] = genResult.connections.size();
+      } else {
+        result.success = false;
+        result.message = genResult.errorMessage;
+      }
+
+      return result;
+    };
+
+    tools_[tool.name] = tool;
+  }
+
+  // Generate Navigation stack
+  {
+    AITool tool;
+    tool.name = "generate_navigation_stack";
+    tool.description = "Generate a Nav2 navigation architecture with path planning, "
+                       "behavior trees, costmaps, and velocity controllers.";
+    tool.parametersSchema = QJsonObject{
+        {"type", "object"},
+        {"properties", QJsonObject{
+            {"planner", QJsonObject{
+                {"type", "string"},
+                {"description", "Path planner to use"},
+                {"enum", QJsonArray{"navfn", "smac_planner", "theta_star"}}
+            }},
+            {"controller", QJsonObject{
+                {"type", "string"},
+                {"description", "Local controller to use"},
+                {"enum", QJsonArray{"dwb_controller", "teb_controller", "regulated_pure_pursuit"}}
+            }}
+        }}
+    };
+    tool.requiresPermission = true;
+
+    tool.execute = [this](const QJsonObject& params) -> AIToolResult {
+      AIToolResult result;
+
+      QMap<QString, QString> options;
+      options["planner"] = params["planner"].toString("navfn");
+      options["controller"] = params["controller"].toString("dwb_controller");
+
+      ArchitectureGenerationResult genResult =
+          ArchitectureGenerator::instance().generateFromTemplate(
+              ArchitectureTemplate::Navigation2, options);
+
+      if (genResult.success && canvas_) {
+        Project tempProject;
+        ArchitectureGenerator::instance().applyToProject(genResult, tempProject);
+        canvas_->importFromProject(tempProject);
+
+        result.success = true;
+        result.message = QString("Generated Nav2 stack with %1 nodes")
+            .arg(genResult.nodes.size());
+      } else {
+        result.success = false;
+        result.message = genResult.errorMessage;
+      }
+
+      return result;
+    };
+
+    tools_[tool.name] = tool;
+  }
+
+  // Generate Perception stack
+  {
+    AITool tool;
+    tool.name = "generate_perception_stack";
+    tool.description = "Generate a perception pipeline with image processing, "
+                       "object detection, and point cloud processing nodes.";
+    tool.parametersSchema = QJsonObject{
+        {"type", "object"},
+        {"properties", QJsonObject{
+            {"object_detection", QJsonObject{
+                {"type", "boolean"},
+                {"description", "Include object detection (default: true)"}
+            }},
+            {"pointcloud", QJsonObject{
+                {"type", "boolean"},
+                {"description", "Include point cloud processing (default: true)"}
+            }}
+        }}
+    };
+    tool.requiresPermission = true;
+
+    tool.execute = [this](const QJsonObject& params) -> AIToolResult {
+      AIToolResult result;
+
+      QMap<QString, QString> options;
+      options["object_detection"] = params["object_detection"].toBool(true) ? "true" : "false";
+      options["pointcloud"] = params["pointcloud"].toBool(true) ? "true" : "false";
+
+      ArchitectureGenerationResult genResult =
+          ArchitectureGenerator::instance().generateFromTemplate(
+              ArchitectureTemplate::Perception, options);
+
+      if (genResult.success && canvas_) {
+        Project tempProject;
+        ArchitectureGenerator::instance().applyToProject(genResult, tempProject);
+        canvas_->importFromProject(tempProject);
+
+        result.success = true;
+        result.message = QString("Generated perception stack with %1 nodes")
+            .arg(genResult.nodes.size());
+      } else {
+        result.success = false;
+        result.message = genResult.errorMessage;
+      }
+
+      return result;
+    };
+
+    tools_[tool.name] = tool;
+  }
+
+  // Generate Manipulation stack
+  {
+    AITool tool;
+    tool.name = "generate_manipulation_stack";
+    tool.description = "Generate a MoveIt2 manipulation architecture with motion planning, "
+                       "grasp planning, and arm control nodes.";
+    tool.parametersSchema = QJsonObject{
+        {"type", "object"},
+        {"properties", QJsonObject{
+            {"robot_name", QJsonObject{
+                {"type", "string"},
+                {"description", "Name of the robot arm (default: arm)"}
+            }}
+        }}
+    };
+    tool.requiresPermission = true;
+
+    tool.execute = [this](const QJsonObject& params) -> AIToolResult {
+      AIToolResult result;
+
+      QMap<QString, QString> options;
+      options["robot_name"] = params["robot_name"].toString("arm");
+
+      ArchitectureGenerationResult genResult =
+          ArchitectureGenerator::instance().generateFromTemplate(
+              ArchitectureTemplate::Manipulation, options);
+
+      if (genResult.success && canvas_) {
+        Project tempProject;
+        ArchitectureGenerator::instance().applyToProject(genResult, tempProject);
+        canvas_->importFromProject(tempProject);
+
+        result.success = true;
+        result.message = QString("Generated manipulation stack with %1 nodes")
+            .arg(genResult.nodes.size());
+      } else {
+        result.success = false;
+        result.message = genResult.errorMessage;
+      }
+
+      return result;
+    };
+
+    tools_[tool.name] = tool;
+  }
+
+  // Generate Teleop stack
+  {
+    AITool tool;
+    tool.name = "generate_teleop_stack";
+    tool.description = "Generate a teleoperation setup with joystick/keyboard input, "
+                       "velocity commands, and safety monitors.";
+    tool.parametersSchema = QJsonObject{
+        {"type", "object"},
+        {"properties", QJsonObject{
+            {"input_type", QJsonObject{
+                {"type", "string"},
+                {"description", "Input device type"},
+                {"enum", QJsonArray{"keyboard", "joystick"}}
+            }}
+        }}
+    };
+    tool.requiresPermission = true;
+
+    tool.execute = [this](const QJsonObject& params) -> AIToolResult {
+      AIToolResult result;
+
+      QMap<QString, QString> options;
+      options["input_type"] = params["input_type"].toString("keyboard");
+
+      ArchitectureGenerationResult genResult =
+          ArchitectureGenerator::instance().generateFromTemplate(
+              ArchitectureTemplate::Teleop, options);
+
+      if (genResult.success && canvas_) {
+        Project tempProject;
+        ArchitectureGenerator::instance().applyToProject(genResult, tempProject);
+        canvas_->importFromProject(tempProject);
+
+        result.success = true;
+        result.message = QString("Generated teleop stack with %1 nodes")
+            .arg(genResult.nodes.size());
+      } else {
+        result.success = false;
+        result.message = genResult.errorMessage;
+      }
+
+      return result;
+    };
+
+    tools_[tool.name] = tool;
+  }
+
+  // Suggest architecture based on use case
+  {
+    AITool tool;
+    tool.name = "suggest_architecture";
+    tool.description = "Get AI suggestions for a ROS2 architecture based on robot type "
+                       "and use case. Requires AI backend (Ollama) to be running.";
+    tool.parametersSchema = QJsonObject{
+        {"type", "object"},
+        {"properties", QJsonObject{
+            {"robot_type", QJsonObject{
+                {"type", "string"},
+                {"description", "Type of robot (e.g., mobile robot, arm, drone, AMR)"}
+            }},
+            {"use_case", QJsonObject{
+                {"type", "string"},
+                {"description", "Primary use case (e.g., warehouse navigation, pick and place)"}
+            }},
+            {"sensors", QJsonObject{
+                {"type", "array"},
+                {"items", QJsonObject{{"type", "string"}}},
+                {"description", "Available sensors (e.g., lidar, camera, depth_camera, imu)"}
+            }}
+        }},
+        {"required", QJsonArray{"robot_type", "use_case"}}
+    };
+    tool.requiresPermission = true;
+
+    tool.execute = [](const QJsonObject& params) -> AIToolResult {
+      AIToolResult result;
+
+      QString robotType = params["robot_type"].toString();
+      QString useCase = params["use_case"].toString();
+
+      QStringList sensors;
+      QJsonArray sensorsArray = params["sensors"].toArray();
+      for (const QJsonValue& val : sensorsArray) {
+        sensors.append(val.toString());
+      }
+
+      if (!ArchitectureGenerator::instance().isAIAvailable()) {
+        result.success = false;
+        result.message = "AI backend (Ollama) is not available. "
+                         "Start Ollama to use AI-powered suggestions.";
+        return result;
+      }
+
+      ArchitectureGenerationResult genResult =
+          ArchitectureGenerator::instance().suggestArchitecture(robotType, useCase, sensors);
+
+      result.success = genResult.success;
+      result.message = genResult.success
+          ? QString("Generated architecture: %1").arg(genResult.architectureName)
+          : genResult.errorMessage;
+      result.data["rationale"] = genResult.aiRationale;
+
+      return result;
+    };
+
+    tools_[tool.name] = tool;
+  }
+
+  // Optimize architecture
+  {
+    AITool tool;
+    tool.name = "optimize_architecture";
+    tool.description = "Analyze the current architecture and provide optimization recommendations "
+                       "for performance, reliability, and modularity.";
+    tool.parametersSchema = QJsonObject{
+        {"type", "object"},
+        {"properties", QJsonObject{}}
+    };
+    tool.requiresPermission = false;  // Read-only analysis
+
+    tool.execute = [this](const QJsonObject& /*params*/) -> AIToolResult {
+      AIToolResult result;
+
+      if (!canvas_) {
+        result.success = false;
+        result.message = "Canvas not available";
+        return result;
+      }
+
+      Project project;
+      canvas_->exportToProject(project);
+
+      OptimizationResult optResult = ArchitectureOptimizer::instance().analyze(project);
+
+      result.success = optResult.success;
+      result.message = optResult.summary;
+      result.data["overall_score"] = optResult.overallScore;
+      result.data["node_count"] = optResult.metrics.nodeCount;
+      result.data["connection_count"] = optResult.metrics.connectionCount;
+      result.data["recommendation_count"] = optResult.recommendations.size();
+
+      // Add recommendations
+      QJsonArray recsArray;
+      for (const auto& rec : optResult.recommendations) {
+        QJsonObject recObj;
+        recObj["id"] = rec.id;
+        recObj["title"] = rec.title;
+        recObj["description"] = rec.description;
+        recObj["category"] = ArchitectureOptimizer::categoryToString(rec.category);
+        recObj["priority"] = ArchitectureOptimizer::priorityToString(rec.priority);
+        recObj["suggestion"] = rec.suggestedChange;
+        recsArray.append(recObj);
+      }
+      result.data["recommendations"] = recsArray;
+
+      return result;
+    };
+
+    tools_[tool.name] = tool;
+  }
+
+  // List available templates
+  {
+    AITool tool;
+    tool.name = "list_architecture_templates";
+    tool.description = "List available pre-built architecture templates that can be generated.";
+    tool.parametersSchema = QJsonObject{
+        {"type", "object"},
+        {"properties", QJsonObject{}}
+    };
+    tool.requiresPermission = false;
+
+    tool.execute = [](const QJsonObject& /*params*/) -> AIToolResult {
+      AIToolResult result;
+
+      QJsonArray templates;
+      templates.append(QJsonObject{
+          {"name", "slam_stack"},
+          {"description", "SLAM mapping and localization pipeline"}
+      });
+      templates.append(QJsonObject{
+          {"name", "navigation2"},
+          {"description", "Nav2 autonomous navigation stack"}
+      });
+      templates.append(QJsonObject{
+          {"name", "perception"},
+          {"description", "Computer vision and perception pipeline"}
+      });
+      templates.append(QJsonObject{
+          {"name", "manipulation"},
+          {"description", "MoveIt2 manipulation and grasp planning"}
+      });
+      templates.append(QJsonObject{
+          {"name", "teleop"},
+          {"description", "Teleoperation and remote control"}
+      });
+
+      result.success = true;
+      result.message = QString("Found %1 architecture templates").arg(templates.size());
+      result.data["templates"] = templates;
+
+      return result;
+    };
+
+    tools_[tool.name] = tool;
+  }
 }
 
 }  // namespace ros_weaver
