@@ -405,6 +405,46 @@ if(BUILD_TESTING)
   target_link_libraries(test_graph_exporter Qt5::Core Qt5::Gui Qt5::Widgets)
   set_target_properties(test_graph_exporter PROPERTIES AUTOMOC ON)
 
+  # Unit tests - Static analyzer
+  ament_add_gtest(test_static_analyzer
+    test/test_static_analyzer.cpp
+    src/core/static_analyzer.cpp
+    src/core/project.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/ros_weaver/core/static_analyzer.hpp
+  )
+  target_include_directories(test_static_analyzer PRIVATE include ${CMAKE_CURRENT_BINARY_DIR})
+  target_link_libraries(test_static_analyzer Qt5::Core Qt5::Gui Qt5::Widgets)
+  ament_target_dependencies(test_static_analyzer rclcpp)
+  set_target_properties(test_static_analyzer PROPERTIES AUTOMOC ON)
+
+  # Unit tests - DOT importer structures (standalone)
+  ament_add_gtest(test_dot_importer
+    test/test_dot_importer.cpp
+  )
+  target_include_directories(test_dot_importer PRIVATE include)
+  target_link_libraries(test_dot_importer Qt5::Core Qt5::Gui)
+
+  # Unit tests - CARET importer structures (standalone)
+  ament_add_gtest(test_caret_importer
+    test/test_caret_importer.cpp
+  )
+  target_include_directories(test_caret_importer PRIVATE include)
+  target_link_libraries(test_caret_importer Qt5::Core Qt5::Gui)
+
+  # Unit tests - Playback animator structures (standalone)
+  ament_add_gtest(test_playback_animator
+    test/test_playback_animator.cpp
+  )
+  target_include_directories(test_playback_animator PRIVATE include)
+  target_link_libraries(test_playback_animator Qt5::Core Qt5::Gui)
+
+  # Unit tests - Architecture optimizer structures (standalone)
+  ament_add_gtest(test_architecture_optimizer
+    test/test_architecture_optimizer.cpp
+  )
+  target_include_directories(test_architecture_optimizer PRIVATE include)
+  target_link_libraries(test_architecture_optimizer Qt5::Core Qt5::Gui)
+
   # Lint tests (non-invasive ones only - skip copyright/cpplint/uncrustify for now)
   find_package(ament_cmake_xmllint REQUIRED)
   find_package(ament_cmake_lint_cmake REQUIRED)
