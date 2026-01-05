@@ -133,6 +133,7 @@ set(SOURCES
   src/widgets/issue_list_panel.cpp
   src/widgets/readme_preview_panel.cpp
   src/widgets/remapping_editor.cpp
+  src/widgets/minimap_panel.cpp
   src/wizards/package_wizard.cpp
   src/wizards/robot_wizard.cpp
   src/wizards/mcp_server_wizard.cpp
@@ -229,6 +230,7 @@ set(HEADERS
   include/ros_weaver/widgets/issue_list_panel.hpp
   include/ros_weaver/widgets/readme_preview_panel.hpp
   include/ros_weaver/widgets/remapping_editor.hpp
+  include/ros_weaver/widgets/minimap_panel.hpp
   include/ros_weaver/widgets/canvas_tab_widget.hpp
 )
 

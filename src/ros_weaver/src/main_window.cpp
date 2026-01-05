@@ -50,6 +50,7 @@
 #include "ros_weaver/widgets/theme_editor_dialog.hpp"
 #include "ros_weaver/widgets/remapping_editor.hpp"
 #include "ros_weaver/widgets/canvas_tab_widget.hpp"
+#include "ros_weaver/widgets/minimap_panel.hpp"
 #include "ros_weaver/core/dot_importer.hpp"
 #include "ros_weaver/core/caret_importer.hpp"
 #include "ros_weaver/core/static_analyzer.hpp"
@@ -480,6 +481,13 @@ void MainWindow::setupMenuBar() {
   showIssueListAction->setChecked(false);  // Hidden by default
   showIssueListAction->setObjectName("showIssueListAction");
   showIssueListAction->setToolTip(tr("Show/hide static analysis issues panel"));
+
+  QAction* showMinimapAction = panelsMenu->addAction(tr("&Minimap Navigation"));
+  showMinimapAction->setCheckable(true);
+  showMinimapAction->setChecked(false);  // Hidden by default
+  showMinimapAction->setShortcut(tr("M"));
+  showMinimapAction->setObjectName("showMinimapAction");
+  showMinimapAction->setToolTip(tr("Show/hide minimap for navigating large canvases"));
 
   panelsMenu->addSeparator();
 
@@ -1084,6 +1092,30 @@ void MainWindow::setupDockWidgets() {
   if (showIssueListAction) {
     connect(showIssueListAction, &QAction::toggled, issueListDock_, &QDockWidget::setVisible);
     connect(issueListDock_, &QDockWidget::visibilityChanged, showIssueListAction, &QAction::setChecked);
+  }
+
+  // Minimap Navigation Dock (right side, small panel for navigation)
+  minimapDock_ = new QDockWidget(tr("Minimap"), this);
+  minimapDock_->setObjectName("minimapDock");
+  minimapDock_->setAllowedAreas(Qt::AllDockWidgetAreas);
+  minimapDock_->setFeatures(QDockWidget::DockWidgetMovable |
+                            QDockWidget::DockWidgetFloatable |
+                            QDockWidget::DockWidgetClosable);
+
+  minimapPanel_ = new MinimapPanel();
+  minimapPanel_->setCanvas(canvas_);
+  minimapDock_->setWidget(minimapPanel_);
+
+  // Add to right dock area
+  addDockWidget(Qt::RightDockWidgetArea, minimapDock_);
+  minimapDock_->setFloating(false);
+  minimapDock_->hide();  // Hidden by default, shown via View menu
+
+  // Connect minimap visibility toggle
+  QAction* showMinimapAction = findChild<QAction*>("showMinimapAction");
+  if (showMinimapAction) {
+    connect(showMinimapAction, &QAction::toggled, minimapDock_, &QDockWidget::setVisible);
+    connect(minimapDock_, &QDockWidget::visibilityChanged, showMinimapAction, &QAction::setChecked);
   }
 
   // Connect static analyzer signals

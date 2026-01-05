@@ -56,6 +56,7 @@ class AdvancedSearchPanel;
 class ThemeEditorDialog;
 class RemappingEditor;
 class CanvasTabWidget;
+class MinimapPanel;
 
 class MainWindow : public QMainWindow {
   Q_OBJECT
@@ -334,6 +335,10 @@ private:
 
   // Zoom indicator
   QLabel* zoomIndicator_;
+
+  // Minimap navigation
+  MinimapPanel* minimapPanel_;
+  QDockWidget* minimapDock_;
 };
 
 }  // namespace ros_weaver
