@@ -1,5 +1,6 @@
 #include "ros_weaver/canvas/connection_line.hpp"
 #include "ros_weaver/canvas/package_block.hpp"
+#include "ros_weaver/core/tooltip_provider.hpp"
 
 #include <QGraphicsSceneHoverEvent>
 #include <QGraphicsSceneMouseEvent>
@@ -162,6 +163,11 @@ void ConnectionLine::hoverEnterEvent(QGraphicsSceneHoverEvent* event) {
   Q_UNUSED(event)
   isHovered_ = true;
   startPulseAnimation();
+
+  // Set rich tooltip for the connection
+  QString tooltip = TooltipProvider::instance().tooltipForConnection(this);
+  setToolTip(tooltip);
+
   update();
 }
 

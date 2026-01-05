@@ -117,6 +117,7 @@ set(SOURCES
   src/core/error_handler.cpp
   src/core/graph_exporter.cpp
   src/core/ros_docs_provider.cpp
+  src/core/tooltip_provider.cpp
   src/core/dot_importer.cpp
   src/core/caret_importer.cpp
   src/core/static_analyzer.cpp
@@ -213,6 +214,7 @@ set(HEADERS
   include/ros_weaver/core/error_handler.hpp
   include/ros_weaver/core/graph_exporter.hpp
   include/ros_weaver/core/ros_docs_provider.hpp
+  include/ros_weaver/core/tooltip_provider.hpp
   include/ros_weaver/core/dot_importer.hpp
   include/ros_weaver/core/caret_importer.hpp
   include/ros_weaver/core/static_analyzer.hpp
