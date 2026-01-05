@@ -402,6 +402,9 @@ QList<OptimizationRecommendation> ArchitectureOptimizer::analyzeBestPractices(
   QSet<QString> namingStyles;
 
   for (const BlockData& block : project.blocks()) {
+    if (block.name.isEmpty()) {
+      continue;  // Skip empty names
+    }
     if (block.name.contains("_")) {
       namingStyles.insert("snake_case");
     } else if (block.name.contains("-")) {
