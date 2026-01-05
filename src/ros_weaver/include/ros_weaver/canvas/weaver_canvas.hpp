@@ -91,6 +91,18 @@ public:
   // Snap a position to the grid
   QPointF snapToGrid(const QPointF& pos) const;
 
+  // Auto-layout algorithms (with undo support)
+  void applyHierarchicalLayout(bool selectedOnly = false, bool leftToRight = false);
+  void applyForceDirectedLayout(bool selectedOnly = false);
+  void applyCircularLayout(bool selectedOnly = false);
+  void applyGridLayout(bool selectedOnly = false);
+
+  // Get all package blocks on the canvas
+  QList<PackageBlock*> allBlocks() const;
+
+  // Get selected package blocks
+  QList<PackageBlock*> selectedBlocks() const;
+
   // Project serialization
   void exportToProject(Project& project) const;
   void importFromProject(const Project& project);
@@ -128,6 +140,8 @@ signals:
   void gridEnabledChanged(bool enabled);
   void snapToGridEnabledChanged(bool enabled);
   void gridSettingsChanged();
+  // Layout signals
+  void layoutApplied(const QString& layoutType);
 
 protected:
   void wheelEvent(QWheelEvent* event) override;

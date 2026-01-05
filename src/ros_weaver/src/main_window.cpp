@@ -582,6 +582,139 @@ void MainWindow::setupMenuBar() {
     findChild<QAction*>("showOutputAction")->setChecked(true);
   });
 
+  // Arrange menu - layout algorithms
+  QMenu* arrangeMenu = menuBar()->addMenu(tr("&Arrange"));
+
+  QMenu* autoLayoutMenu = arrangeMenu->addMenu(tr("&Auto-Layout"));
+
+  QAction* hierarchicalLayoutAction = autoLayoutMenu->addAction(tr("&Hierarchical (Top-Down)"));
+  hierarchicalLayoutAction->setToolTip(tr("Arrange nodes in hierarchical layers based on data flow"));
+  connect(hierarchicalLayoutAction, &QAction::triggered, this, [this]() {
+    if (canvas_) {
+      canvas_->applyHierarchicalLayout(false, false);
+      statusBar()->showMessage(tr("Applied hierarchical layout"), 3000);
+    }
+  });
+
+  QAction* hierarchicalLRLayoutAction = autoLayoutMenu->addAction(tr("Hierarchical (&Left-Right)"));
+  hierarchicalLRLayoutAction->setToolTip(tr("Arrange nodes in hierarchical layers from left to right"));
+  connect(hierarchicalLRLayoutAction, &QAction::triggered, this, [this]() {
+    if (canvas_) {
+      canvas_->applyHierarchicalLayout(false, true);
+      statusBar()->showMessage(tr("Applied left-to-right hierarchical layout"), 3000);
+    }
+  });
+
+  QAction* forceDirectedAction = autoLayoutMenu->addAction(tr("&Force-Directed"));
+  forceDirectedAction->setToolTip(tr("Apply physics-based layout for balanced distribution"));
+  connect(forceDirectedAction, &QAction::triggered, this, [this]() {
+    if (canvas_) {
+      canvas_->applyForceDirectedLayout(false);
+      statusBar()->showMessage(tr("Applied force-directed layout"), 3000);
+    }
+  });
+
+  QAction* circularLayoutAction = autoLayoutMenu->addAction(tr("&Circular"));
+  circularLayoutAction->setToolTip(tr("Arrange nodes in a circle"));
+  connect(circularLayoutAction, &QAction::triggered, this, [this]() {
+    if (canvas_) {
+      canvas_->applyCircularLayout(false);
+      statusBar()->showMessage(tr("Applied circular layout"), 3000);
+    }
+  });
+
+  QAction* gridLayoutAction = autoLayoutMenu->addAction(tr("&Grid"));
+  gridLayoutAction->setToolTip(tr("Arrange nodes in a regular grid pattern"));
+  connect(gridLayoutAction, &QAction::triggered, this, [this]() {
+    if (canvas_) {
+      canvas_->applyGridLayout(false);
+      statusBar()->showMessage(tr("Applied grid layout"), 3000);
+    }
+  });
+
+  arrangeMenu->addSeparator();
+
+  // Layout selected only submenu
+  QMenu* layoutSelectedMenu = arrangeMenu->addMenu(tr("Layout &Selected"));
+
+  QAction* hierarchicalSelectedAction = layoutSelectedMenu->addAction(tr("&Hierarchical"));
+  connect(hierarchicalSelectedAction, &QAction::triggered, this, [this]() {
+    if (canvas_) {
+      canvas_->applyHierarchicalLayout(true, false);
+      statusBar()->showMessage(tr("Applied hierarchical layout to selection"), 3000);
+    }
+  });
+
+  QAction* forceSelectedAction = layoutSelectedMenu->addAction(tr("&Force-Directed"));
+  connect(forceSelectedAction, &QAction::triggered, this, [this]() {
+    if (canvas_) {
+      canvas_->applyForceDirectedLayout(true);
+      statusBar()->showMessage(tr("Applied force-directed layout to selection"), 3000);
+    }
+  });
+
+  QAction* circularSelectedAction = layoutSelectedMenu->addAction(tr("&Circular"));
+  connect(circularSelectedAction, &QAction::triggered, this, [this]() {
+    if (canvas_) {
+      canvas_->applyCircularLayout(true);
+      statusBar()->showMessage(tr("Applied circular layout to selection"), 3000);
+    }
+  });
+
+  QAction* gridSelectedAction = layoutSelectedMenu->addAction(tr("&Grid"));
+  connect(gridSelectedAction, &QAction::triggered, this, [this]() {
+    if (canvas_) {
+      canvas_->applyGridLayout(true);
+      statusBar()->showMessage(tr("Applied grid layout to selection"), 3000);
+    }
+  });
+
+  arrangeMenu->addSeparator();
+
+  QAction* alignHorizontalAction = arrangeMenu->addAction(tr("Align &Horizontal Centers"));
+  alignHorizontalAction->setShortcut(tr("Ctrl+Shift+H"));
+  alignHorizontalAction->setToolTip(tr("Align selected nodes horizontally"));
+  connect(alignHorizontalAction, &QAction::triggered, this, [this]() {
+    if (!canvas_) return;
+    auto blocks = canvas_->selectedBlocks();
+    if (blocks.size() < 2) return;
+
+    // Calculate average Y position
+    qreal avgY = 0;
+    for (PackageBlock* block : blocks) {
+      avgY += block->pos().y();
+    }
+    avgY /= blocks.size();
+
+    // Align all blocks to average Y
+    for (PackageBlock* block : blocks) {
+      block->setPos(block->pos().x(), avgY);
+    }
+    statusBar()->showMessage(tr("Aligned %1 nodes horizontally").arg(blocks.size()), 3000);
+  });
+
+  QAction* alignVerticalAction = arrangeMenu->addAction(tr("Align &Vertical Centers"));
+  alignVerticalAction->setShortcut(tr("Ctrl+Shift+V"));
+  alignVerticalAction->setToolTip(tr("Align selected nodes vertically"));
+  connect(alignVerticalAction, &QAction::triggered, this, [this]() {
+    if (!canvas_) return;
+    auto blocks = canvas_->selectedBlocks();
+    if (blocks.size() < 2) return;
+
+    // Calculate average X position
+    qreal avgX = 0;
+    for (PackageBlock* block : blocks) {
+      avgX += block->pos().x();
+    }
+    avgX /= blocks.size();
+
+    // Align all blocks to average X
+    for (PackageBlock* block : blocks) {
+      block->setPos(avgX, block->pos().y());
+    }
+    statusBar()->showMessage(tr("Aligned %1 nodes vertically").arg(blocks.size()), 3000);
+  });
+
   // ROS2 menu
   QMenu* ros2Menu = menuBar()->addMenu(tr("&ROS2"));
 

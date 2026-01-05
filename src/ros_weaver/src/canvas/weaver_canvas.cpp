@@ -15,6 +15,7 @@
 #include "ros_weaver/core/undo/commands/add_group_command.hpp"
 #include "ros_weaver/core/undo/commands/remove_group_command.hpp"
 #include "ros_weaver/core/undo/commands/macro_command.hpp"
+#include "ros_weaver/core/layout_algorithms.hpp"
 
 #include <QMenu>
 #include <QInputDialog>
@@ -903,6 +904,177 @@ void WeaverCanvas::fitToContents() {
   }
 
   updateZoomIndicator();
+}
+
+QList<PackageBlock*> WeaverCanvas::allBlocks() const {
+  QList<PackageBlock*> result;
+  for (QGraphicsItem* item : scene_->items()) {
+    if (PackageBlock* block = dynamic_cast<PackageBlock*>(item)) {
+      result.append(block);
+    }
+  }
+  return result;
+}
+
+QList<PackageBlock*> WeaverCanvas::selectedBlocks() const {
+  QList<PackageBlock*> result;
+  for (QGraphicsItem* item : scene_->selectedItems()) {
+    if (PackageBlock* block = dynamic_cast<PackageBlock*>(item)) {
+      result.append(block);
+    }
+  }
+  return result;
+}
+
+void WeaverCanvas::applyHierarchicalLayout(bool selectedOnly, bool leftToRight) {
+  QList<PackageBlock*> blocks = selectedOnly ? selectedBlocks() : allBlocks();
+  if (blocks.isEmpty()) return;
+
+  LayoutOptions options;
+  options.leftToRight = leftToRight;
+
+  LayoutResult result = LayoutAlgorithms::hierarchical(blocks, connections(), options);
+
+  if (!result.success) return;
+
+  // Begin macro for undo
+  if (undoStack_ && blocks.size() > 1) {
+    undoStack_->beginMacro(tr("Hierarchical Layout (%1 nodes)").arg(blocks.size()));
+  }
+
+  // Apply new positions with undo support
+  for (PackageBlock* block : blocks) {
+    if (result.positions.contains(block->id())) {
+      QPointF oldPos = block->pos();
+      QPointF newPos = result.positions[block->id()];
+
+      if (oldPos != newPos) {
+        block->setPos(newPos);
+        if (undoStack_ && !isExecutingCommand_) {
+          undoStack_->push(new MoveBlockCommand(this, block->id(), oldPos, newPos));
+        }
+      }
+    }
+  }
+
+  if (undoStack_ && blocks.size() > 1) {
+    undoStack_->endMacro();
+  }
+
+  emit layoutApplied(tr("Hierarchical"));
+}
+
+void WeaverCanvas::applyForceDirectedLayout(bool selectedOnly) {
+  QList<PackageBlock*> blocks = selectedOnly ? selectedBlocks() : allBlocks();
+  if (blocks.isEmpty()) return;
+
+  LayoutOptions options;
+  options.iterations = 150;
+
+  LayoutResult result = LayoutAlgorithms::forceDirected(blocks, connections(), options);
+
+  if (!result.success) return;
+
+  // Begin macro for undo
+  if (undoStack_ && blocks.size() > 1) {
+    undoStack_->beginMacro(tr("Force-Directed Layout (%1 nodes)").arg(blocks.size()));
+  }
+
+  // Apply new positions with undo support
+  for (PackageBlock* block : blocks) {
+    if (result.positions.contains(block->id())) {
+      QPointF oldPos = block->pos();
+      QPointF newPos = result.positions[block->id()];
+
+      if (oldPos != newPos) {
+        block->setPos(newPos);
+        if (undoStack_ && !isExecutingCommand_) {
+          undoStack_->push(new MoveBlockCommand(this, block->id(), oldPos, newPos));
+        }
+      }
+    }
+  }
+
+  if (undoStack_ && blocks.size() > 1) {
+    undoStack_->endMacro();
+  }
+
+  emit layoutApplied(tr("Force-Directed"));
+}
+
+void WeaverCanvas::applyCircularLayout(bool selectedOnly) {
+  QList<PackageBlock*> blocks = selectedOnly ? selectedBlocks() : allBlocks();
+  if (blocks.isEmpty()) return;
+
+  LayoutOptions options;
+
+  LayoutResult result = LayoutAlgorithms::circular(blocks, connections(), options);
+
+  if (!result.success) return;
+
+  // Begin macro for undo
+  if (undoStack_ && blocks.size() > 1) {
+    undoStack_->beginMacro(tr("Circular Layout (%1 nodes)").arg(blocks.size()));
+  }
+
+  // Apply new positions with undo support
+  for (PackageBlock* block : blocks) {
+    if (result.positions.contains(block->id())) {
+      QPointF oldPos = block->pos();
+      QPointF newPos = result.positions[block->id()];
+
+      if (oldPos != newPos) {
+        block->setPos(newPos);
+        if (undoStack_ && !isExecutingCommand_) {
+          undoStack_->push(new MoveBlockCommand(this, block->id(), oldPos, newPos));
+        }
+      }
+    }
+  }
+
+  if (undoStack_ && blocks.size() > 1) {
+    undoStack_->endMacro();
+  }
+
+  emit layoutApplied(tr("Circular"));
+}
+
+void WeaverCanvas::applyGridLayout(bool selectedOnly) {
+  QList<PackageBlock*> blocks = selectedOnly ? selectedBlocks() : allBlocks();
+  if (blocks.isEmpty()) return;
+
+  LayoutOptions options;
+  options.gridSpacing = 220;
+
+  LayoutResult result = LayoutAlgorithms::grid(blocks, connections(), options);
+
+  if (!result.success) return;
+
+  // Begin macro for undo
+  if (undoStack_ && blocks.size() > 1) {
+    undoStack_->beginMacro(tr("Grid Layout (%1 nodes)").arg(blocks.size()));
+  }
+
+  // Apply new positions with undo support
+  for (PackageBlock* block : blocks) {
+    if (result.positions.contains(block->id())) {
+      QPointF oldPos = block->pos();
+      QPointF newPos = result.positions[block->id()];
+
+      if (oldPos != newPos) {
+        block->setPos(newPos);
+        if (undoStack_ && !isExecutingCommand_) {
+          undoStack_->push(new MoveBlockCommand(this, block->id(), oldPos, newPos));
+        }
+      }
+    }
+  }
+
+  if (undoStack_ && blocks.size() > 1) {
+    undoStack_->endMacro();
+  }
+
+  emit layoutApplied(tr("Grid"));
 }
 
 PackageBlock* WeaverCanvas::blockAtPos(const QPointF& scenePos) {

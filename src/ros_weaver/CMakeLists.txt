@@ -128,6 +128,7 @@ set(SOURCES
   src/core/git_integration.cpp
   src/core/playback_animator.cpp
   src/core/simulation_launcher.cpp
+  src/core/layout_algorithms.cpp
   src/widgets/schema_viewer_widget.cpp
   src/widgets/advanced_search_panel.cpp
   src/widgets/theme_editor_dialog.cpp
@@ -226,6 +227,7 @@ set(HEADERS
   include/ros_weaver/core/git_integration.hpp
   include/ros_weaver/core/playback_animator.hpp
   include/ros_weaver/core/simulation_launcher.hpp
+  include/ros_weaver/core/layout_algorithms.hpp
   include/ros_weaver/widgets/schema_viewer_widget.hpp
   include/ros_weaver/widgets/advanced_search_panel.hpp
   include/ros_weaver/widgets/theme_editor_dialog.hpp
