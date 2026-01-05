@@ -48,6 +48,13 @@ WeaverCanvas::WeaverCanvas(QWidget* parent)
   , isExecutingCommand_(false)
   , isSpacePressed_(false)
   , zoomIndicator_(nullptr)
+  , gridEnabled_(true)
+  , snapToGridEnabled_(false)
+  , gridMajorSpacing_(DEFAULT_GRID_MAJOR_SPACING)
+  , gridMinorSubdivisions_(DEFAULT_GRID_MINOR_SUBDIVISIONS)
+  , gridMajorColor_(QColor(70, 70, 70))
+  , gridMinorColor_(QColor(50, 50, 50))
+  , gridOpacity_(1.0)
 {
   setupScene();
 
@@ -189,26 +196,127 @@ void WeaverCanvas::setupScene() {
 }
 
 void WeaverCanvas::drawGrid() {
-  // Draw a subtle grid pattern as background
-  QBrush gridBrush;
-  QPixmap gridPixmap(GRID_SIZE * 2, GRID_SIZE * 2);
+  if (!gridEnabled_) {
+    // Solid background when grid is disabled
+    setBackgroundBrush(QBrush(QColor(35, 35, 35)));
+    return;
+  }
+
+  // Calculate minor grid spacing
+  int minorSpacing = gridMajorSpacing_ / gridMinorSubdivisions_;
+  if (minorSpacing < 5) minorSpacing = 5;  // Minimum spacing for visibility
+
+  // Create a pixmap that tiles seamlessly - size matches one major grid cell
+  int tileSize = gridMajorSpacing_;
+  QPixmap gridPixmap(tileSize, tileSize);
   gridPixmap.fill(QColor(35, 35, 35));
 
   QPainter painter(&gridPixmap);
-  painter.setPen(QPen(QColor(50, 50, 50), 1));
+  painter.setRenderHint(QPainter::Antialiasing, false);
+
+  // Apply opacity
+  QColor minorColor = gridMinorColor_;
+  minorColor.setAlphaF(minorColor.alphaF() * gridOpacity_);
+  QColor majorColor = gridMajorColor_;
+  majorColor.setAlphaF(majorColor.alphaF() * gridOpacity_);
 
   // Draw minor grid lines
-  painter.drawLine(GRID_SIZE, 0, GRID_SIZE, GRID_SIZE * 2);
-  painter.drawLine(0, GRID_SIZE, GRID_SIZE * 2, GRID_SIZE);
+  painter.setPen(QPen(minorColor, 1));
+  for (int i = minorSpacing; i < tileSize; i += minorSpacing) {
+    // Vertical minor lines
+    painter.drawLine(i, 0, i, tileSize);
+    // Horizontal minor lines
+    painter.drawLine(0, i, tileSize, i);
+  }
 
-  // Draw major grid intersection
-  painter.setPen(QPen(QColor(60, 60, 60), 1));
-  painter.drawLine(0, 0, 0, GRID_SIZE * 2);
-  painter.drawLine(0, 0, GRID_SIZE * 2, 0);
+  // Draw major grid lines (at the edges of the tile, thicker and brighter)
+  painter.setPen(QPen(majorColor, 1));
+  // Left edge (major vertical line)
+  painter.drawLine(0, 0, 0, tileSize);
+  // Top edge (major horizontal line)
+  painter.drawLine(0, 0, tileSize, 0);
+
+  // Draw origin indicator (slightly brighter at 0,0)
+  painter.setPen(QPen(majorColor.lighter(120), 2));
+  painter.drawPoint(0, 0);
 
   painter.end();
 
   setBackgroundBrush(QBrush(gridPixmap));
+}
+
+void WeaverCanvas::setGridEnabled(bool enabled) {
+  if (gridEnabled_ != enabled) {
+    gridEnabled_ = enabled;
+    drawGrid();
+    emit gridEnabledChanged(enabled);
+    emit gridSettingsChanged();
+  }
+}
+
+void WeaverCanvas::setSnapToGridEnabled(bool enabled) {
+  if (snapToGridEnabled_ != enabled) {
+    snapToGridEnabled_ = enabled;
+    emit snapToGridEnabledChanged(enabled);
+    emit gridSettingsChanged();
+  }
+}
+
+void WeaverCanvas::setGridMajorSpacing(int spacing) {
+  if (spacing >= 20 && spacing <= 500 && gridMajorSpacing_ != spacing) {
+    gridMajorSpacing_ = spacing;
+    drawGrid();
+    emit gridSettingsChanged();
+  }
+}
+
+void WeaverCanvas::setGridMinorSubdivisions(int subdivisions) {
+  if (subdivisions >= 1 && subdivisions <= 10 && gridMinorSubdivisions_ != subdivisions) {
+    gridMinorSubdivisions_ = subdivisions;
+    drawGrid();
+    emit gridSettingsChanged();
+  }
+}
+
+void WeaverCanvas::setGridMajorColor(const QColor& color) {
+  if (gridMajorColor_ != color) {
+    gridMajorColor_ = color;
+    drawGrid();
+    emit gridSettingsChanged();
+  }
+}
+
+void WeaverCanvas::setGridMinorColor(const QColor& color) {
+  if (gridMinorColor_ != color) {
+    gridMinorColor_ = color;
+    drawGrid();
+    emit gridSettingsChanged();
+  }
+}
+
+void WeaverCanvas::setGridOpacity(qreal opacity) {
+  opacity = qBound(0.0, opacity, 1.0);
+  if (!qFuzzyCompare(gridOpacity_, opacity)) {
+    gridOpacity_ = opacity;
+    drawGrid();
+    emit gridSettingsChanged();
+  }
+}
+
+QPointF WeaverCanvas::snapToGrid(const QPointF& pos) const {
+  if (!snapToGridEnabled_ || gridMajorSpacing_ <= 0) {
+    return pos;
+  }
+
+  // Calculate minor grid spacing for finer snapping
+  int snapSpacing = gridMajorSpacing_ / gridMinorSubdivisions_;
+  if (snapSpacing < 5) snapSpacing = 5;
+
+  // Round to nearest grid point
+  qreal snappedX = std::round(pos.x() / snapSpacing) * snapSpacing;
+  qreal snappedY = std::round(pos.y() / snapSpacing) * snapSpacing;
+
+  return QPointF(snappedX, snappedY);
 }
 
 PackageBlock* WeaverCanvas::addPackageBlock(const QString& packageName, const QPointF& pos) {
@@ -326,10 +434,19 @@ void WeaverCanvas::onPinUnhovered(PackageBlock* block) {
 void WeaverCanvas::onBlockMoveFinished(PackageBlock* block) {
   if (!block) return;
 
-  // Push MoveBlockCommand if position actually changed
   QPointF oldPos = block->moveStartPos();
   QPointF newPos = block->pos();
 
+  // Apply snap-to-grid if enabled
+  if (snapToGridEnabled_) {
+    QPointF snappedPos = snapToGrid(newPos);
+    if (snappedPos != newPos) {
+      block->setPos(snappedPos);
+      newPos = snappedPos;
+    }
+  }
+
+  // Push MoveBlockCommand if position actually changed
   if (undoStack_ && !isExecutingCommand_ && oldPos != newPos) {
     undoStack_->push(new MoveBlockCommand(this, block->id(), oldPos, newPos));
   }
