@@ -16,6 +16,7 @@
 #include "ros_weaver/core/undo/commands/remove_group_command.hpp"
 #include "ros_weaver/core/undo/commands/macro_command.hpp"
 #include "ros_weaver/core/layout_algorithms.hpp"
+#include "ros_weaver/widgets/connection_stats_dialog.hpp"
 
 #include <QMenu>
 #include <QInputDialog>
@@ -541,6 +542,12 @@ ConnectionLine* WeaverCanvas::createConnection(PackageBlock* source, int sourceP
 
   source->addConnection(connection);
   target->addConnection(connection);
+
+  // Connect double-click to show stats dialog
+  connect(connection, &ConnectionLine::doubleClicked, this, [this](ConnectionLine* conn) {
+    ConnectionStatsDialog dialog(conn, this);
+    dialog.exec();
+  });
 
   // Push undo command after connection is fully created
   if (undoStack_ && !isExecutingCommand_) {
@@ -1743,6 +1750,12 @@ void WeaverCanvas::contextMenuEvent(QContextMenuEvent* event) {
       removeNodeGroup(group);
     });
   } else if (ConnectionLine* conn = dynamic_cast<ConnectionLine*>(item)) {
+    // View connection statistics
+    menu.addAction(tr("View Statistics..."), [this, conn]() {
+      ConnectionStatsDialog dialog(conn, this);
+      dialog.exec();
+    });
+
     // Show Data Origin for connection
     menu.addAction(tr("Show Data Origin..."), [this, conn]() {
       QString topicName = conn->topicName();
