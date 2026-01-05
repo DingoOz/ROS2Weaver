@@ -129,6 +129,7 @@ set(SOURCES
   src/core/playback_animator.cpp
   src/core/simulation_launcher.cpp
   src/core/layout_algorithms.cpp
+  src/core/launch_file_generator.cpp
   src/widgets/schema_viewer_widget.cpp
   src/widgets/advanced_search_panel.cpp
   src/widgets/theme_editor_dialog.cpp
@@ -137,6 +138,7 @@ set(SOURCES
   src/widgets/remapping_editor.cpp
   src/widgets/minimap_panel.cpp
   src/widgets/connection_stats_dialog.cpp
+  src/widgets/launch_preview_dialog.cpp
   src/wizards/package_wizard.cpp
   src/wizards/robot_wizard.cpp
   src/wizards/mcp_server_wizard.cpp
@@ -229,6 +231,7 @@ set(HEADERS
   include/ros_weaver/core/playback_animator.hpp
   include/ros_weaver/core/simulation_launcher.hpp
   include/ros_weaver/core/layout_algorithms.hpp
+  include/ros_weaver/core/launch_file_generator.hpp
   include/ros_weaver/widgets/schema_viewer_widget.hpp
   include/ros_weaver/widgets/advanced_search_panel.hpp
   include/ros_weaver/widgets/theme_editor_dialog.hpp
@@ -237,6 +240,7 @@ set(HEADERS
   include/ros_weaver/widgets/remapping_editor.hpp
   include/ros_weaver/widgets/minimap_panel.hpp
   include/ros_weaver/widgets/connection_stats_dialog.hpp
+  include/ros_weaver/widgets/launch_preview_dialog.hpp
   include/ros_weaver/widgets/canvas_tab_widget.hpp
 )
 
