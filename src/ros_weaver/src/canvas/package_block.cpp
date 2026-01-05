@@ -1,10 +1,12 @@
 #include "ros_weaver/canvas/package_block.hpp"
 #include "ros_weaver/canvas/connection_line.hpp"
 #include "ros_weaver/core/project.hpp"
+#include "ros_weaver/core/tooltip_provider.hpp"
 
 #include <QGraphicsSceneMouseEvent>
 #include <QGraphicsSceneHoverEvent>
 #include <QCursor>
+#include <QToolTip>
 #include <cmath>
 
 namespace ros_weaver {
@@ -372,6 +374,11 @@ void PackageBlock::hoverMoveEvent(QGraphicsSceneHoverEvent* event) {
       hoveredPinIsOutput_ = true;
       setCursor(Qt::CrossCursor);
       emit pinHovered(this, outputIdx, true);
+
+      // Set rich tooltip for the pin
+      QString tooltip = TooltipProvider::instance().tooltipForPin(this, outputIdx, true);
+      setToolTip(tooltip);
+
       update();
     }
     return;
@@ -385,16 +392,26 @@ void PackageBlock::hoverMoveEvent(QGraphicsSceneHoverEvent* event) {
       hoveredPinIsOutput_ = false;
       setCursor(Qt::CrossCursor);
       emit pinHovered(this, inputIdx, false);
+
+      // Set rich tooltip for the pin
+      QString tooltip = TooltipProvider::instance().tooltipForPin(this, inputIdx, false);
+      setToolTip(tooltip);
+
       update();
     }
     return;
   }
 
-  // Not hovering over any pin
+  // Not hovering over any pin - show block tooltip
   if (hoveredPinIndex_ >= 0) {
     clearHoveredPin();
     emit pinUnhovered(this);
   }
+
+  // Set rich tooltip for the block
+  QString tooltip = TooltipProvider::instance().tooltipForBlock(this);
+  setToolTip(tooltip);
+
   setCursor(Qt::OpenHandCursor);
 }
 
