@@ -67,6 +67,7 @@
 #include <QLabel>
 #include <QTextEdit>
 #include <QAction>
+#include <QActionGroup>
 #include <QIcon>
 #include <QStandardPaths>
 #include <QPushButton>
@@ -428,6 +429,73 @@ void MainWindow::setupMenuBar() {
   connect(fitAllAction, &QAction::triggered, this, [this]() {
     if (canvas_) canvas_->fitToContents();
   });
+
+  viewMenu->addSeparator();
+
+  // Grid submenu
+  QMenu* gridMenu = viewMenu->addMenu(tr("&Grid"));
+
+  QAction* showGridAction = gridMenu->addAction(tr("Show &Grid"));
+  showGridAction->setCheckable(true);
+  showGridAction->setChecked(true);  // Grid enabled by default
+  showGridAction->setShortcut(tr("G"));
+  showGridAction->setToolTip(tr("Toggle grid visibility"));
+  connect(showGridAction, &QAction::triggered, this, [this](bool checked) {
+    if (canvas_) canvas_->setGridEnabled(checked);
+  });
+
+  QAction* snapToGridAction = gridMenu->addAction(tr("&Snap to Grid"));
+  snapToGridAction->setCheckable(true);
+  snapToGridAction->setChecked(false);  // Snap disabled by default
+  snapToGridAction->setShortcut(tr("Ctrl+G"));
+  snapToGridAction->setToolTip(tr("Snap nodes to grid when moving"));
+  connect(snapToGridAction, &QAction::triggered, this, [this](bool checked) {
+    if (canvas_) canvas_->setSnapToGridEnabled(checked);
+  });
+
+  gridMenu->addSeparator();
+
+  // Grid spacing submenu
+  QMenu* gridSpacingMenu = gridMenu->addMenu(tr("Grid &Spacing"));
+
+  QActionGroup* spacingGroup = new QActionGroup(this);
+  spacingGroup->setExclusive(true);
+
+  auto createSpacingAction = [&](int spacing) {
+    QAction* action = gridSpacingMenu->addAction(tr("%1 px").arg(spacing));
+    action->setCheckable(true);
+    action->setChecked(spacing == 100);  // Default
+    spacingGroup->addAction(action);
+    connect(action, &QAction::triggered, this, [this, spacing]() {
+      if (canvas_) canvas_->setGridMajorSpacing(spacing);
+    });
+  };
+
+  createSpacingAction(50);
+  createSpacingAction(100);
+  createSpacingAction(150);
+  createSpacingAction(200);
+
+  // Grid subdivisions submenu
+  QMenu* gridSubdivisionsMenu = gridMenu->addMenu(tr("Grid S&ubdivisions"));
+
+  QActionGroup* subdivisionsGroup = new QActionGroup(this);
+  subdivisionsGroup->setExclusive(true);
+
+  auto createSubdivAction = [&](int subdivisions, const QString& label) {
+    QAction* action = gridSubdivisionsMenu->addAction(label);
+    action->setCheckable(true);
+    action->setChecked(subdivisions == 5);  // Default
+    subdivisionsGroup->addAction(action);
+    connect(action, &QAction::triggered, this, [this, subdivisions]() {
+      if (canvas_) canvas_->setGridMinorSubdivisions(subdivisions);
+    });
+  };
+
+  createSubdivAction(2, tr("2 (coarse)"));
+  createSubdivAction(4, tr("4"));
+  createSubdivAction(5, tr("5 (default)"));
+  createSubdivAction(10, tr("10 (fine)"));
 
   viewMenu->addSeparator();
 

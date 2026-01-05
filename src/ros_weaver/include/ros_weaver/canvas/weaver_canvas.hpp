@@ -72,6 +72,25 @@ public:
   void resetZoom();
   void fitToContents();
 
+  // Grid settings
+  bool isGridEnabled() const { return gridEnabled_; }
+  void setGridEnabled(bool enabled);
+  bool isSnapToGridEnabled() const { return snapToGridEnabled_; }
+  void setSnapToGridEnabled(bool enabled);
+  int gridMajorSpacing() const { return gridMajorSpacing_; }
+  void setGridMajorSpacing(int spacing);
+  int gridMinorSubdivisions() const { return gridMinorSubdivisions_; }
+  void setGridMinorSubdivisions(int subdivisions);
+  QColor gridMajorColor() const { return gridMajorColor_; }
+  void setGridMajorColor(const QColor& color);
+  QColor gridMinorColor() const { return gridMinorColor_; }
+  void setGridMinorColor(const QColor& color);
+  qreal gridOpacity() const { return gridOpacity_; }
+  void setGridOpacity(qreal opacity);
+
+  // Snap a position to the grid
+  QPointF snapToGrid(const QPointF& pos) const;
+
   // Project serialization
   void exportToProject(Project& project) const;
   void importFromProject(const Project& project);
@@ -105,6 +124,10 @@ signals:
   void askAIAboutConnection(ConnectionLine* connection);
   void askAIAboutGroup(NodeGroup* group);
   void askAIAboutPin(PackageBlock* block, int pinIndex, bool isOutput);
+  // Grid settings signals
+  void gridEnabledChanged(bool enabled);
+  void snapToGridEnabledChanged(bool enabled);
+  void gridSettingsChanged();
 
 protected:
   void wheelEvent(QWheelEvent* event) override;
@@ -185,10 +208,20 @@ private:
   // Zoom indicator
   QLabel* zoomIndicator_;
 
+  // Grid settings
+  bool gridEnabled_;
+  bool snapToGridEnabled_;
+  int gridMajorSpacing_;
+  int gridMinorSubdivisions_;
+  QColor gridMajorColor_;
+  QColor gridMinorColor_;
+  qreal gridOpacity_;
+
   static constexpr double MIN_ZOOM = 0.1;
   static constexpr double MAX_ZOOM = 5.0;
   static constexpr double ZOOM_STEP = 0.1;
-  static constexpr int GRID_SIZE = 20;
+  static constexpr int DEFAULT_GRID_MAJOR_SPACING = 100;
+  static constexpr int DEFAULT_GRID_MINOR_SUBDIVISIONS = 5;
 };
 
 }  // namespace ros_weaver
