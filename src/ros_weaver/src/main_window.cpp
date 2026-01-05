@@ -55,6 +55,7 @@
 #include "ros_weaver/core/caret_importer.hpp"
 #include "ros_weaver/core/static_analyzer.hpp"
 #include "ros_weaver/core/simulation_launcher.hpp"
+#include "ros_weaver/widgets/launch_preview_dialog.hpp"
 
 #include <QApplication>
 #include <QCloseEvent>
@@ -255,6 +256,19 @@ void MainWindow::setupMenuBar() {
   QAction* exportGraphvizAction = exportMenu->addAction(tr("Export to &Graphviz DOT..."));
   exportGraphvizAction->setToolTip(tr("Export the canvas diagram to Graphviz DOT format"));
   connect(exportGraphvizAction, &QAction::triggered, this, &MainWindow::onExportToGraphviz);
+
+  exportMenu->addSeparator();
+
+  QAction* generateLaunchAction = exportMenu->addAction(tr("Generate &Launch File..."));
+  generateLaunchAction->setToolTip(tr("Generate a ROS2 launch file from the canvas configuration"));
+  generateLaunchAction->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_L));
+  connect(generateLaunchAction, &QAction::triggered, this, [this]() {
+    Project project;
+    canvas_->exportToProject(project);
+
+    LaunchPreviewDialog dialog(&project, this);
+    dialog.exec();
+  });
 
   // Import submenu
   QMenu* importMenu = fileMenu->addMenu(tr("&Import"));
