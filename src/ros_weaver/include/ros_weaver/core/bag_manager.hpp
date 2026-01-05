@@ -126,6 +126,7 @@ private:
   void parseMetadata();
   void buildTopicConfigs();
   QString inferStorageId(const QString& path) const;
+  void closeBagInternal();  // Internal close without locking (caller must hold mutex_)
 
   std::unique_ptr<rosbag2_cpp::Reader> reader_;
   BagMetadata metadata_;

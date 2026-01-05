@@ -13,6 +13,7 @@
 #include <QTimer>
 #include <QGroupBox>
 #include <QVBoxLayout>
+#include <QUuid>
 
 #include <rclcpp/rclcpp.hpp>
 #include <tf2_ros/buffer.h>
@@ -73,6 +74,7 @@ struct CanvasFrameLink {
   QString parameterName;
   QString parameterValue;
   PackageBlock* block = nullptr;
+  QUuid blockId;  // Stored for safe lookup (avoids dangling pointer)
 };
 
 // Link to a YAML parameter

@@ -735,7 +735,7 @@ void TFTreePanel::updateDetailsPanel(const QString& frameName) {
       btn->setFlat(true);
       btn->setCursor(Qt::PointingHandCursor);
       btn->setStyleSheet("text-align: left; color: #5af;");
-      btn->setProperty("blockPtr", QVariant::fromValue(reinterpret_cast<quintptr>(link.block)));
+      btn->setProperty("blockId", link.blockId);  // Store UUID for safe lookup
       connect(btn, &QPushButton::clicked, this, &TFTreePanel::onLinkClicked);
       linksLayout_->addWidget(btn);
     }
@@ -818,6 +818,7 @@ FrameLinks TFTreePanel::discoverFrameLinks(const QString& frameName) {
         link.parameterName = param.name;
         link.parameterValue = paramValue;
         link.block = block;
+        link.blockId = block->id();  // Store UUID for safe lookup
         links.canvasLinks.append(link);
       }
     }
@@ -830,14 +831,22 @@ void TFTreePanel::onLinkClicked() {
   QPushButton* btn = qobject_cast<QPushButton*>(sender());
   if (!btn) return;
 
-  // Check if it's a block link
-  quintptr blockPtr = btn->property("blockPtr").value<quintptr>();
-  if (blockPtr) {
-    PackageBlock* block = reinterpret_cast<PackageBlock*>(blockPtr);
-    if (block && canvas_) {
-      canvas_->centerOn(block);
-      block->setBlockSelected(true);
+  // Check if it's a block link (safely look up by UUID)
+  QUuid blockId = btn->property("blockId").toUuid();
+  if (!blockId.isNull() && canvas_) {
+    // Find the block by UUID in the canvas scene
+    QGraphicsScene* scene = canvas_->scene();
+    if (scene) {
+      for (QGraphicsItem* item : scene->items()) {
+        PackageBlock* block = dynamic_cast<PackageBlock*>(item);
+        if (block && block->id() == blockId) {
+          canvas_->centerOn(block);
+          block->setBlockSelected(true);
+          return;
+        }
+      }
     }
+    // Block not found (may have been deleted)
     return;
   }
 

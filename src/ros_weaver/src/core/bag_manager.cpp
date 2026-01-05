@@ -40,9 +40,9 @@ BagManager::~BagManager() {
 bool BagManager::openBag(const QString& path) {
   std::lock_guard<std::mutex> lock(mutex_);
 
-  // Close any existing bag
+  // Close any existing bag (use internal method since we already hold the lock)
   if (isOpen_) {
-    closeBag();
+    closeBagInternal();
   }
 
   QFileInfo fileInfo(path);
@@ -97,7 +97,12 @@ bool BagManager::openBag(const QString& path) {
 
 void BagManager::closeBag() {
   std::lock_guard<std::mutex> lock(mutex_);
+  closeBagInternal();
+  emit bagClosed();
+}
 
+void BagManager::closeBagInternal() {
+  // Internal method - caller must hold mutex_
   if (reader_) {
     reader_.reset();
   }
@@ -107,8 +112,6 @@ void BagManager::closeBag() {
   topicInfos_.clear();
   topicConfigs_.clear();
   currentReadTime_ = rclcpp::Time(0, 0);
-
-  emit bagClosed();
 }
 
 bool BagManager::isOpen() const {
