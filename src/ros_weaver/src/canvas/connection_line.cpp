@@ -33,6 +33,9 @@ ConnectionLine::ConnectionLine(PackageBlock* sourceBlock, int sourcePin,
   , messageRate_(0.0)
   , showRateLabel_(true)
   , liveMonitoringEnabled_(false)
+  , stats_()
+  , showBandwidth_(false)
+  , expectedRate_(0.0)
 {
   setFlag(QGraphicsItem::ItemIsSelectable, true);
   setAcceptHoverEvents(true);
@@ -218,7 +221,8 @@ void ConnectionLine::paint(QPainter* painter, const QStyleOptionGraphicsItem* op
   // Check if this connection is actively receiving data
   bool isActiveDataFlow = liveMonitoringEnabled_ &&
     (activityState_ == TopicActivityState::Active ||
-     activityState_ == TopicActivityState::HighRate);
+     activityState_ == TopicActivityState::HighRate ||
+     activityState_ == TopicActivityState::Degraded);
 
   if (isSelected()) {
     color = QColor(42, 130, 218);
@@ -357,8 +361,12 @@ void ConnectionLine::paint(QPainter* painter, const QStyleOptionGraphicsItem* op
   // Draw live monitoring elements if enabled
   if (liveMonitoringEnabled_) {
     drawActivityIndicator(painter);
+    drawHealthIndicator(painter);
     if (showRateLabel_ && messageRate_ > 0) {
       drawRateLabel(painter);
+    }
+    if (showBandwidth_ && stats_.bandwidthBps > 0) {
+      drawBandwidthLabel(painter);
     }
   }
 }
@@ -395,13 +403,13 @@ void ConnectionLine::setActivityState(TopicActivityState state) {
     if (liveMonitoringEnabled_) {
       switch (state) {
         case TopicActivityState::Active:
-          startDataFlowAnimation();
-          break;
         case TopicActivityState::HighRate:
+        case TopicActivityState::Degraded:
           startDataFlowAnimation();
           break;
         case TopicActivityState::Inactive:
         case TopicActivityState::Unknown:
+        case TopicActivityState::Stale:
           stopDataFlowAnimation();
           break;
       }
@@ -526,6 +534,10 @@ QColor ConnectionLine::getActivityColor() const {
       return QColor(50, 255, 50);   // Bright green
     case TopicActivityState::Active:
       return QColor(100, 200, 100); // Green
+    case TopicActivityState::Degraded:
+      return QColor(255, 200, 50);  // Yellow/Orange - warning
+    case TopicActivityState::Stale:
+      return QColor(255, 80, 80);   // Red - error
     case TopicActivityState::Inactive:
       return QColor(150, 150, 150); // Gray
     case TopicActivityState::Unknown:
@@ -640,6 +652,152 @@ void ConnectionLine::drawActivityIndicator(QPainter* painter) {
     glowPen.setCapStyle(Qt::RoundCap);
     painter->setPen(glowPen);
     painter->drawPath(path_);
+  }
+}
+
+// Bandwidth visualization methods
+
+void ConnectionLine::setConnectionStats(const ConnectionStats& stats) {
+  stats_ = stats;
+
+  // Update message rate from stats
+  if (stats.messageRate > 0) {
+    setMessageRate(stats.messageRate);
+  }
+
+  // Auto-update health state based on stats
+  updateHealthState();
+  update();
+}
+
+void ConnectionLine::setShowBandwidth(bool show) {
+  if (showBandwidth_ != show) {
+    showBandwidth_ = show;
+    update();
+  }
+}
+
+void ConnectionLine::setExpectedRate(double rateHz) {
+  if (expectedRate_ != rateHz) {
+    expectedRate_ = rateHz;
+    stats_.expectedRate = rateHz;
+    updateHealthState();
+    update();
+  }
+}
+
+QString ConnectionLine::formatBandwidth(double bytesPerSec) const {
+  if (bytesPerSec >= 1e9) {
+    return QString("%1 GB/s").arg(bytesPerSec / 1e9, 0, 'f', 2);
+  } else if (bytesPerSec >= 1e6) {
+    return QString("%1 MB/s").arg(bytesPerSec / 1e6, 0, 'f', 2);
+  } else if (bytesPerSec >= 1e3) {
+    return QString("%1 KB/s").arg(bytesPerSec / 1e3, 0, 'f', 1);
+  } else {
+    return QString("%1 B/s").arg(bytesPerSec, 0, 'f', 0);
+  }
+}
+
+void ConnectionLine::drawBandwidthLabel(QPainter* painter) {
+  if (path_.isEmpty() || stats_.bandwidthBps <= 0) return;
+
+  // Position below the rate label (at 60% along the path)
+  QPointF labelPoint = path_.pointAtPercent(0.6);
+
+  QString bwStr = formatBandwidth(stats_.bandwidthBps);
+
+  // Set up font
+  QFont font("Sans", 7);
+  painter->setFont(font);
+
+  QFontMetrics fm(font);
+  QRect textRect = fm.boundingRect(bwStr);
+  textRect.moveCenter(labelPoint.toPoint());
+
+  // Draw background
+  QRect bgRect = textRect.adjusted(-3, -1, 3, 1);
+  QColor bgColor(40, 40, 40, 180);
+  painter->setBrush(bgColor);
+  painter->setPen(Qt::NoPen);
+  painter->drawRoundedRect(bgRect, 2, 2);
+
+  // Draw text
+  QColor textColor(180, 180, 255);  // Light blue for bandwidth
+  painter->setPen(textColor);
+  painter->drawText(textRect, Qt::AlignCenter, bwStr);
+}
+
+void ConnectionLine::drawHealthIndicator(QPainter* painter) {
+  if (path_.isEmpty() || !liveMonitoringEnabled_) return;
+
+  // Only draw health indicator for warning/error states
+  if (activityState_ != TopicActivityState::Degraded &&
+      activityState_ != TopicActivityState::Stale) {
+    return;
+  }
+
+  // Position at the start of the path
+  QPointF indicatorPos = path_.pointAtPercent(0.15);
+
+  QColor healthColor = getActivityColor();
+
+  // Draw warning/error indicator circle
+  qreal size = 8.0;
+
+  // Outer glow
+  QColor glowColor = healthColor;
+  glowColor.setAlpha(100);
+  painter->setBrush(glowColor);
+  painter->setPen(Qt::NoPen);
+  painter->drawEllipse(indicatorPos, size + 3, size + 3);
+
+  // Inner circle
+  painter->setBrush(healthColor);
+  painter->drawEllipse(indicatorPos, size, size);
+
+  // Draw icon inside
+  painter->setPen(QPen(Qt::white, 1.5));
+  if (activityState_ == TopicActivityState::Stale) {
+    // X mark for stale
+    QPointF offset(size * 0.5, size * 0.5);
+    painter->drawLine(indicatorPos - offset, indicatorPos + offset);
+    painter->drawLine(indicatorPos + QPointF(-offset.x(), offset.y()),
+                      indicatorPos + QPointF(offset.x(), -offset.y()));
+  } else {
+    // ! mark for degraded
+    painter->drawLine(indicatorPos + QPointF(0, -size * 0.5),
+                      indicatorPos + QPointF(0, size * 0.1));
+    painter->drawPoint(indicatorPos + QPointF(0, size * 0.4));
+  }
+}
+
+void ConnectionLine::updateHealthState() {
+  if (!liveMonitoringEnabled_) return;
+
+  // Check for stale connection
+  if (stats_.lastMessageTime.isValid()) {
+    qint64 msSinceLastMessage = stats_.lastMessageTime.msecsTo(QDateTime::currentDateTime());
+    if (msSinceLastMessage > STALE_TIMEOUT_MS) {
+      setActivityState(TopicActivityState::Stale);
+      return;
+    }
+  }
+
+  // Check for degraded rate (below expected)
+  if (expectedRate_ > 0 && messageRate_ > 0) {
+    if (messageRate_ < expectedRate_ * DEGRADED_RATE_RATIO) {
+      setActivityState(TopicActivityState::Degraded);
+      return;
+    }
+  }
+
+  // Otherwise set based on current rate
+  if (messageRate_ <= 0) {
+    setActivityState(TopicActivityState::Inactive);
+  } else if (messageRate_ >= HIGH_RATE_THRESHOLD) {
+    setActivityState(TopicActivityState::HighRate);
+  } else {
+    setActivityState(TopicActivityState::Active);
   }
 }
 

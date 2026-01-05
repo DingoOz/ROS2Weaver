@@ -8,6 +8,7 @@
 #include <QTimer>
 #include <QPropertyAnimation>
 #include <QFont>
+#include <QDateTime>
 
 namespace ros_weaver {
 
@@ -19,8 +20,26 @@ class PackageBlock;
 enum class TopicActivityState {
   Unknown,    // Not monitoring
   Inactive,   // Monitoring but no messages
-  Active,     // Receiving messages
-  HighRate    // Receiving at high rate (> 50 Hz)
+  Active,     // Receiving messages at normal rate
+  HighRate,   // Receiving at high rate (> 50 Hz)
+  Degraded,   // Receiving below expected rate
+  Stale       // No messages received recently (timeout)
+};
+
+/**
+ * @brief Statistics for a connection's data flow
+ */
+struct ConnectionStats {
+  double messageRate = 0.0;       // Messages per second (Hz)
+  double bandwidthBps = 0.0;      // Bytes per second
+  double avgLatencyMs = 0.0;      // Average latency in milliseconds
+  double jitterMs = 0.0;          // Latency jitter (std dev)
+  int queueDepth = 0;             // Current queue depth
+  int droppedCount = 0;           // Number of dropped messages
+  qint64 totalMessages = 0;       // Total messages received
+  qint64 totalBytes = 0;          // Total bytes received
+  double expectedRate = 0.0;      // Expected rate for health calculation
+  QDateTime lastMessageTime;      // Time of last message
 };
 
 class ConnectionLine : public QGraphicsObject {
@@ -99,6 +118,18 @@ public:
   // Trigger activity pulse (called when message received)
   void pulseActivity();
 
+  // Connection statistics for detailed monitoring
+  void setConnectionStats(const ConnectionStats& stats);
+  ConnectionStats connectionStats() const { return stats_; }
+
+  // Bandwidth display
+  void setShowBandwidth(bool show);
+  bool showBandwidth() const { return showBandwidth_; }
+
+  // Expected rate for health calculation
+  void setExpectedRate(double rateHz);
+  double expectedRate() const { return expectedRate_; }
+
   // Safely detach from blocks before canvas clearing
   // This prevents use-after-free when scene_->clear() deletes items in undefined order
   void detach();
@@ -119,9 +150,13 @@ private:
   void startDataFlowAnimation();
   void stopDataFlowAnimation();
   void drawRateLabel(QPainter* painter);
+  void drawBandwidthLabel(QPainter* painter);
   void drawActivityIndicator(QPainter* painter);
+  void drawHealthIndicator(QPainter* painter);
   QColor getActivityColor() const;
+  QString formatBandwidth(double bytesPerSec) const;
   QPainterPath calculatePath() const;
+  void updateHealthState();
 
   QUuid id_;
   PackageBlock* sourceBlock_;
@@ -151,6 +186,11 @@ private:
   bool showRateLabel_;
   bool liveMonitoringEnabled_;
 
+  // Bandwidth visualization
+  ConnectionStats stats_;
+  bool showBandwidth_;
+  double expectedRate_;
+
   static constexpr qreal LINE_WIDTH = 2.0;
   static constexpr qreal HIGHLIGHT_WIDTH = 4.0;
   static constexpr qreal HOVER_WIDTH = 3.0;
@@ -161,6 +201,8 @@ public:
   // Rate thresholds for visual feedback
   static constexpr double HIGH_RATE_THRESHOLD = 50.0;  // Hz
   static constexpr double LOW_RATE_THRESHOLD = 1.0;    // Hz
+  static constexpr double DEGRADED_RATE_RATIO = 0.5;   // Below 50% of expected = degraded
+  static constexpr int STALE_TIMEOUT_MS = 5000;        // 5 seconds without message = stale
 };
 
 }  // namespace ros_weaver
