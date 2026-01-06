@@ -2,6 +2,7 @@
 #include "ros_weaver/canvas/package_block.hpp"
 #include "ros_weaver/canvas/connection_line.hpp"
 #include "ros_weaver/canvas/node_group.hpp"
+#include "ros_weaver/canvas/canvas_annotation.hpp"
 #include "ros_weaver/core/project.hpp"
 #include "ros_weaver/core/lineage_provider.hpp"
 #include "ros_weaver/core/theme_manager.hpp"
@@ -599,6 +600,7 @@ void WeaverCanvas::clearCanvas() {
   // Clear all tracked pointers before scene_->clear() deletes the objects
   pinHighlightedConnections_.clear();
   nodeGroups_.clear();
+  annotations_.clear();
 
   // Reset connection dragging state in case we're mid-drag
   if (tempConnectionPath_) {
@@ -632,6 +634,7 @@ void WeaverCanvas::deleteSelectedItems() {
   QList<PackageBlock*> blocksToDelete;
   QList<ConnectionLine*> connectionsToDelete;
   QList<NodeGroup*> groupsToDelete;
+  QList<CanvasAnnotation*> annotationsToDelete;
 
   for (QGraphicsItem* item : selected) {
     if (PackageBlock* block = dynamic_cast<PackageBlock*>(item)) {
@@ -640,11 +643,14 @@ void WeaverCanvas::deleteSelectedItems() {
       connectionsToDelete.append(conn);
     } else if (NodeGroup* group = dynamic_cast<NodeGroup*>(item)) {
       groupsToDelete.append(group);
+    } else if (CanvasAnnotation* annotation = dynamic_cast<CanvasAnnotation*>(item)) {
+      annotationsToDelete.append(annotation);
     }
   }
 
   // Count total items to delete
-  int totalItems = blocksToDelete.size() + connectionsToDelete.size() + groupsToDelete.size();
+  int totalItems = blocksToDelete.size() + connectionsToDelete.size() +
+                   groupsToDelete.size() + annotationsToDelete.size();
   if (totalItems == 0) return;
 
   // Use macro for multiple deletions so they can be undone together
@@ -665,6 +671,11 @@ void WeaverCanvas::deleteSelectedItems() {
   // Then delete groups
   for (NodeGroup* group : groupsToDelete) {
     removeNodeGroup(group);
+  }
+
+  // Then delete annotations
+  for (CanvasAnnotation* annotation : annotationsToDelete) {
+    removeAnnotation(annotation);
   }
 
   // End macro if we started one
@@ -842,6 +853,29 @@ void WeaverCanvas::removeNodeGroup(NodeGroup* group) {
   if (undoStack_ && !isExecutingCommand_) {
     undoStack_->push(new RemoveGroupCommand(this, groupData));
   }
+}
+
+CanvasAnnotation* WeaverCanvas::addAnnotation(const QPointF& pos) {
+  CanvasAnnotation* annotation = new CanvasAnnotation();
+  annotation->setPos(snapToGridEnabled_ ? snapToGrid(pos) : pos);
+  scene_->addItem(annotation);
+  annotations_.append(annotation);
+
+  // Connect delete signal
+  connect(annotation, &CanvasAnnotation::deleteRequested, this, [this, annotation]() {
+    removeAnnotation(annotation);
+  });
+
+  emit annotationCreated(annotation);
+  return annotation;
+}
+
+void WeaverCanvas::removeAnnotation(CanvasAnnotation* annotation) {
+  if (!annotation) return;
+
+  annotations_.removeOne(annotation);
+  scene_->removeItem(annotation);
+  delete annotation;
 }
 
 void WeaverCanvas::zoomIn() {
@@ -1831,6 +1865,35 @@ void WeaverCanvas::contextMenuEvent(QContextMenuEvent* event) {
     menu.addAction(tr("Add Custom Package..."), [this, scenePos]() {
       // TODO: Show package creation dialog
       addPackageBlock("custom_package", scenePos);
+    });
+
+    menu.addSeparator();
+
+    // Annotation menu
+    QMenu* annotationMenu = menu.addMenu(tr("Add Annotation"));
+    annotationMenu->addAction(tr("Note"), [this, scenePos]() {
+      CanvasAnnotation* annotation = addAnnotation(scenePos);
+      annotation->setAnnotationType(AnnotationType::Note);
+    });
+    annotationMenu->addAction(tr("Info"), [this, scenePos]() {
+      CanvasAnnotation* annotation = addAnnotation(scenePos);
+      annotation->setAnnotationType(AnnotationType::Info);
+    });
+    annotationMenu->addAction(tr("Warning"), [this, scenePos]() {
+      CanvasAnnotation* annotation = addAnnotation(scenePos);
+      annotation->setAnnotationType(AnnotationType::Warning);
+    });
+    annotationMenu->addAction(tr("Todo"), [this, scenePos]() {
+      CanvasAnnotation* annotation = addAnnotation(scenePos);
+      annotation->setAnnotationType(AnnotationType::Todo);
+    });
+    annotationMenu->addAction(tr("Question"), [this, scenePos]() {
+      CanvasAnnotation* annotation = addAnnotation(scenePos);
+      annotation->setAnnotationType(AnnotationType::Question);
+    });
+    annotationMenu->addAction(tr("Important"), [this, scenePos]() {
+      CanvasAnnotation* annotation = addAnnotation(scenePos);
+      annotation->setAnnotationType(AnnotationType::Important);
     });
   }
 
