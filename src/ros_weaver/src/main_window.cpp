@@ -56,6 +56,7 @@
 #include "ros_weaver/core/static_analyzer.hpp"
 #include "ros_weaver/core/simulation_launcher.hpp"
 #include "ros_weaver/widgets/launch_preview_dialog.hpp"
+#include "ros_weaver/widgets/preset_selector_widget.hpp"
 
 #include <QApplication>
 #include <QCloseEvent>
@@ -930,6 +931,11 @@ void MainWindow::setupToolBar() {
   QAction* scanToolbarAction = mainToolBar->addAction(tr("Scan System"));
   scanToolbarAction->setToolTip(tr("Scan running ROS2 system (Ctrl+Shift+R)"));
   connect(scanToolbarAction, &QAction::triggered, this, &MainWindow::onScanSystem);
+
+  // Add parameter preset selector
+  mainToolBar->addSeparator();
+  PresetSelectorWidget* presetSelector = new PresetSelectorWidget(this);
+  mainToolBar->addWidget(presetSelector);
 }
 
 void MainWindow::setupDockWidgets() {
