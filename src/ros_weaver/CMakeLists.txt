@@ -135,6 +135,7 @@ set(SOURCES
   src/core/parameter_preset.cpp
   src/core/node_templates.cpp
   src/core/architecture_diff.cpp
+  src/core/playback_visualizer.cpp
   src/widgets/schema_viewer_widget.cpp
   src/widgets/diff_view_dialog.cpp
   src/widgets/node_templates_panel.cpp
@@ -247,6 +248,7 @@ set(HEADERS
   include/ros_weaver/core/parameter_preset.hpp
   include/ros_weaver/core/node_templates.hpp
   include/ros_weaver/core/architecture_diff.hpp
+  include/ros_weaver/core/playback_visualizer.hpp
   include/ros_weaver/widgets/schema_viewer_widget.hpp
   include/ros_weaver/widgets/diff_view_dialog.hpp
   include/ros_weaver/widgets/node_templates_panel.hpp
