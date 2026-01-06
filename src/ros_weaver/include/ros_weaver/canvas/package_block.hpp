@@ -137,6 +137,11 @@ public:
   void setShowRuntimeStatus(bool show);
   bool showRuntimeStatus() const { return showRuntimeStatus_; }
 
+  // Health overlay color (for node health dashboard heatmap)
+  void setHealthOverlayColor(const QColor& color);
+  QColor healthOverlayColor() const { return healthOverlayColor_; }
+  bool hasHealthOverlay() const { return healthOverlayColor_.isValid(); }
+
 signals:
   void pinHovered(PackageBlock* block, int pinIndex, bool isOutput);
   void pinUnhovered(PackageBlock* block);
@@ -184,6 +189,9 @@ private:
   QString matchedNodeName_;
   MatchConfidence matchConfidence_;
   bool showRuntimeStatus_;
+
+  // Health overlay for heatmap visualization
+  QColor healthOverlayColor_;
 
   // Visual dimensions
   static constexpr qreal BLOCK_WIDTH = 180.0;

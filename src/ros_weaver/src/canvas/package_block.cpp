@@ -65,6 +65,15 @@ void PackageBlock::paint(QPainter* painter, const QStyleOptionGraphicsItem* opti
   painter->setPen(QPen(isSelected_ ? QColor(42, 130, 218) : QColor(80, 80, 80), 2));
   painter->drawRoundedRect(rect, CORNER_RADIUS, CORNER_RADIUS);
 
+  // Draw health overlay if set
+  if (healthOverlayColor_.isValid()) {
+    QColor overlayColor = healthOverlayColor_;
+    overlayColor.setAlpha(80);  // Semi-transparent overlay
+    painter->setBrush(overlayColor);
+    painter->setPen(QPen(healthOverlayColor_, 3));
+    painter->drawRoundedRect(rect.adjusted(2, 2, -2, -2), CORNER_RADIUS - 1, CORNER_RADIUS - 1);
+  }
+
   // Draw header background
   QLinearGradient headerGradient(0, 0, 0, HEADER_HEIGHT);
   headerGradient.setColorAt(0, QColor(42, 130, 218));
@@ -492,6 +501,13 @@ void PackageBlock::clearRuntimeStatus() {
 void PackageBlock::setShowRuntimeStatus(bool show) {
   if (showRuntimeStatus_ != show) {
     showRuntimeStatus_ = show;
+    update();
+  }
+}
+
+void PackageBlock::setHealthOverlayColor(const QColor& color) {
+  if (healthOverlayColor_ != color) {
+    healthOverlayColor_ = color;
     update();
   }
 }
