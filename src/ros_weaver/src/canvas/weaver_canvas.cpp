@@ -17,6 +17,7 @@
 #include "ros_weaver/core/undo/commands/macro_command.hpp"
 #include "ros_weaver/core/layout_algorithms.hpp"
 #include "ros_weaver/widgets/connection_stats_dialog.hpp"
+#include "ros_weaver/widgets/qos_editor_dialog.hpp"
 
 #include <QMenu>
 #include <QInputDialog>
@@ -1754,6 +1755,15 @@ void WeaverCanvas::contextMenuEvent(QContextMenuEvent* event) {
     menu.addAction(tr("View Statistics..."), [this, conn]() {
       ConnectionStatsDialog dialog(conn, this);
       dialog.exec();
+    });
+
+    // Edit QoS profile
+    menu.addAction(tr("Edit QoS Profile..."), [this, conn]() {
+      QosEditorDialog dialog(this);
+      dialog.setConnectionName(conn->topicName());
+      if (dialog.exec() == QDialog::Accepted) {
+        // TODO: Store QoS profile in connection or project
+      }
     });
 
     // Show Data Origin for connection
