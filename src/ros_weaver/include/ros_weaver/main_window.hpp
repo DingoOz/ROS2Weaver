@@ -58,6 +58,7 @@ class RemappingEditor;
 class CanvasTabWidget;
 class MinimapPanel;
 class NodeTemplatesPanel;
+class WorkspaceBrowserPanel;
 
 class MainWindow : public QMainWindow {
   Q_OBJECT
@@ -344,6 +345,10 @@ private:
   // Node templates panel
   NodeTemplatesPanel* nodeTemplatesPanel_;
   QDockWidget* nodeTemplatesDock_;
+
+  // Workspace browser panel
+  WorkspaceBrowserPanel* workspaceBrowserPanel_;
+  QDockWidget* workspaceBrowserDock_;
 };
 
 }  // namespace ros_weaver

@@ -136,6 +136,7 @@ set(SOURCES
   src/core/node_templates.cpp
   src/widgets/schema_viewer_widget.cpp
   src/widgets/node_templates_panel.cpp
+  src/widgets/workspace_browser_panel.cpp
   src/widgets/advanced_search_panel.cpp
   src/widgets/theme_editor_dialog.cpp
   src/widgets/issue_list_panel.cpp
@@ -245,6 +246,7 @@ set(HEADERS
   include/ros_weaver/core/node_templates.hpp
   include/ros_weaver/widgets/schema_viewer_widget.hpp
   include/ros_weaver/widgets/node_templates_panel.hpp
+  include/ros_weaver/widgets/workspace_browser_panel.hpp
   include/ros_weaver/widgets/advanced_search_panel.hpp
   include/ros_weaver/widgets/theme_editor_dialog.hpp
   include/ros_weaver/widgets/issue_list_panel.hpp
