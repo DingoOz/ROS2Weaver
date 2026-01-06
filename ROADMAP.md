@@ -1,6 +1,53 @@
-# ROS2Weaver Feature Ideas & Roadmap Suggestions
+# ROS2Weaver Feature Ideas & Roadmap
 
 These are community and AI-suggested features to enhance ROS2Weaver, prioritized by potential impact and feasibility. Contributions are welcome!
+
+## Implementation Status
+
+### Completed Features (v1.1.0)
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Context-Sensitive Help | ✅ Done | F1 key, help browser, context tooltips |
+| Inline Tooltips & Schema Viewer | ✅ Done | Message schema viewer panel |
+| README Preview Panel | ✅ Done | Dockable panel for package docs |
+| Export to PlantUML/Mermaid/Graphviz | ✅ Done | File → Export menu |
+| Import from rqt_graph DOT | ✅ Done | File → Import menu |
+| Import from CARET YAML | ✅ Done | File → Import menu |
+| Project Save/Load (.weaver) | ✅ Done | JSON/YAML project files |
+| One-click Gazebo/Ignition Launch | ✅ Done | Simulation menu |
+| Rosbag Recording/Playback | ✅ Done | Rosbag Workbench panel |
+| Static Analysis | ✅ Done | Tools → Run Analysis |
+| Parameter Dashboard | ✅ Done | Properties panel |
+| Undo/Redo Stack | ✅ Done | Edit menu, Ctrl+Z/Y |
+| Architecture Diff View | ✅ Done | Compare project versions |
+| Multi-canvas Tabs | ✅ Done | Tab-based canvas management |
+| Canvas Grid Visualization | ✅ Done | View menu, snap-to-grid |
+| Mini-map Navigation | ✅ Done | Dockable minimap panel |
+| Auto-layout Algorithms | ✅ Done | Hierarchical, force-directed, circular, grid |
+| Canvas Annotations | ✅ Done | Right-click → Add Annotation |
+| Connection Bandwidth Visualization | ✅ Done | Live message rates on connections |
+| Time-synced Playback | ✅ Done | Canvas highlights during bag playback |
+| Node Health Dashboard | ✅ Done | CPU, memory, latency monitoring |
+| QoS Profile Editor | ✅ Done | Visual QoS configuration |
+| Launch File Generator | ✅ Done | Code generation wizard |
+| Parameter Presets | ✅ Done | Save/load parameter configurations |
+| Node Templates Library | ✅ Done | Pre-built node patterns |
+| Workspace Browser Panel | ✅ Done | Browse ROS2 workspace packages |
+
+### Remaining Features
+
+| Feature | Priority | Complexity |
+|---------|----------|------------|
+| Embedded mini-RViz / 3D view | Low | High |
+| Natural language architecture generation | Medium | Medium |
+| Automated error fixing suggestions | Medium | Medium |
+| Architecture optimization recommendations | Medium | Medium |
+| Multi-user collaboration | Low | High |
+| Improved namespace/remapping visualization | Low | Low |
+| Advanced node library search | Low | Low |
+
+---
 
 ## Contributing Guidelines
 
@@ -12,11 +59,9 @@ git checkout -b feature/<feature-name>
 ```
 
 Examples:
-- `feature/mini-map-navigation`
-- `feature/auto-layout-algorithms`
-- `feature/canvas-grid-visualization`
-- `feature/qos-profile-editor`
-- `feature/launch-file-generator`
+- `feature/mini-rviz-view`
+- `feature/ai-architecture-generation`
+- `feature/multi-user-collab`
 
 ### Workflow
 1. Create a new branch from `main` for each feature.
@@ -26,24 +71,50 @@ Examples:
 
 This keeps features isolated and makes code review easier.
 
-## Documentation & Discovery Features (High Priority)
+---
 
-### 1. Context-Sensitive ROS2 Documentation Lookup
+## Feature Details
+
+### Remaining: Embedded mini-RViz / 3D View
+- Overlay live robot model and TF data
+- Visualize sensor data in 3D
+- Integration with existing TF Tree panel
+- Would require significant Qt3D or RViz library integration
+
+### Remaining: AI Assistant Expansions
+Building on the existing Ollama integration:
+- Natural language architecture generation (e.g., "Add SLAM with Nav2 and connect to a lidar topic")
+- Automated error fixing suggestions based on validation results
+- Architecture optimization recommendations
+
+### Remaining: Multi-user Collaboration
+- Real-time collaborative editing
+- Presence indicators
+- Conflict resolution
+- Would require WebSocket server infrastructure
+
+---
+
+## Completed Feature Details
+
+### Documentation & Discovery Features ✅
+
+#### Context-Sensitive ROS2 Documentation Lookup
 - Hover or right-click on nodes, topics, services, actions, message types, or parameters to open a side panel/pop-up with relevant official documentation.
 - Sources:
   - Official ROS2 docs (`https://docs.ros.org`) for core packages.
   - Local parsing of `.msg`, `.srv`, `.action` files for field descriptions.
   - Cached index for offline use.
-- Bonus: Global searchable docs bar (e.g., search "LaserScan fields" or "MoveIt parameters").
+- Global searchable docs bar (e.g., search "LaserScan fields" or "MoveIt parameters").
 
-### 2. Inline Tooltips & Message Schema Viewer
+#### Inline Tooltips & Message Schema Viewer
 - Quick hover tooltips showing message fields, types, and defaults.
 - Click-to-expand full interactive schema tree (similar to `rqt_msg` or Foxglove message inspector).
 
-### 3. Package/Node README & Description Preview
+#### Package/Node README & Description Preview
 - Automatically load and display `README.md` or `package.xml` description for selected nodes/packages in a dockable panel.
 
-## Export, Import & Interoperability
+### Export, Import & Interoperability ✅
 
 - Export canvas diagrams to **PlantUML**, **Mermaid**, or **Graphviz** for documentation.
 - Import existing architectures from:
@@ -51,41 +122,35 @@ This keeps features isolated and makes code review easier.
   - CARET `architecture.yaml` files.
 - Save/load full projects as `.weaver` JSON/YAML files.
 
-## Simulation & Visualization Enhancements
+### Simulation & Visualization Enhancements ✅
 
 - One-click launch of **Gazebo** or **Ignition** using the robot configuration wizard output.
-- Embedded mini-RViz or 3D view to overlay live robot model and TF data.
 - Integrated **ros2 bag** recording/playback with canvas animation during replay.
 
-## Validation & Debugging Tools
+### Validation & Debugging Tools ✅
 
 - Static analysis:
   - Topic type mismatches.
   - Unused publishers/subscribers.
   - QoS policy incompatibilities.
+  - Cyclic dependency detection.
+  - Naming convention validation.
+  - Security issue detection.
 - Live parameter validation dashboard with override capabilities.
 - Error highlighting and suggested fixes on the canvas.
 
-## AI Assistant Expansions (Leveraging Existing Ollama Integration)
-
-- Natural language architecture generation (e.g., "Add SLAM with Nav2 and connect to a lidar topic").
-- Automated error fixing suggestions based on validation results.
-- Architecture optimization recommendations.
-
-## Collaboration & Version Control
+### Collaboration & Version Control ✅
 
 - Robust **undo/redo** stack for canvas operations.
 - Git-aware project saving with visual diff support for canvas changes.
-- Multi-user collaboration potential (future).
 
-## Usability & Polish
+### Usability & Polish ✅
 
 - Multi-canvas tabs for separate compositions (e.g., navigation stack vs. manipulation).
 - Improved namespace and remapping visualization.
-- Advanced node library search with filters (package, category, keywords).
 - Expanded keyboard shortcuts and customizable themes.
 
-### Canvas Grid Visualization (Blender-style)
+#### Canvas Grid Visualization (Blender-style)
 - Configurable grid overlay with major and minor lines for precise node placement.
 - Settings:
   - Toggle grid visibility on/off.
@@ -95,15 +160,15 @@ This keeps features isolated and makes code review easier.
   - Customizable grid line colors and opacity.
 - Visual style similar to Blender's 3D viewport grid for familiarity.
 
-## Canvas Navigation & Layout
+### Canvas Navigation & Layout ✅
 
-### Mini-map Navigation
+#### Mini-map Navigation
 - Small overview panel for navigating large architectures (similar to VS Code's minimap).
 - Shows entire canvas with viewport indicator.
 - Click-to-navigate and drag viewport rectangle.
 - Useful for projects with many nodes spread across large canvas areas.
 
-### Auto-layout Algorithms
+#### Auto-layout Algorithms
 - One-click automatic layout options to organize nodes:
   - **Hierarchical** - Top-to-bottom or left-to-right data flow.
   - **Force-directed** - Physics-based spacing for balanced distribution.
@@ -112,16 +177,16 @@ This keeps features isolated and makes code review easier.
 - Option to layout only selected nodes or entire canvas.
 - Undo support for layout operations.
 
-### Canvas Annotations & Sticky Notes
+#### Canvas Annotations & Sticky Notes
 - Add text notes and documentation directly on the canvas.
 - Sticky note widgets with customizable colors.
 - Support for markdown formatting in notes.
 - Link notes to specific nodes or connections.
 - Useful for team communication and architecture documentation.
 
-## Live Monitoring & Visualization
+### Live Monitoring & Visualization ✅
 
-### Connection Bandwidth Visualization
+#### Connection Bandwidth Visualization
 - Show live message rates (Hz) on connection lines.
 - Color coding for connection health:
   - Green: Healthy, receiving messages at expected rate.
@@ -130,13 +195,13 @@ This keeps features isolated and makes code review easier.
 - Optional bandwidth display (KB/s, MB/s).
 - Click connection to see detailed statistics (latency, jitter, queue depth).
 
-### Time-Synced Playback Visualization
+#### Time-Synced Playback Visualization
 - During bag playback, animate data flow on canvas connections.
 - Visual pulse/glow effect showing which topics are active at each timestamp.
 - Synchronized with timeline scrubbing.
 - Helps understand temporal relationships between nodes during debugging.
 
-### Node Health Dashboard
+#### Node Health Dashboard
 - Real-time monitoring overlay for each node:
   - CPU usage percentage.
   - Memory consumption.
@@ -146,9 +211,9 @@ This keeps features isolated and makes code review easier.
 - Alert thresholds with visual warnings.
 - Historical graphs accessible via node context menu.
 
-## Configuration & Code Generation
+### Configuration & Code Generation ✅
 
-### QoS Profile Visual Editor
+#### QoS Profile Visual Editor
 - Visual QoS configuration per connection/topic.
 - Dropdown presets: Sensor Data, Services, Parameters, Default.
 - Custom configuration with all QoS policies:
@@ -159,7 +224,7 @@ This keeps features isolated and makes code review easier.
 - Compatibility checker showing warnings for mismatched publisher/subscriber QoS.
 - Generate QoS code snippets for C++/Python.
 
-### Launch File Generator
+#### Launch File Generator
 - Generate ROS2 launch files directly from canvas configuration.
 - Support for Python and XML launch file formats.
 - Include:
@@ -169,7 +234,7 @@ This keeps features isolated and makes code review easier.
   - Composable node containers where applicable.
 - Preview before export with syntax highlighting.
 
-### Parameter Presets
+#### Parameter Presets
 - Save named parameter configurations for quick switching.
 - Example presets: "simulation", "real_robot", "debug", "competition".
 - Per-node or global parameter overrides.
@@ -177,9 +242,9 @@ This keeps features isolated and makes code review easier.
 - Export/import presets as YAML files.
 - Diff view between presets.
 
-## Node Library & Templates
+### Node Library & Templates ✅
 
-### Node Templates Library
+#### Node Templates Library
 - Pre-configured templates for common ROS2 patterns:
   - **Sensor Fusion Node** - Multi-sensor input with synchronized output.
   - **State Machine** - Template with state transitions and events.
@@ -188,9 +253,8 @@ This keeps features isolated and makes code review easier.
   - **Lifecycle Node** - Managed node with state callbacks.
   - **Component Node** - Composable node template.
 - Customizable templates with placeholder parameters.
-- Community template sharing (future).
 
-### Workspace Browser Panel
+#### Workspace Browser Panel
 - Browse local ROS2 workspace packages.
 - Tree view of installed packages organized by:
   - Workspace (overlay order).
@@ -199,9 +263,9 @@ This keeps features isolated and makes code review easier.
 - Quick search/filter within workspace.
 - Show package dependencies and reverse dependencies.
 
-## Comparison & Analysis
+### Comparison & Analysis ✅
 
-### Architecture Diff View
+#### Architecture Diff View
 - Visually compare two project versions side-by-side.
 - Highlighting for:
   - Added nodes/connections (green).
@@ -211,26 +275,6 @@ This keeps features isolated and makes code review easier.
 - Export diff report as HTML or markdown.
 - Useful for code reviews and architecture evolution tracking.
 
-## Prioritization Recommendation
+---
 
-### High Priority (Quick Wins)
-1. Documentation lookup & tooltips (huge productivity boost).
-2. Mini-map navigation (essential for large projects).
-3. Canvas grid visualization with snap-to-grid.
-4. Auto-layout algorithms (one-click organization).
-
-### Medium Priority (High Value)
-5. Connection bandwidth visualization (live monitoring).
-6. Launch file generator (complements existing code gen).
-7. QoS profile visual editor (prevents common issues).
-8. Parameter presets (quick configuration switching).
-9. Canvas annotations/sticky notes (team documentation).
-
-### Lower Priority (Advanced Features)
-10. Node templates library.
-11. Workspace browser panel.
-12. Architecture diff view.
-13. Time-synced playback visualization.
-14. Node health dashboard.
-
-Feel free to open issues or pull requests for any of these — they'd make ROS2Weaver an even more powerful all-in-one ROS2 development environment!
+Feel free to open issues or pull requests for any remaining features — they'd make ROS2Weaver an even more powerful all-in-one ROS2 development environment!
