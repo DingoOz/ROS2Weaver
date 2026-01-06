@@ -707,7 +707,62 @@ Use the integrated AI assistant (if configured):
     tr("What's New"),
     tr(R"(# What's New in ROS Weaver
 
-## Recent Updates
+## Version 1.1.0 - Latest
+
+### Multi-Canvas Tabs
+- Open multiple canvas tabs for complex projects
+- Drag and drop between canvases
+- Rename and duplicate canvases
+- Quick canvas switching with keyboard shortcuts
+
+### Node Health Dashboard
+- Real-time monitoring of node health metrics
+- Track CPU usage, memory, latency, and message rates
+- Configurable health thresholds (Healthy, Warning, Critical)
+- Heatmap visualization to color canvas nodes by resource usage
+- System health summary with overall status
+
+### Workspace Browser Panel
+- Browse and navigate ROS2 workspace packages
+- Quick file preview and package information
+- Drag packages directly onto canvas
+- Search and filter workspace contents
+
+### Node Templates Library
+- Pre-built templates for common node patterns
+- Publisher, subscriber, service, and action templates
+- Custom template creation and management
+- Quick instantiation with configurable parameters
+
+### Architecture Diff View
+- Compare project versions side-by-side
+- Highlight added, removed, and modified nodes
+- Track connection changes between versions
+- Visual diff overlay on canvas
+
+### Time-synced Playback Visualization
+- Synchronized rosbag playback with canvas highlighting
+- Visual indicators showing active topics during replay
+- Playback progress bar with seek functionality
+- Integration with Rosbag Workbench panel
+
+### Rosbag Workbench
+- Record, playback, and inspect rosbag files
+- Integrated playback controls
+- Message inspection and topic filtering
+- Canvas synchronization during playback
+
+### Canvas Annotations
+- Add text annotations and notes to canvas
+- Customizable colors and styles
+- Documentation directly on your architecture
+
+### Mini-map Navigation
+- Bird's-eye view of large canvases
+- Quick navigation to any area
+- Viewport indicator
+
+## Previous Updates
 
 ### Guided Tour
 - Interactive walkthrough of the application
@@ -718,61 +773,16 @@ Use the integrated AI assistant (if configured):
 - Track where data originates from
 - View source files and line numbers
 - Jump directly to VS Code for editing
-- Right-click context menu integration
 
 ### Robot Configuration Wizard
 - Quick setup for common robot platforms
-- TurtleBot3 support
+- TurtleBot3 support with ros2_control
 - Navigation stack configuration
-- Sensor configuration
-
-### Enhanced VS Code Integration
-- Open project folders directly
-- Open generated packages
-- Jump to specific line numbers
-- Support for code-insiders and codium
 
 ### Local AI Assistant
-- Tabbed interface for settings
-- Improved model management
-- System prompt customization
-- Hardware detection for recommendations
-
-### Plot Panel Improvements
-- All fields selected by default
-- Better topic selection dialog
-- Improved performance
-
-## Version 0.1.0
-
-### Core Features
-- Visual canvas for ROS2 package design
-- Package browser with search
-- Drag-and-drop block placement
-- Topic connection visualization
-- Parameter editing
-
-### ROS2 Integration
-- System scanning and discovery
-- Real-time topic monitoring
-- TF tree visualization
-- ROS log viewer with filtering
-
-### Code Generation
-- Complete ROS2 package generation
-- Generation wizard with customization
-- C++ and Python node templates
-
-### AI Integration
-- Local LLM support via Ollama
-- AI-powered log analysis
-- Code suggestions
-
-### Quality of Life
-- Dark/Light theme support
-- Plot panel for data visualization
-- VS Code integration
-- Keyboard shortcuts
+- Native tool calling via Ollama
+- AI-powered canvas control
+- Improved model recommendations
 
 ## Getting Help
 
@@ -1278,6 +1288,402 @@ The wizard is ideal when:
     {"robot", "wizard", "configuration", "setup", "turtlebot", "navigation"}
   };
   topicOrder_ << "robot-wizard";
+
+  // Node Health Dashboard
+  topics_["node-health-dashboard"] = {
+    "node-health-dashboard",
+    tr("Node Health Dashboard"),
+    tr(R"(# Node Health Dashboard
+
+The Node Health Dashboard provides real-time monitoring of ROS2 node health metrics.
+
+## Opening the Dashboard
+
+**View > Panels > Node Health Dashboard**
+
+Or use the dockable panel on the right side.
+
+## Features
+
+### Health Metrics
+The dashboard tracks key performance indicators for each node:
+- **CPU Usage** - Percentage of CPU time consumed
+- **Memory** - Memory usage in MB
+- **Callback Latency** - Average callback execution time in ms
+- **Dropped Messages** - Count of lost messages
+- **Message Rate** - Publishing frequency in Hz
+
+### Health Status Levels
+Nodes are classified into three status levels:
+- **Healthy** (Green) - All metrics within normal thresholds
+- **Warning** (Orange) - Some metrics approaching limits
+- **Critical** (Red) - Metrics exceeding safe thresholds
+
+### System Health Summary
+The top of the dashboard shows:
+- Count of healthy, warning, and critical nodes
+- Overall system health percentage bar
+- Status color changes based on worst condition
+
+## Using the Dashboard
+
+### Syncing Nodes
+1. Click **Sync Nodes** to populate the node list from canvas
+2. The dashboard automatically discovers all package blocks
+3. Node names are prefixed with "/" for ROS2 compatibility
+
+### Start Monitoring
+1. Click **Start Monitoring** to begin collecting metrics
+2. The table updates in real-time with health data
+3. Click **Stop Monitoring** to pause data collection
+
+### Update Interval
+Adjust the monitoring frequency:
+- Use the spin box to set interval (100ms - 10000ms)
+- Lower values provide more responsive updates
+- Higher values reduce CPU overhead
+
+## Heatmap Visualization
+
+### Enabling Heatmap
+Check the **Heatmap** checkbox to color canvas nodes based on health.
+
+### Heatmap Modes
+Select the visualization mode:
+- **CPU Usage** - Color by CPU percentage (green to red)
+- **Memory Usage** - Color by memory consumption
+- **Health Status** - Color by overall health status
+
+The canvas nodes display a semi-transparent overlay indicating their health.
+
+## Thresholds
+
+Default thresholds (configurable):
+- **CPU Warning**: 70%, Critical: 90%
+- **Memory Warning**: 500MB, Critical: 1000MB
+- **Latency Warning**: 50ms, Critical: 100ms
+- **Dropped Messages Warning**: 10, Critical: 100
+
+## Tips
+
+- Double-click a node row to view its history
+- Use heatmap mode to quickly identify problem nodes
+- Monitor during peak load to find bottlenecks
+)"),
+    "",
+    {"health", "monitoring", "cpu", "memory", "metrics", "performance", "dashboard"}
+  };
+  topicOrder_ << "node-health-dashboard";
+
+  // Workspace Browser
+  topics_["workspace-browser"] = {
+    "workspace-browser",
+    tr("Workspace Browser"),
+    tr(R"(# Workspace Browser
+
+The Workspace Browser panel lets you explore and navigate your ROS2 workspace.
+
+## Opening the Browser
+
+**View > Panels > Workspace Browser**
+
+## Features
+
+### Directory Tree
+Browse the complete structure of your ROS2 workspace:
+- Source packages (`src/`)
+- Build artifacts (`build/`)
+- Install files (`install/`)
+- Colcon workspace files
+
+### Package Information
+Click on a package to see:
+- Package name and description
+- Dependencies (build, exec, test)
+- Maintainer information
+- License type
+- Version number
+
+### File Preview
+Select files to preview their contents:
+- Source code with syntax highlighting
+- Launch files
+- Configuration YAML files
+- CMakeLists.txt and package.xml
+
+## Using the Browser
+
+### Navigating
+- Expand folders by clicking the arrow
+- Double-click to open files in the preview pane
+- Right-click for context menu options
+
+### Adding to Canvas
+- Drag a package folder onto the canvas
+- The package block is created automatically
+- Pins are populated from package interfaces
+
+### Search and Filter
+- Use the search box to filter files by name
+- Filter by file type (*.cpp, *.py, *.launch.py)
+- Quick navigation to specific packages
+
+### Open in External Editor
+Right-click a file and select:
+- **Open in VS Code** - Edit in Visual Studio Code
+- **Open in File Manager** - Browse in system file manager
+- **Copy Path** - Copy file path to clipboard
+
+## Workspace Types
+
+The browser supports:
+- **Colcon Workspaces** - Standard ROS2 workspace layout
+- **Catkin Workspaces** - Legacy ROS1 workspaces (read-only)
+- **Mixed Workspaces** - Overlayed workspace configurations
+
+## Tips
+
+- Pin frequently accessed packages for quick access
+- Use the refresh button after building to see new files
+- Drag multiple packages to canvas for batch import
+)"),
+    "",
+    {"workspace", "browser", "files", "packages", "navigate", "explore"}
+  };
+  topicOrder_ << "workspace-browser";
+
+  // Node Templates
+  topics_["node-templates"] = {
+    "node-templates",
+    tr("Node Templates Library"),
+    tr(R"(# Node Templates Library
+
+The Node Templates Library provides pre-built node patterns for common ROS2 tasks.
+
+## Opening the Library
+
+**View > Panels > Node Templates**
+
+## Built-in Templates
+
+### Publisher Node
+Creates a node that publishes messages:
+- Configurable topic name and type
+- Adjustable publish rate
+- Sample message content
+
+### Subscriber Node
+Creates a node that subscribes to messages:
+- Topic name and type selection
+- Callback function template
+- Message processing example
+
+### Service Server
+Creates a ROS2 service server:
+- Service type selection
+- Request/response handlers
+- Error handling template
+
+### Service Client
+Creates a ROS2 service client:
+- Async and sync call patterns
+- Timeout handling
+- Response processing
+
+### Action Server
+Creates a ROS2 action server:
+- Goal handling
+- Feedback publishing
+- Result completion
+- Cancellation support
+
+### Action Client
+Creates a ROS2 action client:
+- Goal sending
+- Feedback subscription
+- Result handling
+
+### Timer Node
+Creates a node with periodic callbacks:
+- Configurable timer period
+- One-shot and repeating modes
+
+### Lifecycle Node
+Creates a managed lifecycle node:
+- Configure, activate, deactivate states
+- Transition callbacks
+- State machine template
+
+## Using Templates
+
+### Instantiate a Template
+1. Find the template in the library panel
+2. Drag it onto the canvas
+3. Configure the parameters in the dialog
+4. Click **Create** to add the node
+
+### Template Parameters
+Each template has configurable options:
+- Node name
+- Topic/service/action names
+- Message types
+- Timer periods
+- Namespace
+
+### Preview Code
+Click **Preview** to see the generated code before creating.
+
+## Custom Templates
+
+### Creating Custom Templates
+1. Click **New Template** in the library
+2. Define the template structure
+3. Add configurable parameters
+4. Save to your template library
+
+### Template Format
+Custom templates use a YAML format:
+```yaml
+name: My Custom Node
+category: custom
+parameters:
+  - name: topic_name
+    type: string
+    default: "/my_topic"
+code_template: |
+  class MyNode : public rclcpp::Node { ... }
+```
+
+### Sharing Templates
+- Export templates to share with team
+- Import templates from files
+- Templates are stored in ~/.ros_weaver/templates/
+
+## Tips
+
+- Use templates to ensure consistent code patterns
+- Customize templates for your project's coding style
+- Create templates for frequently used node types
+)"),
+    "",
+    {"templates", "library", "publisher", "subscriber", "service", "action", "patterns"}
+  };
+  topicOrder_ << "node-templates";
+
+  // Rosbag Workbench
+  topics_["rosbag-workbench"] = {
+    "rosbag-workbench",
+    tr("Rosbag Workbench"),
+    tr(R"(# Rosbag Workbench
+
+The Rosbag Workbench provides tools for recording, playing, and analyzing rosbag files.
+
+## Opening the Workbench
+
+**View > Panels > Rosbag Workbench**
+
+## Recording
+
+### Start Recording
+1. Click **Record** in the toolbar
+2. Select topics to record (or all topics)
+3. Choose output file location
+4. Click **Start** to begin recording
+
+### Recording Options
+- **All Topics** - Record everything published
+- **Selected Topics** - Choose specific topics
+- **Split Size** - Split bags at specified size
+- **Duration** - Stop after specified time
+
+### Stop Recording
+Click **Stop** to end recording. The bag file is saved automatically.
+
+## Playback
+
+### Loading a Bag
+1. Click **Open** to browse for a bag file
+2. Or drag a .db3 file onto the workbench
+
+### Playback Controls
+- **Play/Pause** - Start or pause playback
+- **Stop** - Reset to beginning
+- **Seek** - Drag the timeline to any position
+- **Rate** - Adjust playback speed (0.1x to 10x)
+- **Loop** - Continuously repeat playback
+
+### Time-synced Visualization
+During playback, the canvas shows:
+- Active topics highlighted
+- Data flow animations
+- Connection activity indicators
+
+## Inspection
+
+### Message Browser
+- View all topics in the bag
+- See message counts and types
+- Preview message content
+
+### Topic Details
+Select a topic to see:
+- Message type and definition
+- First/last timestamps
+- Average publish rate
+- Total message count
+
+### Message Viewer
+Double-click a topic to:
+- Browse individual messages
+- View timestamps
+- Inspect field values
+- Export to CSV
+
+## Filtering
+
+### Topic Filter
+- Filter topics by name pattern
+- Show/hide specific message types
+- Focus on relevant data
+
+### Time Range
+- Set start and end times
+- Extract portions of the bag
+- Skip irrelevant sections
+
+## Export
+
+### Export Options
+- **New Bag** - Export filtered data to new bag
+- **CSV** - Export topic data to spreadsheet
+- **MCAP** - Convert to MCAP format
+
+## Integration with Canvas
+
+### Canvas Sync
+When playing a bag:
+1. Enable **Sync with Canvas** option
+2. Nodes publishing recorded topics are highlighted
+3. Connection lines animate with playback
+4. Time indicator shows current position
+
+### Jump to Topic
+Right-click a connection on canvas to:
+- View topic in bag (if present)
+- Seek to first message
+- Show topic statistics
+
+## Tips
+
+- Use rate control to slow down fast topics
+- Filter topics before export to reduce file size
+- Enable canvas sync for visual debugging
+- Use time range selection for large bags
+)"),
+    "",
+    {"rosbag", "bag", "record", "playback", "messages", "topics", "replay"}
+  };
+  topicOrder_ << "rosbag-workbench";
 }
 
 void HelpBrowser::buildTableOfContents() {
@@ -1318,6 +1724,14 @@ void HelpBrowser::buildTableOfContents() {
   robotWizardItem->setText(0, tr("Robot Configuration Wizard"));
   robotWizardItem->setData(0, Qt::UserRole, "robot-wizard");
 
+  QTreeWidgetItem* templatesItem = new QTreeWidgetItem(userGuide);
+  templatesItem->setText(0, tr("Node Templates Library"));
+  templatesItem->setData(0, Qt::UserRole, "node-templates");
+
+  QTreeWidgetItem* workspaceItem = new QTreeWidgetItem(userGuide);
+  workspaceItem->setText(0, tr("Workspace Browser"));
+  workspaceItem->setData(0, Qt::UserRole, "workspace-browser");
+
   QTreeWidgetItem* projectItem = new QTreeWidgetItem(userGuide);
   projectItem->setText(0, tr("Project Management"));
   projectItem->setData(0, Qt::UserRole, "project-management");
@@ -1334,6 +1748,14 @@ void HelpBrowser::buildTableOfContents() {
   QTreeWidgetItem* lineageItem = new QTreeWidgetItem(ros2Item);
   lineageItem->setText(0, tr("Data Lineage"));
   lineageItem->setData(0, Qt::UserRole, "data-lineage");
+
+  QTreeWidgetItem* healthItem = new QTreeWidgetItem(ros2Item);
+  healthItem->setText(0, tr("Node Health Dashboard"));
+  healthItem->setData(0, Qt::UserRole, "node-health-dashboard");
+
+  QTreeWidgetItem* rosbagItem = new QTreeWidgetItem(ros2Item);
+  rosbagItem->setText(0, tr("Rosbag Workbench"));
+  rosbagItem->setData(0, Qt::UserRole, "rosbag-workbench");
 
   QTreeWidgetItem* aiItem = new QTreeWidgetItem(tocTree_);
   aiItem->setText(0, tr("Local AI Assistant"));

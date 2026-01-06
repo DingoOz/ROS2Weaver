@@ -78,6 +78,10 @@ QString ContextHelp::getHelpTopic(QWidget* widget) {
     {"ros_weaver::TourTooltip", "guided-tour"},
     {"ros_weaver::KeyboardShortcutsDialog", "keyboard-shortcuts"},
     {"ros_weaver::HelpBrowser", "getting-started"},
+    {"ros_weaver::NodeHealthDashboard", "node-health-dashboard"},
+    {"ros_weaver::WorkspaceBrowserPanel", "workspace-browser"},
+    {"ros_weaver::NodeTemplatesPanel", "node-templates"},
+    {"ros_weaver::RosbagWorkbenchPanel", "rosbag-workbench"},
   };
 
   if (classTopicMap.contains(className)) {
