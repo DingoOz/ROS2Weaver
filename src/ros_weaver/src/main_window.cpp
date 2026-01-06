@@ -53,6 +53,7 @@
 #include "ros_weaver/widgets/minimap_panel.hpp"
 #include "ros_weaver/widgets/node_templates_panel.hpp"
 #include "ros_weaver/widgets/workspace_browser_panel.hpp"
+#include "ros_weaver/widgets/diff_view_dialog.hpp"
 #include "ros_weaver/core/dot_importer.hpp"
 #include "ros_weaver/core/caret_importer.hpp"
 #include "ros_weaver/core/static_analyzer.hpp"
@@ -391,6 +392,33 @@ void MainWindow::setupMenuBar() {
   QAction* themeEditorAction = editMenu->addAction(tr("&Theme Editor..."));
   themeEditorAction->setToolTip(tr("Create and customize color themes"));
   connect(themeEditorAction, &QAction::triggered, this, &MainWindow::onShowThemeEditor);
+
+  editMenu->addSeparator();
+
+  QAction* diffViewAction = editMenu->addAction(tr("Compare &Projects..."));
+  diffViewAction->setToolTip(tr("Compare two project files to see differences"));
+  connect(diffViewAction, &QAction::triggered, this, [this]() {
+    // Open file dialogs to select two projects
+    QString beforePath = QFileDialog::getOpenFileName(
+      this,
+      tr("Select 'Before' Project"),
+      QString(),
+      tr("ROS Weaver Projects (*.rwproj *.json);;All Files (*)")
+    );
+    if (beforePath.isEmpty()) return;
+
+    QString afterPath = QFileDialog::getOpenFileName(
+      this,
+      tr("Select 'After' Project"),
+      QString(),
+      tr("ROS Weaver Projects (*.rwproj *.json);;All Files (*)")
+    );
+    if (afterPath.isEmpty()) return;
+
+    DiffViewDialog dialog(this);
+    dialog.compareFiles(beforePath, afterPath);
+    dialog.exec();
+  });
 
   // View menu
   QMenu* viewMenu = menuBar()->addMenu(tr("&View"));
