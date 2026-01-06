@@ -57,6 +57,7 @@ set(SOURCES
   src/canvas/package_block.cpp
   src/canvas/connection_line.cpp
   src/canvas/node_group.cpp
+  src/canvas/canvas_annotation.cpp
   src/core/project.cpp
   src/core/ros_package_index.cpp
   src/core/code_generator.cpp
@@ -162,6 +163,7 @@ set(HEADERS
   include/ros_weaver/canvas/package_block.hpp
   include/ros_weaver/canvas/connection_line.hpp
   include/ros_weaver/canvas/node_group.hpp
+  include/ros_weaver/canvas/canvas_annotation.hpp
   include/ros_weaver/core/project.hpp
   include/ros_weaver/core/ros_package_index.hpp
   include/ros_weaver/core/code_generator.hpp

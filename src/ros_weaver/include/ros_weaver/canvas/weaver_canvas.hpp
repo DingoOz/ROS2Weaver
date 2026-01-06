@@ -17,6 +17,7 @@ namespace ros_weaver {
 class PackageBlock;
 class ConnectionLine;
 class NodeGroup;
+class CanvasAnnotation;
 class Project;
 class UndoStack;
 
@@ -62,6 +63,11 @@ public:
   NodeGroup* createGroupFromSelection(const QString& title = "Group");
   void removeNodeGroup(NodeGroup* group);
   QList<NodeGroup*> nodeGroups() const { return nodeGroups_; }
+
+  // Annotation management
+  CanvasAnnotation* addAnnotation(const QPointF& pos);
+  void removeAnnotation(CanvasAnnotation* annotation);
+  QList<CanvasAnnotation*> annotations() const { return annotations_; }
 
   // Get all connections on the canvas
   QList<ConnectionLine*> connections() const;
@@ -128,6 +134,7 @@ signals:
   void blockDoubleClicked(PackageBlock* block);
   void connectionCreated(ConnectionLine* connection);
   void groupCreated(NodeGroup* group);
+  void annotationCreated(CanvasAnnotation* annotation);
   void canvasCleared();
   void blockYamlSourceChanged(PackageBlock* block, const QString& yamlSource);
   void openBlockInVSCodeRequested(PackageBlock* block);
@@ -208,6 +215,9 @@ private:
 
   // Node groups
   QList<NodeGroup*> nodeGroups_;
+
+  // Annotations
+  QList<CanvasAnnotation*> annotations_;
 
   // Available YAML files for context menu
   QStringList availableYamlFiles_;
