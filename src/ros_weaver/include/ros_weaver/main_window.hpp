@@ -59,6 +59,7 @@ class CanvasTabWidget;
 class MinimapPanel;
 class NodeTemplatesPanel;
 class WorkspaceBrowserPanel;
+class NodeHealthDashboard;
 
 class MainWindow : public QMainWindow {
   Q_OBJECT
@@ -349,6 +350,10 @@ private:
   // Workspace browser panel
   WorkspaceBrowserPanel* workspaceBrowserPanel_;
   QDockWidget* workspaceBrowserDock_;
+
+  // Node health dashboard
+  NodeHealthDashboard* nodeHealthDashboard_;
+  QDockWidget* nodeHealthDock_;
 };
 
 }  // namespace ros_weaver

@@ -53,6 +53,7 @@
 #include "ros_weaver/widgets/minimap_panel.hpp"
 #include "ros_weaver/widgets/node_templates_panel.hpp"
 #include "ros_weaver/widgets/workspace_browser_panel.hpp"
+#include "ros_weaver/widgets/node_health_dashboard.hpp"
 #include "ros_weaver/widgets/diff_view_dialog.hpp"
 #include "ros_weaver/core/dot_importer.hpp"
 #include "ros_weaver/core/caret_importer.hpp"
@@ -613,6 +614,12 @@ void MainWindow::setupMenuBar() {
   showWorkspaceBrowserAction->setChecked(false);  // Hidden by default
   showWorkspaceBrowserAction->setObjectName("showWorkspaceBrowserAction");
   showWorkspaceBrowserAction->setToolTip(tr("Show/hide workspace browser for viewing ROS2 packages and files"));
+
+  QAction* showNodeHealthAction = panelsMenu->addAction(tr("Node &Health Dashboard"));
+  showNodeHealthAction->setCheckable(true);
+  showNodeHealthAction->setChecked(false);  // Hidden by default
+  showNodeHealthAction->setObjectName("showNodeHealthAction");
+  showNodeHealthAction->setToolTip(tr("Show/hide node health dashboard for real-time monitoring"));
 
   panelsMenu->addSeparator();
 
@@ -1476,6 +1483,29 @@ void MainWindow::setupDockWidgets() {
   if (showWorkspaceBrowserAction) {
     connect(showWorkspaceBrowserAction, &QAction::toggled, workspaceBrowserDock_, &QDockWidget::setVisible);
     connect(workspaceBrowserDock_, &QDockWidget::visibilityChanged, showWorkspaceBrowserAction, &QAction::setChecked);
+  }
+
+  // Node Health Dashboard
+  nodeHealthDock_ = new QDockWidget(tr("Node Health"), this);
+  nodeHealthDock_->setObjectName("nodeHealthDock");
+  nodeHealthDock_->setAllowedAreas(Qt::AllDockWidgetAreas);
+  nodeHealthDock_->setFeatures(QDockWidget::DockWidgetMovable |
+                               QDockWidget::DockWidgetFloatable |
+                               QDockWidget::DockWidgetClosable);
+
+  nodeHealthDashboard_ = new NodeHealthDashboard(this);
+  nodeHealthDashboard_->setCanvas(canvas_);
+  nodeHealthDock_->setWidget(nodeHealthDashboard_);
+
+  // Add to right dock area
+  addDockWidget(Qt::RightDockWidgetArea, nodeHealthDock_);
+  nodeHealthDock_->hide();  // Hidden by default
+
+  // Connect node health dashboard visibility toggle
+  QAction* showNodeHealthAction = findChild<QAction*>("showNodeHealthAction");
+  if (showNodeHealthAction) {
+    connect(showNodeHealthAction, &QAction::toggled, nodeHealthDock_, &QDockWidget::setVisible);
+    connect(nodeHealthDock_, &QDockWidget::visibilityChanged, showNodeHealthAction, &QAction::setChecked);
   }
 
   // Connect static analyzer signals

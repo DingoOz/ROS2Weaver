@@ -136,10 +136,12 @@ set(SOURCES
   src/core/node_templates.cpp
   src/core/architecture_diff.cpp
   src/core/playback_visualizer.cpp
+  src/core/node_health_monitor.cpp
   src/widgets/schema_viewer_widget.cpp
   src/widgets/diff_view_dialog.cpp
   src/widgets/node_templates_panel.cpp
   src/widgets/workspace_browser_panel.cpp
+  src/widgets/node_health_dashboard.cpp
   src/widgets/advanced_search_panel.cpp
   src/widgets/theme_editor_dialog.cpp
   src/widgets/issue_list_panel.cpp
@@ -249,10 +251,12 @@ set(HEADERS
   include/ros_weaver/core/node_templates.hpp
   include/ros_weaver/core/architecture_diff.hpp
   include/ros_weaver/core/playback_visualizer.hpp
+  include/ros_weaver/core/node_health_monitor.hpp
   include/ros_weaver/widgets/schema_viewer_widget.hpp
   include/ros_weaver/widgets/diff_view_dialog.hpp
   include/ros_weaver/widgets/node_templates_panel.hpp
   include/ros_weaver/widgets/workspace_browser_panel.hpp
+  include/ros_weaver/widgets/node_health_dashboard.hpp
   include/ros_weaver/widgets/advanced_search_panel.hpp
   include/ros_weaver/widgets/theme_editor_dialog.hpp
   include/ros_weaver/widgets/issue_list_panel.hpp
