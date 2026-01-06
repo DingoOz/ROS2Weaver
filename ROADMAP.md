@@ -38,6 +38,7 @@ These are community and AI-suggested features to enhance ROS2Weaver, prioritized
 | Automated Error Fixing Suggestions | ✅ Done | AI suggestions via "Ask AI" button |
 | Architecture Optimization Recommendations | ✅ Done | Tools → Optimize Architecture |
 | Advanced Node Library Search | ✅ Done | Search tab with filters |
+| Improved Namespace/Remapping Visualization | ✅ Done | Visual namespace badges and remapping indicators |
 
 ### Remaining Features
 
@@ -45,7 +46,6 @@ These are community and AI-suggested features to enhance ROS2Weaver, prioritized
 |---------|----------|------------|
 | Embedded mini-RViz / 3D view | Low | High |
 | Multi-user collaboration | Low | High |
-| Improved namespace/remapping visualization | Low | Low |
 
 ---
 
@@ -122,6 +122,14 @@ This keeps features isolated and makes code review easier.
 - Message type filtering (common ROS2 message types)
 - Feature filters: Has Inputs, Has Outputs, Has Services, Has Actions
 - Double-click or "Add to Canvas" button to add nodes
+
+#### Improved Namespace/Remapping Visualization
+- **Namespace Badge**: Purple badge displayed above blocks showing their namespace (e.g., `/my_robot`)
+- **Remapping Indicator**: Amber arrow icon in block header when topic/service remappings are configured
+- **Connection Visualization**: Remapped connections shown with dashed amber lines
+- **Remapping Editor**: Full editor for adding/removing namespace and topic remappings per block
+- **Tooltip Support**: Connection tooltips show original and remapped topic names
+- **Storage Integration**: Namespace and remappings stored on PackageBlock and persisted with projects
 
 ### Documentation & Discovery Features ✅
 

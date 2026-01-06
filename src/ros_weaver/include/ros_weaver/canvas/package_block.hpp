@@ -11,6 +11,7 @@
 #include <QVariant>
 #include "ros_weaver/core/project.hpp"
 #include "ros_weaver/core/canvas_mapper.hpp"
+#include "ros_weaver/widgets/remapping_editor.hpp"
 
 namespace ros_weaver {
 
@@ -142,6 +143,24 @@ public:
   QColor healthOverlayColor() const { return healthOverlayColor_; }
   bool hasHealthOverlay() const { return healthOverlayColor_.isValid(); }
 
+  // Namespace management
+  void setNodeNamespace(const QString& ns);
+  QString nodeNamespace() const { return namespace_; }
+  bool hasNamespace() const { return !namespace_.isEmpty(); }
+  QString fullyQualifiedName() const;  // Returns namespace/nodename
+
+  // Remapping management
+  void setRemappings(const QList<Remapping>& remappings);
+  QList<Remapping> remappings() const { return remappings_; }
+  void addRemapping(const Remapping& remapping);
+  void removeRemapping(int index);
+  void clearRemappings();
+  bool hasRemappings() const { return !remappings_.isEmpty(); }
+
+  // Get remapped name for a topic/service (returns original if not remapped)
+  QString getRemappedName(const QString& originalName, const QString& type = "topic") const;
+  QString getOriginalName(const QString& remappedName, const QString& type = "topic") const;
+
 signals:
   void pinHovered(PackageBlock* block, int pinIndex, bool isOutput);
   void pinUnhovered(PackageBlock* block);
@@ -192,6 +211,10 @@ private:
 
   // Health overlay for heatmap visualization
   QColor healthOverlayColor_;
+
+  // Namespace and remappings
+  QString namespace_;
+  QList<Remapping> remappings_;
 
   // Visual dimensions
   static constexpr qreal BLOCK_WIDTH = 180.0;

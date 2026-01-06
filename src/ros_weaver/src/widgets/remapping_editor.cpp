@@ -1,5 +1,6 @@
 #include "ros_weaver/widgets/remapping_editor.hpp"
 #include "ros_weaver/canvas/package_block.hpp"
+#include "ros_weaver/canvas/connection_line.hpp"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -137,10 +138,11 @@ void RemappingEditor::setBlock(PackageBlock* block) {
 void RemappingEditor::loadFromBlock() {
   if (!currentBlock_) return;
 
-  remappings_.clear();
-  // TODO: Load existing remappings from block if stored
+  // Load namespace from block
+  originalNamespace_ = currentBlock_->nodeNamespace();
 
-  originalNamespace_ = ""; // Would load from block
+  // Load remappings from block
+  remappings_ = currentBlock_->remappings();
   originalRemappings_ = remappings_;
 
   namespaceEdit_->setText(originalNamespace_);
@@ -253,9 +255,16 @@ void RemappingEditor::removeSelectedRemapping() {
 void RemappingEditor::applyChanges() {
   if (!currentBlock_) return;
 
-  // Store remappings on block
-  // The actual storage mechanism depends on how you want to persist this data
-  // For now, we emit signals to indicate changes
+  // Apply namespace to block
+  currentBlock_->setNodeNamespace(namespaceEdit_->text());
+
+  // Apply remappings to block
+  currentBlock_->setRemappings(remappings_);
+
+  // Update connection lines to show remapping status
+  for (ConnectionLine* conn : currentBlock_->connections()) {
+    conn->updateRemappingStatus();
+  }
 
   originalNamespace_ = namespaceEdit_->text();
   originalRemappings_ = remappings_;

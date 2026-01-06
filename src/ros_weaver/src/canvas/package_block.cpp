@@ -38,7 +38,14 @@ QRectF PackageBlock::boundingRect() const {
   qreal height = std::max(MIN_HEIGHT, HEADER_HEIGHT + pinCount * PIN_HEIGHT + 10);
   // Expand bounding rect to include pin hover glow (PIN_RADIUS + 3 for glow + 2 for pen width)
   qreal pinMargin = PIN_RADIUS + 5;
-  return QRectF(-pinMargin, 0, BLOCK_WIDTH + pinMargin * 2, height);
+
+  // Add space for namespace badge if present
+  qreal namespaceOffset = 0;
+  if (!namespace_.isEmpty()) {
+    namespaceOffset = 18;  // Height of namespace badge
+  }
+
+  return QRectF(-pinMargin, -namespaceOffset, BLOCK_WIDTH + pinMargin * 2, height + namespaceOffset);
 }
 
 void PackageBlock::paint(QPainter* painter, const QStyleOptionGraphicsItem* option,
@@ -50,6 +57,32 @@ void PackageBlock::paint(QPainter* painter, const QStyleOptionGraphicsItem* opti
   qreal pinCount = std::max(inputPins_.size(), outputPins_.size());
   qreal height = std::max(MIN_HEIGHT, HEADER_HEIGHT + pinCount * PIN_HEIGHT + 10);
   QRectF rect(0, 0, BLOCK_WIDTH, height);
+
+  // Draw namespace badge if present
+  if (!namespace_.isEmpty()) {
+    // Draw namespace badge above the block
+    QRectF nsBadgeRect(0, -16, BLOCK_WIDTH, 14);
+
+    // Background - purple/violet color for namespace
+    painter->setPen(Qt::NoPen);
+    painter->setBrush(QColor(128, 90, 213, 200));  // Purple with slight transparency
+    painter->drawRoundedRect(nsBadgeRect, 4, 4);
+
+    // Namespace text
+    painter->setPen(Qt::white);
+    QFont nsFont("Sans", 8);
+    nsFont.setItalic(true);
+    painter->setFont(nsFont);
+
+    QString nsDisplay = namespace_;
+    if (!nsDisplay.startsWith('/')) {
+      nsDisplay = '/' + nsDisplay;
+    }
+
+    painter->drawText(nsBadgeRect.adjusted(4, 0, -4, 0),
+                      Qt::AlignVCenter | Qt::AlignLeft,
+                      nsDisplay);
+  }
 
   // Draw shadow
   painter->setPen(Qt::NoPen);
@@ -129,9 +162,33 @@ void PackageBlock::paint(QPainter* painter, const QStyleOptionGraphicsItem* opti
     }
   }
 
-  // Draw package name (adjust width if status indicator is shown)
-  qreal nameWidth = showRuntimeStatus_ && runtimeStatus_ != BlockRuntimeStatus::Unknown
-                    ? BLOCK_WIDTH - 40 : BLOCK_WIDTH - 20;
+  // Draw remapping indicator if has remappings
+  if (!remappings_.isEmpty()) {
+    // Position depends on whether status indicator is shown
+    qreal indicatorX = (showRuntimeStatus_ && runtimeStatus_ != BlockRuntimeStatus::Unknown)
+                       ? BLOCK_WIDTH - 30 : BLOCK_WIDTH - 15;
+    qreal indicatorY = HEADER_HEIGHT / 2;
+
+    // Draw a small "remap" arrow icon (→)
+    painter->setPen(QPen(QColor(255, 193, 7), 2));  // Amber/yellow color
+    painter->setBrush(Qt::NoBrush);
+
+    // Draw double arrow ⇄
+    QPointF arrowCenter(indicatorX, indicatorY);
+    painter->drawLine(arrowCenter + QPointF(-4, 0), arrowCenter + QPointF(4, 0));
+    painter->drawLine(arrowCenter + QPointF(2, -3), arrowCenter + QPointF(4, 0));
+    painter->drawLine(arrowCenter + QPointF(2, 3), arrowCenter + QPointF(4, 0));
+  }
+
+  // Draw package name (adjust width if status/remapping indicators are shown)
+  qreal nameWidth = BLOCK_WIDTH - 20;
+  if (showRuntimeStatus_ && runtimeStatus_ != BlockRuntimeStatus::Unknown) {
+    nameWidth -= 20;
+  }
+  if (!remappings_.isEmpty()) {
+    nameWidth -= 15;
+  }
+
   painter->setPen(Qt::white);
   painter->setFont(QFont("Sans", 10, QFont::Bold));
   painter->drawText(QRectF(10, 0, nameWidth, HEADER_HEIGHT),
@@ -510,6 +567,78 @@ void PackageBlock::setHealthOverlayColor(const QColor& color) {
     healthOverlayColor_ = color;
     update();
   }
+}
+
+// Namespace management
+
+void PackageBlock::setNodeNamespace(const QString& ns) {
+  if (namespace_ != ns) {
+    namespace_ = ns;
+    prepareGeometryChange();  // Namespace badge may change block size
+    update();
+  }
+}
+
+QString PackageBlock::fullyQualifiedName() const {
+  if (namespace_.isEmpty()) {
+    return packageName_;
+  }
+  QString ns = namespace_;
+  if (!ns.startsWith('/')) {
+    ns = '/' + ns;
+  }
+  if (!ns.endsWith('/')) {
+    ns += '/';
+  }
+  return ns + packageName_;
+}
+
+// Remapping management
+
+void PackageBlock::setRemappings(const QList<Remapping>& remappings) {
+  remappings_ = remappings;
+  update();
+}
+
+void PackageBlock::addRemapping(const Remapping& remapping) {
+  // Check for duplicates
+  for (const Remapping& existing : remappings_) {
+    if (existing.fromName == remapping.fromName && existing.type == remapping.type) {
+      return;  // Already exists
+    }
+  }
+  remappings_.append(remapping);
+  update();
+}
+
+void PackageBlock::removeRemapping(int index) {
+  if (index >= 0 && index < remappings_.size()) {
+    remappings_.removeAt(index);
+    update();
+  }
+}
+
+void PackageBlock::clearRemappings() {
+  remappings_.clear();
+  update();
+}
+
+QString PackageBlock::getRemappedName(const QString& originalName, const QString& type) const {
+  for (const Remapping& remap : remappings_) {
+    if (remap.fromName == originalName && remap.type == type) {
+      return remap.toName;
+    }
+  }
+  return originalName;  // No remapping found
+}
+
+QString PackageBlock::getOriginalName(const QString& remappedName, const QString& type) const {
+  for (const Remapping& remap : remappings_) {
+    if (remap.toName == remappedName && remap.type == type) {
+      return remap.fromName;
+    }
+  }
+  return remappedName;  // No remapping found
 }
 
 }  // namespace ros_weaver

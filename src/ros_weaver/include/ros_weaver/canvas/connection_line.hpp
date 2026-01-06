@@ -130,6 +130,16 @@ public:
   void setExpectedRate(double rateHz);
   double expectedRate() const { return expectedRate_; }
 
+  // Remapping visualization
+  void setIsRemapped(bool remapped);
+  bool isRemapped() const { return isRemapped_; }
+
+  void setOriginalTopicName(const QString& name);
+  QString originalTopicName() const { return originalTopicName_; }
+
+  // Check if this connection has a remapping from source or target block
+  void updateRemappingStatus();
+
   // Safely detach from blocks before canvas clearing
   // This prevents use-after-free when scene_->clear() deletes items in undefined order
   void detach();
@@ -190,6 +200,10 @@ private:
   ConnectionStats stats_;
   bool showBandwidth_;
   double expectedRate_;
+
+  // Remapping visualization
+  bool isRemapped_;
+  QString originalTopicName_;
 
   static constexpr qreal LINE_WIDTH = 2.0;
   static constexpr qreal HIGHLIGHT_WIDTH = 4.0;
