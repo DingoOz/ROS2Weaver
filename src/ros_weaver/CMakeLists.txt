@@ -131,6 +131,7 @@ set(SOURCES
   src/core/layout_algorithms.cpp
   src/core/launch_file_generator.cpp
   src/core/qos_profile.cpp
+  src/core/parameter_preset.cpp
   src/widgets/schema_viewer_widget.cpp
   src/widgets/advanced_search_panel.cpp
   src/widgets/theme_editor_dialog.cpp
@@ -141,6 +142,7 @@ set(SOURCES
   src/widgets/connection_stats_dialog.cpp
   src/widgets/launch_preview_dialog.cpp
   src/widgets/qos_editor_dialog.cpp
+  src/widgets/preset_selector_widget.cpp
   src/wizards/package_wizard.cpp
   src/wizards/robot_wizard.cpp
   src/wizards/mcp_server_wizard.cpp
@@ -235,6 +237,7 @@ set(HEADERS
   include/ros_weaver/core/layout_algorithms.hpp
   include/ros_weaver/core/launch_file_generator.hpp
   include/ros_weaver/core/qos_profile.hpp
+  include/ros_weaver/core/parameter_preset.hpp
   include/ros_weaver/widgets/schema_viewer_widget.hpp
   include/ros_weaver/widgets/advanced_search_panel.hpp
   include/ros_weaver/widgets/theme_editor_dialog.hpp
@@ -245,6 +248,7 @@ set(HEADERS
   include/ros_weaver/widgets/connection_stats_dialog.hpp
   include/ros_weaver/widgets/launch_preview_dialog.hpp
   include/ros_weaver/widgets/qos_editor_dialog.hpp
+  include/ros_weaver/widgets/preset_selector_widget.hpp
   include/ros_weaver/widgets/canvas_tab_widget.hpp
 )
 
