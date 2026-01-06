@@ -3,6 +3,7 @@
 #include "ros_weaver/core/bag_recorder.hpp"
 #include "ros_weaver/core/playback_controller.hpp"
 #include "ros_weaver/core/slam_pipeline_manager.hpp"
+#include "ros_weaver/core/playback_visualizer.hpp"
 #include "ros_weaver/widgets/timeline_widget.hpp"
 #include "ros_weaver/widgets/playback_control_widget.hpp"
 #include "ros_weaver/widgets/topic_selector_widget.hpp"
@@ -28,11 +29,13 @@ RosbagWorkbenchPanel::RosbagWorkbenchPanel(QWidget* parent)
   bagRecorder_ = new BagRecorder(this);
   playbackController_ = new PlaybackController(this);
   slamManager_ = new SlamPipelineManager(this);
+  playbackVisualizer_ = new PlaybackVisualizer(this);
 
   // Wire up core components
   playbackController_->setBagManager(bagManager_);
   slamManager_->setBagManager(bagManager_);
   slamManager_->setPlaybackController(playbackController_);
+  playbackVisualizer_->setPlaybackController(playbackController_);
 
   setupUi();
   setupConnections();
@@ -52,6 +55,7 @@ RosbagWorkbenchPanel::~RosbagWorkbenchPanel() {
 
 void RosbagWorkbenchPanel::setCanvas(WeaverCanvas* canvas) {
   canvas_ = canvas;
+  playbackVisualizer_->setCanvas(canvas);
 }
 
 void RosbagWorkbenchPanel::setTopicViewerPanel(TopicViewerPanel* panel) {
@@ -97,6 +101,10 @@ PlaybackController* RosbagWorkbenchPanel::playbackController() const {
 
 SlamPipelineManager* RosbagWorkbenchPanel::slamPipelineManager() const {
   return slamManager_;
+}
+
+PlaybackVisualizer* RosbagWorkbenchPanel::playbackVisualizer() const {
+  return playbackVisualizer_;
 }
 
 void RosbagWorkbenchPanel::setRecordingPath(const QString& path) {

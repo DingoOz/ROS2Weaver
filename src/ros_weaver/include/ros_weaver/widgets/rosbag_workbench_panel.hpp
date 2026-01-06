@@ -24,6 +24,7 @@ class BookmarkManager;
 class TopicViewerPanel;
 class PlotPanel;
 class ParamDashboard;
+class PlaybackVisualizer;
 
 struct RecordingStats;
 
@@ -64,6 +65,7 @@ public:
   BagRecorder* bagRecorder() const;
   PlaybackController* playbackController() const;
   SlamPipelineManager* slamPipelineManager() const;
+  PlaybackVisualizer* playbackVisualizer() const;
 
   // Recording path
   void setRecordingPath(const QString& path);
@@ -115,6 +117,7 @@ private:
   BagRecorder* bagRecorder_ = nullptr;
   PlaybackController* playbackController_ = nullptr;
   SlamPipelineManager* slamManager_ = nullptr;
+  PlaybackVisualizer* playbackVisualizer_ = nullptr;
 
   // UI - Toolbar
   QPushButton* openBagButton_ = nullptr;
