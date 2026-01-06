@@ -49,22 +49,44 @@ Inspired by visual programming tools like Unreal Engine's Blueprint and Houdini'
 - Animated connections showing live data flow rates
 - Node grouping with resizable, colored comment boxes
 - Zoom/pan navigation with middle mouse button
+- **Multi-canvas tabs** for organizing complex projects
+- **Canvas annotations** for documentation and notes
+- **Mini-map navigation** for large canvas overview
 
 ### Live ROS2 Monitoring
 - Real-time topic viewer with message rates and echo output
 - TF tree visualization with frame status and transform details
 - System discovery scanning running nodes, topics, and services
 - Canvas mapping to match discovered nodes with blocks
+- **Node Health Dashboard** with CPU, memory, latency, and message rate metrics
+- **Heatmap visualization** to color canvas nodes by resource usage
 
 ### Data Visualization
 - Plot panel for real-time numeric data graphing
 - Configurable plot styles and time windows
 - Multi-topic overlay support
+- **Time-synced playback visualization** for rosbag replay with canvas highlighting
+
+### Rosbag Workbench
+- Record, playback, and inspect rosbag files
+- Integrated playback controls with canvas synchronization
+- Message inspection and topic filtering
 
 ### Code Generation
 - Package generation wizard with launch files and parameters
 - YAML parameter export
 - VS Code integration for generated packages
+- **Architecture diff view** to compare project versions and highlight changes
+
+### Workspace Browser
+- Browse and navigate ROS2 workspace packages
+- Quick file preview and package information
+- Drag packages directly onto canvas
+
+### Node Templates Library
+- Pre-built node templates for common patterns (publisher, subscriber, service, action)
+- Custom template creation and management
+- Quick instantiation with configurable parameters
 
 ### Robot Configuration Wizard
 Create complete robot description packages with ros2_control support:
