@@ -57,6 +57,7 @@ class ThemeEditorDialog;
 class RemappingEditor;
 class CanvasTabWidget;
 class MinimapPanel;
+class NodeTemplatesPanel;
 
 class MainWindow : public QMainWindow {
   Q_OBJECT
@@ -339,6 +340,10 @@ private:
   // Minimap navigation
   MinimapPanel* minimapPanel_;
   QDockWidget* minimapDock_;
+
+  // Node templates panel
+  NodeTemplatesPanel* nodeTemplatesPanel_;
+  QDockWidget* nodeTemplatesDock_;
 };
 
 }  // namespace ros_weaver

@@ -51,6 +51,7 @@
 #include "ros_weaver/widgets/remapping_editor.hpp"
 #include "ros_weaver/widgets/canvas_tab_widget.hpp"
 #include "ros_weaver/widgets/minimap_panel.hpp"
+#include "ros_weaver/widgets/node_templates_panel.hpp"
 #include "ros_weaver/core/dot_importer.hpp"
 #include "ros_weaver/core/caret_importer.hpp"
 #include "ros_weaver/core/static_analyzer.hpp"
@@ -571,6 +572,12 @@ void MainWindow::setupMenuBar() {
   showMinimapAction->setShortcut(tr("M"));
   showMinimapAction->setObjectName("showMinimapAction");
   showMinimapAction->setToolTip(tr("Show/hide minimap for navigating large canvases"));
+
+  QAction* showNodeTemplatesAction = panelsMenu->addAction(tr("Node &Templates Library"));
+  showNodeTemplatesAction->setCheckable(true);
+  showNodeTemplatesAction->setChecked(false);  // Hidden by default
+  showNodeTemplatesAction->setObjectName("showNodeTemplatesAction");
+  showNodeTemplatesAction->setToolTip(tr("Show/hide node templates library for quick node creation"));
 
   panelsMenu->addSeparator();
 
@@ -1337,6 +1344,60 @@ void MainWindow::setupDockWidgets() {
   if (showMinimapAction) {
     connect(showMinimapAction, &QAction::toggled, minimapDock_, &QDockWidget::setVisible);
     connect(minimapDock_, &QDockWidget::visibilityChanged, showMinimapAction, &QAction::setChecked);
+  }
+
+  // Node Templates panel
+  nodeTemplatesDock_ = new QDockWidget(tr("Node Templates"), this);
+  nodeTemplatesDock_->setObjectName("nodeTemplatesDock");
+  nodeTemplatesDock_->setAllowedAreas(Qt::AllDockWidgetAreas);
+  nodeTemplatesDock_->setFeatures(QDockWidget::DockWidgetMovable |
+                                  QDockWidget::DockWidgetFloatable |
+                                  QDockWidget::DockWidgetClosable);
+
+  nodeTemplatesPanel_ = new NodeTemplatesPanel(this);
+  nodeTemplatesDock_->setWidget(nodeTemplatesPanel_);
+
+  // Add to left dock area, tabified with package browser
+  addDockWidget(Qt::LeftDockWidgetArea, nodeTemplatesDock_);
+  tabifyDockWidget(packageBrowserDock_, nodeTemplatesDock_);
+  nodeTemplatesDock_->hide();  // Hidden by default
+
+  // Connect template selection to canvas node creation
+  connect(nodeTemplatesPanel_, &NodeTemplatesPanel::templateSelected, this,
+          [this](const NodeTemplate& tmpl) {
+    if (canvas_) {
+      // Create a new block based on the template
+      PackageBlock* block = canvas_->addPackageBlock(tmpl.displayName, QPointF(200, 200));
+      if (block) {
+        // Add input pins from template
+        for (const auto& pin : tmpl.inputPins) {
+          block->addInputPin(pin.name, Pin::DataType::Topic, pin.messageType);
+        }
+        // Add output pins from template
+        for (const auto& pin : tmpl.outputPins) {
+          block->addOutputPin(pin.name, Pin::DataType::Topic, pin.messageType);
+        }
+        // Add parameters from template
+        QList<BlockParamData> blockParams;
+        for (const auto& param : tmpl.parameters) {
+          BlockParamData pd;
+          pd.name = param.name;
+          pd.defaultValue = param.defaultValue;
+          pd.currentValue = param.defaultValue;
+          pd.type = param.type;
+          pd.description = param.description;
+          blockParams.append(pd);
+        }
+        block->setParameters(blockParams);
+      }
+    }
+  });
+
+  // Connect node templates visibility toggle
+  QAction* showNodeTemplatesAction = findChild<QAction*>("showNodeTemplatesAction");
+  if (showNodeTemplatesAction) {
+    connect(showNodeTemplatesAction, &QAction::toggled, nodeTemplatesDock_, &QDockWidget::setVisible);
+    connect(nodeTemplatesDock_, &QDockWidget::visibilityChanged, showNodeTemplatesAction, &QAction::setChecked);
   }
 
   // Connect static analyzer signals
