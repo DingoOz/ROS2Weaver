@@ -5,6 +5,8 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QRegularExpression>
+#include <QEventLoop>
+#include <QTimer>
 #include <rclcpp/rclcpp.hpp>
 
 namespace ros_weaver {
@@ -251,36 +253,80 @@ QString AIErrorAdvisor::sendToAI(const QString& prompt) {
     return "";
   }
 
-  // Use a synchronous request through the manager
-  // Note: In production, this should be async to avoid blocking
-  QString response;
-
-  // Create a simple request - the OllamaManager handles the actual HTTP request
-  // For now, we'll construct a basic prompt and use the manager's facilities
-
-  // Build messages for the chat API
-  QJsonArray messages;
-  QJsonObject systemMsg;
-  systemMsg["role"] = "system";
-  systemMsg["content"] = "You are a helpful ROS2 robotics expert assistant. "
-                         "Provide clear, actionable advice for fixing issues.";
-  messages.append(systemMsg);
-
-  QJsonObject userMsg;
-  userMsg["role"] = "user";
-  userMsg["content"] = prompt;
-  messages.append(userMsg);
-
-  // The actual sending would go through OllamaManager's sendMessage
-  // For integration, we rely on the existing chat infrastructure
-  // This is a simplified synchronous version
+  if (ollama.selectedModel().isEmpty()) {
+    RCLCPP_WARN(rclcpp::get_logger("ros_weaver"),
+                "No model selected, cannot get AI advice");
+    return "";
+  }
 
   RCLCPP_INFO(rclcpp::get_logger("ros_weaver"),
               "Sending error advice request to AI...");
 
-  // Return empty for now - actual implementation would use async signals
-  // from OllamaManager
-  return "";
+  // Use an event loop to wait for the async response synchronously
+  QString response;
+  bool completed = false;
+  bool hasError = false;
+
+  QEventLoop loop;
+
+  // Set up timeout (30 seconds for AI response)
+  QTimer timeout;
+  timeout.setSingleShot(true);
+  QObject::connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
+
+  // Connect to completion signals
+  auto tokenConn = QObject::connect(&ollama, &OllamaManager::completionToken,
+      [&response](const QString& token) {
+        response += token;
+      });
+
+  auto finishConn = QObject::connect(&ollama, &OllamaManager::completionFinished,
+      [&completed, &loop](const QString& fullResponse) {
+        Q_UNUSED(fullResponse);
+        completed = true;
+        loop.quit();
+      });
+
+  auto errorConn = QObject::connect(&ollama, &OllamaManager::completionError,
+      [&hasError, &loop](const QString& error) {
+        Q_UNUSED(error);
+        hasError = true;
+        loop.quit();
+      });
+
+  // Build system prompt for ROS2 error fixing
+  QString systemPrompt = "You are a helpful ROS2 robotics expert assistant. "
+                         "Provide clear, actionable advice for fixing issues. "
+                         "When providing suggestions, format your response as JSON "
+                         "with a 'suggestions' array containing objects with "
+                         "'title', 'description', 'code', 'rationale', and 'confidence' fields.";
+
+  // Send the request
+  ollama.generateCompletion(prompt, systemPrompt, QStringList());
+
+  // Start timeout
+  timeout.start(30000);
+
+  // Wait for response
+  loop.exec();
+
+  // Disconnect signals
+  QObject::disconnect(tokenConn);
+  QObject::disconnect(finishConn);
+  QObject::disconnect(errorConn);
+
+  if (!completed || hasError) {
+    if (!completed && !hasError) {
+      RCLCPP_WARN(rclcpp::get_logger("ros_weaver"),
+                  "AI request timed out after 30 seconds");
+    }
+    return "";
+  }
+
+  RCLCPP_INFO(rclcpp::get_logger("ros_weaver"),
+              "Received AI advice response (%d characters)", response.length());
+
+  return response;
 }
 
 }  // namespace ros_weaver
