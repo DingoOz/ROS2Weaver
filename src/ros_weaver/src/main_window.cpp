@@ -52,6 +52,7 @@
 #include "ros_weaver/widgets/canvas_tab_widget.hpp"
 #include "ros_weaver/widgets/minimap_panel.hpp"
 #include "ros_weaver/widgets/node_templates_panel.hpp"
+#include "ros_weaver/widgets/workspace_browser_panel.hpp"
 #include "ros_weaver/core/dot_importer.hpp"
 #include "ros_weaver/core/caret_importer.hpp"
 #include "ros_weaver/core/static_analyzer.hpp"
@@ -578,6 +579,12 @@ void MainWindow::setupMenuBar() {
   showNodeTemplatesAction->setChecked(false);  // Hidden by default
   showNodeTemplatesAction->setObjectName("showNodeTemplatesAction");
   showNodeTemplatesAction->setToolTip(tr("Show/hide node templates library for quick node creation"));
+
+  QAction* showWorkspaceBrowserAction = panelsMenu->addAction(tr("&Workspace Browser"));
+  showWorkspaceBrowserAction->setCheckable(true);
+  showWorkspaceBrowserAction->setChecked(false);  // Hidden by default
+  showWorkspaceBrowserAction->setObjectName("showWorkspaceBrowserAction");
+  showWorkspaceBrowserAction->setToolTip(tr("Show/hide workspace browser for viewing ROS2 packages and files"));
 
   panelsMenu->addSeparator();
 
@@ -1398,6 +1405,49 @@ void MainWindow::setupDockWidgets() {
   if (showNodeTemplatesAction) {
     connect(showNodeTemplatesAction, &QAction::toggled, nodeTemplatesDock_, &QDockWidget::setVisible);
     connect(nodeTemplatesDock_, &QDockWidget::visibilityChanged, showNodeTemplatesAction, &QAction::setChecked);
+  }
+
+  // Workspace Browser panel
+  workspaceBrowserDock_ = new QDockWidget(tr("Workspace Browser"), this);
+  workspaceBrowserDock_->setObjectName("workspaceBrowserDock");
+  workspaceBrowserDock_->setAllowedAreas(Qt::AllDockWidgetAreas);
+  workspaceBrowserDock_->setFeatures(QDockWidget::DockWidgetMovable |
+                                     QDockWidget::DockWidgetFloatable |
+                                     QDockWidget::DockWidgetClosable);
+
+  workspaceBrowserPanel_ = new WorkspaceBrowserPanel(this);
+  workspaceBrowserDock_->setWidget(workspaceBrowserPanel_);
+
+  // Add to left dock area, tabified with package browser
+  addDockWidget(Qt::LeftDockWidgetArea, workspaceBrowserDock_);
+  tabifyDockWidget(packageBrowserDock_, workspaceBrowserDock_);
+  workspaceBrowserDock_->hide();  // Hidden by default
+
+  // Connect workspace browser signals
+  connect(workspaceBrowserPanel_, &WorkspaceBrowserPanel::launchFileSelected, this,
+          [this](const QString& filePath) {
+    // Open launch file in external editor
+    if (externalEditor_) {
+      externalEditor_->openFileInVSCode(filePath, true);
+    } else {
+      ExternalEditor::openInDefaultEditor(filePath);
+    }
+  });
+
+  connect(workspaceBrowserPanel_, &WorkspaceBrowserPanel::openInEditorRequested, this,
+          [this](const QString& filePath) {
+    if (externalEditor_) {
+      externalEditor_->openFileInVSCode(filePath, true);
+    } else {
+      ExternalEditor::openInDefaultEditor(filePath);
+    }
+  });
+
+  // Connect workspace browser visibility toggle
+  QAction* showWorkspaceBrowserAction = findChild<QAction*>("showWorkspaceBrowserAction");
+  if (showWorkspaceBrowserAction) {
+    connect(showWorkspaceBrowserAction, &QAction::toggled, workspaceBrowserDock_, &QDockWidget::setVisible);
+    connect(workspaceBrowserDock_, &QDockWidget::visibilityChanged, showWorkspaceBrowserAction, &QAction::setChecked);
   }
 
   // Connect static analyzer signals
