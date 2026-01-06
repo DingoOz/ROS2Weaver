@@ -5,6 +5,8 @@
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QRegularExpression>
+#include <QEventLoop>
+#include <QTimer>
 #include <rclcpp/rclcpp.hpp>
 #include <cmath>
 
@@ -742,7 +744,6 @@ ArchitectureGenerationResult ArchitectureGenerator::parseAIResponse(const QStrin
 }
 
 QString ArchitectureGenerator::sendToAI(const QString& prompt) {
-  Q_UNUSED(prompt);
   OllamaManager& ollama = OllamaManager::instance();
 
   if (!ollama.isOllamaRunning()) {
@@ -751,11 +752,78 @@ QString ArchitectureGenerator::sendToAI(const QString& prompt) {
     return "";
   }
 
+  if (ollama.selectedModel().isEmpty()) {
+    RCLCPP_WARN(rclcpp::get_logger("ros_weaver"),
+                "No model selected, cannot generate architecture");
+    return "";
+  }
+
   RCLCPP_INFO(rclcpp::get_logger("ros_weaver"),
               "Sending architecture generation request to AI...");
 
-  // Return empty for now - actual implementation would use async signals
-  return "";
+  // Use an event loop to wait for the async response synchronously
+  QString response;
+  bool completed = false;
+  bool hasError = false;
+
+  QEventLoop loop;
+
+  // Set up timeout (60 seconds for architecture generation - complex prompts)
+  QTimer timeout;
+  timeout.setSingleShot(true);
+  QObject::connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
+
+  // Connect to completion signals
+  auto tokenConn = QObject::connect(&ollama, &OllamaManager::completionToken,
+      [&response](const QString& token) {
+        response += token;
+      });
+
+  auto finishConn = QObject::connect(&ollama, &OllamaManager::completionFinished,
+      [&completed, &loop](const QString& fullResponse) {
+        Q_UNUSED(fullResponse);
+        completed = true;
+        loop.quit();
+      });
+
+  auto errorConn = QObject::connect(&ollama, &OllamaManager::completionError,
+      [&hasError, &loop](const QString& error) {
+        Q_UNUSED(error);
+        hasError = true;
+        loop.quit();
+      });
+
+  // Build system prompt for ROS2 architecture generation
+  QString systemPrompt = "You are a ROS2 robotics architecture expert. "
+                         "Design node architectures using real ROS2 packages. "
+                         "Always respond with valid JSON containing nodes, connections, and groups.";
+
+  // Send the request
+  ollama.generateCompletion(prompt, systemPrompt, QStringList());
+
+  // Start timeout (60 seconds for complex generation)
+  timeout.start(60000);
+
+  // Wait for response
+  loop.exec();
+
+  // Disconnect signals
+  QObject::disconnect(tokenConn);
+  QObject::disconnect(finishConn);
+  QObject::disconnect(errorConn);
+
+  if (!completed || hasError) {
+    if (!completed && !hasError) {
+      RCLCPP_WARN(rclcpp::get_logger("ros_weaver"),
+                  "Architecture generation request timed out after 60 seconds");
+    }
+    return "";
+  }
+
+  RCLCPP_INFO(rclcpp::get_logger("ros_weaver"),
+              "Received architecture generation response (%d characters)", response.length());
+
+  return response;
 }
 
 void ArchitectureGenerator::calculateLayout(ArchitectureGenerationResult& result) {

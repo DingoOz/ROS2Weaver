@@ -34,18 +34,18 @@ These are community and AI-suggested features to enhance ROS2Weaver, prioritized
 | Parameter Presets | ✅ Done | Save/load parameter configurations |
 | Node Templates Library | ✅ Done | Pre-built node patterns |
 | Workspace Browser Panel | ✅ Done | Browse ROS2 workspace packages |
+| Natural Language Architecture Generation | ✅ Done | AI-powered architecture from description |
+| Automated Error Fixing Suggestions | ✅ Done | AI suggestions via "Ask AI" button |
+| Architecture Optimization Recommendations | ✅ Done | Tools → Optimize Architecture |
+| Advanced Node Library Search | ✅ Done | Search tab with filters |
 
 ### Remaining Features
 
 | Feature | Priority | Complexity |
 |---------|----------|------------|
 | Embedded mini-RViz / 3D view | Low | High |
-| Natural language architecture generation | Medium | Medium |
-| Automated error fixing suggestions | Medium | Medium |
-| Architecture optimization recommendations | Medium | Medium |
 | Multi-user collaboration | Low | High |
 | Improved namespace/remapping visualization | Low | Low |
-| Advanced node library search | Low | Low |
 
 ---
 
@@ -81,12 +81,6 @@ This keeps features isolated and makes code review easier.
 - Integration with existing TF Tree panel
 - Would require significant Qt3D or RViz library integration
 
-### Remaining: AI Assistant Expansions
-Building on the existing Ollama integration:
-- Natural language architecture generation (e.g., "Add SLAM with Nav2 and connect to a lidar topic")
-- Automated error fixing suggestions based on validation results
-- Architecture optimization recommendations
-
 ### Remaining: Multi-user Collaboration
 - Real-time collaborative editing
 - Presence indicators
@@ -96,6 +90,38 @@ Building on the existing Ollama integration:
 ---
 
 ## Completed Feature Details
+
+### AI-Powered Features ✅
+
+#### Natural Language Architecture Generation
+- Describe your robot system in plain language and get a generated architecture
+- Uses Ollama integration for AI-powered suggestions
+- Supports: robot type, use case, available sensors as input parameters
+- Generates nodes, connections, and logical groupings automatically
+- Example: "Create a ROS2 architecture for a mobile robot with SLAM and navigation"
+
+#### Automated Error Fixing Suggestions
+- "Ask AI" button in the Issue List panel for each detected issue
+- Sends issue context to local LLM for targeted fix suggestions
+- Provides structured suggestions with confidence scores
+- Includes code examples for applicable fixes
+- Integrates with static analysis results
+
+#### Architecture Optimization Recommendations
+- Tools → Optimize Architecture menu
+- Analyzes current canvas architecture for:
+  - Unused nodes and connections
+  - Suboptimal QoS configurations
+  - Missing common patterns
+  - Performance bottlenecks
+- Provides actionable recommendations with implementation guidance
+
+#### Advanced Node Library Search
+- Search tab in package browser with advanced filtering
+- Category filters: Navigation, Perception, Manipulation, SLAM, Control, Drivers, Simulation, Utilities
+- Message type filtering (common ROS2 message types)
+- Feature filters: Has Inputs, Has Outputs, Has Services, Has Actions
+- Double-click or "Add to Canvas" button to add nodes
 
 ### Documentation & Discovery Features ✅
 
