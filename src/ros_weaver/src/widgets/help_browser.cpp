@@ -707,7 +707,30 @@ Use the integrated AI assistant (if configured):
     tr("What's New"),
     tr(R"(# What's New in ROS Weaver
 
-## Version 1.1.0 - Latest
+## Version 1.2.0 - Latest
+
+### Live Message Inspector
+- Subscribe to any topic and view live messages in tree view
+- Message history buffer with configurable size (10-1000 messages)
+- JSON editor for publishing custom test messages
+- Real-time message rate display
+- Pause/resume and copy message functionality
+
+### Lifecycle Node Panel
+- Discover and monitor ROS2 lifecycle nodes
+- Visual state machine diagram showing current state
+- Transition controls: Configure, Activate, Deactivate, Cleanup, Shutdown
+- Batch operations for managing multiple nodes
+- Real-time state change monitoring
+
+### Remote Robot Connection
+- Connect to ROS2 systems on remote machines via SSH tunnel
+- Save and manage connection profiles
+- Automatic DDS configuration for remote discovery
+- Connection testing before connecting
+- Custom environment variable support
+
+## Version 1.1.0
 
 ### Multi-Canvas Tabs
 - Open multiple canvas tabs for complex projects
@@ -1684,6 +1707,313 @@ Right-click a connection on canvas to:
     {"rosbag", "bag", "record", "playback", "messages", "topics", "replay"}
   };
   topicOrder_ << "rosbag-workbench";
+
+  // Message Inspector
+  topics_["message-inspector"] = {
+    "message-inspector",
+    tr("Message Inspector"),
+    tr(R"(# Message Inspector
+
+The Message Inspector panel lets you view live ROS2 messages and publish test messages.
+
+## Opening the Inspector
+
+**View > Panels > Message Inspector**
+
+## Subscribing to Topics
+
+### Select a Topic
+1. Use the dropdown to select a topic
+2. Click **Refresh** to update the topic list
+3. Click **Inspect** to start receiving messages
+
+### Message View
+Messages are displayed in a tree view showing:
+- Field names
+- Field values
+- Data types
+
+Complex nested messages are expandable for easy navigation.
+
+## Message History
+
+### History Buffer
+- Messages are stored in a configurable buffer (10-1000 messages)
+- Click on a history item to view that message
+- Use the buffer size spinner to adjust capacity
+
+### Controls
+- **Pause/Resume** - Temporarily stop receiving messages
+- **Clear** - Clear the message view and history
+- **Copy** - Copy the current message as JSON
+
+## Message Rate
+The panel displays the real-time message rate in Hz.
+
+## Publishing Messages
+
+### Load Schema
+1. Click **Load Schema** to get a template for the message type
+2. The template appears in the JSON editor
+3. Edit the values as needed
+
+### Publish
+1. Enter valid JSON in the editor
+2. Click **Publish** to send the message
+
+### JSON Format
+Messages must be valid JSON matching the message type:
+```json
+{
+  "linear": {"x": 1.0, "y": 0.0, "z": 0.0},
+  "angular": {"x": 0.0, "y": 0.0, "z": 0.5}
+}
+```
+
+## Supported Message Types
+The inspector can deserialize common message types including:
+- std_msgs (String, Int32, Float64, Bool)
+- geometry_msgs (Twist, Pose)
+- sensor_msgs (LaserScan, and others)
+
+Complex messages show field structure with raw data indicators.
+
+## Tips
+
+- Use the history to compare message variations
+- Pause reception when analyzing specific messages
+- Copy messages to use as templates for publishing
+- Use the rate display to verify message frequency
+)"),
+    "",
+    {"message", "inspector", "publish", "subscribe", "topics", "live", "debug"}
+  };
+  topicOrder_ << "message-inspector";
+
+  // Lifecycle Panel
+  topics_["lifecycle-panel"] = {
+    "lifecycle-panel",
+    tr("Lifecycle Node Panel"),
+    tr(R"(# Lifecycle Node Panel
+
+The Lifecycle Node Panel helps you monitor and control ROS2 lifecycle (managed) nodes.
+
+## Opening the Panel
+
+**View > Panels > Lifecycle Nodes**
+
+## What are Lifecycle Nodes?
+
+ROS2 lifecycle nodes follow a state machine pattern:
+- **Unconfigured** - Initial state after creation
+- **Inactive** - Configured but not processing
+- **Active** - Fully operational
+- **Finalized** - Shutdown complete
+
+## Discovering Nodes
+
+### Auto-Discovery
+Click **Discover** to find all lifecycle nodes in the ROS graph.
+
+The panel automatically detects nodes with:
+- `/get_state` service
+- `/change_state` service
+- `/transition_event` topic
+
+### Node Table
+The table shows:
+- Status indicator (colored letter)
+- Node name
+- Current state
+- Last state change time
+
+## State Machine Visualization
+
+Select a node to see its state machine diagram:
+- Current state is highlighted
+- Available transitions are shown
+- State colors match the table indicators
+
+### State Colors
+- **Gray** - Unconfigured
+- **Yellow** - Inactive
+- **Green** - Active
+- **Red** - Finalized or Error
+
+## Controlling Nodes
+
+### Single Node Transitions
+Select a node and click:
+- **Configure** - Move from Unconfigured to Inactive
+- **Activate** - Move from Inactive to Active
+- **Deactivate** - Move from Active to Inactive
+- **Cleanup** - Move from Inactive to Unconfigured
+- **Shutdown** - Finalize the node
+
+### Batch Operations
+Select multiple nodes (Ctrl+Click) and use:
+- **Configure All** - Configure all selected nodes
+- **Activate All** - Activate all selected nodes
+- **Deactivate All** - Deactivate all selected nodes
+
+## Real-time Monitoring
+
+The panel subscribes to transition events for monitored nodes:
+- State changes update automatically
+- Last change time is recorded
+- Status indicators update in real-time
+
+### Auto-Refresh
+States are refreshed every 5 seconds to catch any missed updates.
+
+## Integration with Canvas
+
+Double-click a node in the table to:
+- Highlight the corresponding block on the canvas
+- Navigate to the node's location
+
+## Use Cases
+
+### Startup Sequence
+1. Discover nodes
+2. Select all nodes
+3. Click **Configure All**
+4. Click **Activate All**
+
+### Debugging
+1. Find nodes stuck in unexpected states
+2. Try cleanup and reconfigure
+3. Check for error states
+
+### Graceful Shutdown
+1. Select active nodes
+2. Click **Deactivate All**
+3. Click **Shutdown** for each node
+)"),
+    "",
+    {"lifecycle", "managed", "nodes", "state", "configure", "activate", "deactivate"}
+  };
+  topicOrder_ << "lifecycle-panel";
+
+  // Remote Connection
+  topics_["remote-connection"] = {
+    "remote-connection",
+    tr("Remote Robot Connection"),
+    tr(R"(# Remote Robot Connection
+
+Connect ROS Weaver to ROS2 systems running on remote machines.
+
+## Opening the Dialog
+
+**Connection > Connect to Robot...** (Ctrl+R)
+
+## Connection Profiles
+
+### Creating a Profile
+1. Enter a **Profile Name** (e.g., "My Robot")
+2. Fill in connection details
+3. Click **Save** to store the profile
+
+### Loading a Profile
+Select a saved profile from the dropdown to populate the fields.
+
+### Deleting a Profile
+Select a profile and click **Delete**.
+
+## Connection Settings
+
+### SSH Settings
+- **Hostname/IP** - Robot's network address
+- **SSH Port** - Usually 22
+- **Username** - SSH login username
+- **SSH Key** - Path to private key file (optional)
+
+### ROS2 Settings
+- **Domain ID** - ROS_DOMAIN_ID (0-232)
+- **ROS Distro** - Robot's ROS2 distribution
+- **Use SSH Tunnel** - Enable DDS port forwarding
+
+### Environment Variables
+Add custom environment variables needed for the connection:
+1. Click **Add**
+2. Enter variable name and value
+3. Variables are set before connecting
+
+## Testing Connection
+
+Click **Test Connection** to verify SSH connectivity before connecting.
+
+The test:
+- Attempts SSH login
+- Reports success or failure
+- Shows error messages if applicable
+
+## Connecting
+
+Click **Connect** to establish the connection:
+
+1. SSH tunnel is established (if enabled)
+2. DDS environment is configured
+3. ROS2 discovery is initiated
+
+### Connection Status
+- Window title shows connected robot name
+- Status bar displays connection state
+- Disconnect option becomes available
+
+## Disconnecting
+
+**Connection > Disconnect**
+
+This closes the SSH tunnel and restores local DDS settings.
+
+## SSH Tunnel
+
+When enabled, the SSH tunnel forwards DDS discovery ports:
+- Port 7400 (DDS discovery)
+- Ports 7410-7411 (additional DDS)
+
+This allows ROS Weaver to discover nodes on the remote system.
+
+## DDS Configuration
+
+The connection manager automatically:
+- Sets ROS_DOMAIN_ID
+- Generates FastDDS configuration
+- Configures initial peers for remote discovery
+
+## Troubleshooting
+
+### Connection Refused
+- Verify hostname/IP is correct
+- Check SSH service is running on robot
+- Confirm firewall allows SSH (port 22)
+
+### Authentication Failed
+- Verify username is correct
+- Check SSH key permissions (should be 600)
+- Try connecting via terminal first
+
+### Nodes Not Discovered
+- Verify ROS_DOMAIN_ID matches robot
+- Check robot's firewall allows DDS ports
+- Ensure ROS2 is running on the robot
+
+### Permission Denied
+- Add your SSH key to robot's authorized_keys
+- Or use password authentication (not recommended)
+
+## Tips
+
+- Save frequently used robot profiles
+- Test connections before important sessions
+- Use SSH keys for secure, password-less access
+- Check robot's ROS2 environment is properly sourced
+)"),
+    "",
+    {"remote", "robot", "ssh", "connection", "network", "tunnel", "dds"}
+  };
+  topicOrder_ << "remote-connection";
 }
 
 void HelpBrowser::buildTableOfContents() {
@@ -1756,6 +2086,18 @@ void HelpBrowser::buildTableOfContents() {
   QTreeWidgetItem* rosbagItem = new QTreeWidgetItem(ros2Item);
   rosbagItem->setText(0, tr("Rosbag Workbench"));
   rosbagItem->setData(0, Qt::UserRole, "rosbag-workbench");
+
+  QTreeWidgetItem* messageInspectorItem = new QTreeWidgetItem(ros2Item);
+  messageInspectorItem->setText(0, tr("Message Inspector"));
+  messageInspectorItem->setData(0, Qt::UserRole, "message-inspector");
+
+  QTreeWidgetItem* lifecycleItem = new QTreeWidgetItem(ros2Item);
+  lifecycleItem->setText(0, tr("Lifecycle Node Panel"));
+  lifecycleItem->setData(0, Qt::UserRole, "lifecycle-panel");
+
+  QTreeWidgetItem* remoteItem = new QTreeWidgetItem(ros2Item);
+  remoteItem->setText(0, tr("Remote Robot Connection"));
+  remoteItem->setData(0, Qt::UserRole, "remote-connection");
 
   QTreeWidgetItem* aiItem = new QTreeWidgetItem(tocTree_);
   aiItem->setText(0, tr("Local AI Assistant"));

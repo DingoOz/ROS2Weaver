@@ -60,6 +60,8 @@ Inspired by visual programming tools like Unreal Engine's Blueprint and Houdini'
 - Canvas mapping to match discovered nodes with blocks
 - **Node Health Dashboard** with CPU, memory, latency, and message rate metrics
 - **Heatmap visualization** to color canvas nodes by resource usage
+- **Live Message Inspector** with tree view, history buffer, and message publishing
+- **Lifecycle Node Panel** for monitoring and controlling ROS2 lifecycle nodes
 
 ### Data Visualization
 - Plot panel for real-time numeric data graphing
@@ -113,6 +115,12 @@ The AI assistant can control the canvas through native function calling:
 Users can paste screenshots, use the Local AI to automatically analyse ROS logs, upload files, or chat to gain insights about the current project. All processing happens locally without sending data to the cloud.
 
 **Recommended models for tool calling:** `llama3.1:8b`, `qwen2.5:7b`, `qwen2.5-coder:7b`
+
+### Remote Robot Connection
+- Connect to ROS2 systems on remote machines via SSH tunnel
+- Save and manage connection profiles
+- Automatic DDS configuration for remote discovery
+- Connection testing and status display
 
 ### In-Program Help
 - Interactive guided tour for new users
@@ -197,7 +205,7 @@ ros2 run ros_weaver ros_weaver
 | Ctrl+S | Save Project |
 | Ctrl+Shift+S | Save As |
 | Ctrl+G | Generate Code |
-| Ctrl+R | Robot Configuration Wizard |
+| Ctrl+R | Connect to Remote Robot |
 | Ctrl+M | Toggle Live Monitoring |
 | Ctrl+Shift+R | Scan System |
 | Ctrl+Shift+M | Show System Mapping |
