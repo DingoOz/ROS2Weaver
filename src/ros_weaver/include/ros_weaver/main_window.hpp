@@ -60,6 +60,9 @@ class MinimapPanel;
 class NodeTemplatesPanel;
 class WorkspaceBrowserPanel;
 class NodeHealthDashboard;
+class MessageInspectorPanel;
+class LifecyclePanel;
+class RemoteConnectionManager;
 
 class MainWindow : public QMainWindow {
   Q_OBJECT
@@ -180,6 +183,13 @@ private slots:
   void onDuplicateCanvas();
   void onRenameCanvas();
   void onCurrentCanvasChanged(WeaverCanvas* canvas);
+
+  // Remote connection
+  void onShowRemoteConnectionDialog();
+  void onRemoteConnectionEstablished(const QString& robotName);
+  void onRemoteConnectionFailed(const QString& error);
+  void onRemoteConnectionLost();
+  void onDisconnectRemote();
 
 protected:
   void closeEvent(QCloseEvent* event) override;
@@ -354,6 +364,19 @@ private:
   // Node health dashboard
   NodeHealthDashboard* nodeHealthDashboard_;
   QDockWidget* nodeHealthDock_;
+
+  // Message inspector panel
+  MessageInspectorPanel* messageInspectorPanel_;
+  QDockWidget* messageInspectorDock_;
+
+  // Lifecycle panel
+  LifecyclePanel* lifecyclePanel_;
+  QDockWidget* lifecycleDock_;
+
+  // Remote connection
+  RemoteConnectionManager* remoteConnectionManager_;
+  QAction* connectRemoteAction_;
+  QAction* disconnectRemoteAction_;
 };
 
 }  // namespace ros_weaver

@@ -55,6 +55,10 @@
 #include "ros_weaver/widgets/workspace_browser_panel.hpp"
 #include "ros_weaver/widgets/node_health_dashboard.hpp"
 #include "ros_weaver/widgets/diff_view_dialog.hpp"
+#include "ros_weaver/widgets/message_inspector_panel.hpp"
+#include "ros_weaver/widgets/lifecycle_panel.hpp"
+#include "ros_weaver/widgets/remote_connection_dialog.hpp"
+#include "ros_weaver/core/remote_connection_manager.hpp"
 #include "ros_weaver/core/dot_importer.hpp"
 #include "ros_weaver/core/caret_importer.hpp"
 #include "ros_weaver/core/static_analyzer.hpp"
@@ -156,6 +160,13 @@ MainWindow::MainWindow(QWidget* parent)
   , commandPalette_(nullptr)
   , layoutPresetsMenu_(nullptr)
   , zoomIndicator_(nullptr)
+  , messageInspectorPanel_(nullptr)
+  , messageInspectorDock_(nullptr)
+  , lifecyclePanel_(nullptr)
+  , lifecycleDock_(nullptr)
+  , remoteConnectionManager_(nullptr)
+  , connectRemoteAction_(nullptr)
+  , disconnectRemoteAction_(nullptr)
 {
   setWindowTitle(baseWindowTitle_);
   setMinimumSize(constants::ui::MIN_WINDOW_WIDTH, constants::ui::MIN_WINDOW_HEIGHT);
@@ -621,6 +632,18 @@ void MainWindow::setupMenuBar() {
   showNodeHealthAction->setObjectName("showNodeHealthAction");
   showNodeHealthAction->setToolTip(tr("Show/hide node health dashboard for real-time monitoring"));
 
+  QAction* showMessageInspectorAction = panelsMenu->addAction(tr("&Message Inspector"));
+  showMessageInspectorAction->setCheckable(true);
+  showMessageInspectorAction->setChecked(false);  // Hidden by default
+  showMessageInspectorAction->setObjectName("showMessageInspectorAction");
+  showMessageInspectorAction->setToolTip(tr("Show/hide message inspector for viewing live messages"));
+
+  QAction* showLifecycleAction = panelsMenu->addAction(tr("&Lifecycle Nodes"));
+  showLifecycleAction->setCheckable(true);
+  showLifecycleAction->setChecked(false);  // Hidden by default
+  showLifecycleAction->setObjectName("showLifecycleAction");
+  showLifecycleAction->setToolTip(tr("Show/hide lifecycle node panel for managing lifecycle nodes"));
+
   panelsMenu->addSeparator();
 
   QAction* resetLayoutAction = panelsMenu->addAction(tr("&Reset Layout"));
@@ -914,6 +937,25 @@ void MainWindow::setupMenuBar() {
   runAnalysisAction->setShortcut(tr("Ctrl+Shift+A"));
   runAnalysisAction->setToolTip(tr("Analyze the architecture for potential issues"));
   connect(runAnalysisAction, &QAction::triggered, this, &MainWindow::onRunAnalysis);
+
+  // Connection menu
+  QMenu* connectionMenu = menuBar()->addMenu(tr("&Connection"));
+
+  connectRemoteAction_ = connectionMenu->addAction(tr("Connect to &Robot..."));
+  connectRemoteAction_->setShortcut(tr("Ctrl+R"));
+  connectRemoteAction_->setToolTip(tr("Connect to a remote robot via SSH"));
+  connect(connectRemoteAction_, &QAction::triggered, this, &MainWindow::onShowRemoteConnectionDialog);
+
+  disconnectRemoteAction_ = connectionMenu->addAction(tr("&Disconnect"));
+  disconnectRemoteAction_->setEnabled(false);
+  disconnectRemoteAction_->setToolTip(tr("Disconnect from the remote robot"));
+  connect(disconnectRemoteAction_, &QAction::triggered, this, &MainWindow::onDisconnectRemote);
+
+  connectionMenu->addSeparator();
+
+  // Recent connections submenu
+  QMenu* recentConnectionsMenu = connectionMenu->addMenu(tr("Recent Connections"));
+  recentConnectionsMenu->setEnabled(false);  // Will be enabled when profiles exist
 
   // Help menu
   QMenu* helpMenu = menuBar()->addMenu(tr("&Help"));
@@ -1570,6 +1612,60 @@ void MainWindow::setupDockWidgets() {
       }
     });
   }
+
+  // Message Inspector Panel
+  messageInspectorDock_ = new QDockWidget(tr("Message Inspector"), this);
+  messageInspectorDock_->setObjectName("messageInspectorDock");
+  messageInspectorDock_->setAllowedAreas(Qt::AllDockWidgetAreas);
+  messageInspectorDock_->setFeatures(QDockWidget::DockWidgetMovable |
+                                     QDockWidget::DockWidgetFloatable |
+                                     QDockWidget::DockWidgetClosable);
+
+  messageInspectorPanel_ = new MessageInspectorPanel(this);
+  messageInspectorPanel_->setCanvas(canvas_);
+  messageInspectorDock_->setWidget(messageInspectorPanel_);
+
+  addDockWidget(Qt::RightDockWidgetArea, messageInspectorDock_);
+  messageInspectorDock_->hide();  // Hidden by default
+
+  // Connect message inspector visibility toggle
+  QAction* showMessageInspectorAction = findChild<QAction*>("showMessageInspectorAction");
+  if (showMessageInspectorAction) {
+    connect(showMessageInspectorAction, &QAction::toggled, messageInspectorDock_, &QDockWidget::setVisible);
+    connect(messageInspectorDock_, &QDockWidget::visibilityChanged, showMessageInspectorAction, &QAction::setChecked);
+  }
+
+  // Lifecycle Panel
+  lifecycleDock_ = new QDockWidget(tr("Lifecycle Nodes"), this);
+  lifecycleDock_->setObjectName("lifecycleDock");
+  lifecycleDock_->setAllowedAreas(Qt::AllDockWidgetAreas);
+  lifecycleDock_->setFeatures(QDockWidget::DockWidgetMovable |
+                              QDockWidget::DockWidgetFloatable |
+                              QDockWidget::DockWidgetClosable);
+
+  lifecyclePanel_ = new LifecyclePanel(this);
+  lifecyclePanel_->setCanvas(canvas_);
+  lifecycleDock_->setWidget(lifecyclePanel_);
+
+  addDockWidget(Qt::RightDockWidgetArea, lifecycleDock_);
+  lifecycleDock_->hide();  // Hidden by default
+
+  // Connect lifecycle panel visibility toggle
+  QAction* showLifecycleAction = findChild<QAction*>("showLifecycleAction");
+  if (showLifecycleAction) {
+    connect(showLifecycleAction, &QAction::toggled, lifecycleDock_, &QDockWidget::setVisible);
+    connect(lifecycleDock_, &QDockWidget::visibilityChanged, showLifecycleAction, &QAction::setChecked);
+  }
+
+  // Initialize Remote Connection Manager
+  remoteConnectionManager_ = new RemoteConnectionManager(this);
+
+  connect(remoteConnectionManager_, &RemoteConnectionManager::connectionEstablished,
+          this, &MainWindow::onRemoteConnectionEstablished);
+  connect(remoteConnectionManager_, &RemoteConnectionManager::connectionFailed,
+          this, &MainWindow::onRemoteConnectionFailed);
+  connect(remoteConnectionManager_, &RemoteConnectionManager::connectionLost,
+          this, &MainWindow::onRemoteConnectionLost);
 }
 
 void MainWindow::setupCentralWidget() {
@@ -4256,6 +4352,68 @@ void MainWindow::onCurrentCanvasChanged(WeaverCanvas* canvas) {
     int index = canvasTabWidget_->currentIndex();
     QString name = canvasTabWidget_->tabName(index);
     statusBar()->showMessage(tr("Switched to canvas: %1").arg(name), 2000);
+  }
+}
+
+void MainWindow::onShowRemoteConnectionDialog() {
+  RemoteConnectionDialog dialog(remoteConnectionManager_, this);
+
+  connect(&dialog, &RemoteConnectionDialog::connectionRequested,
+          this, [this](const RobotProfile& profile) {
+    statusBar()->showMessage(tr("Connecting to %1...").arg(profile.name));
+    remoteConnectionManager_->connectToRobot(profile);
+  });
+
+  dialog.exec();
+}
+
+void MainWindow::onRemoteConnectionEstablished(const QString& robotName) {
+  connectRemoteAction_->setEnabled(false);
+  disconnectRemoteAction_->setEnabled(true);
+
+  // Update window title
+  setWindowTitle(QString("%1 - Connected to %2").arg(baseWindowTitle_, robotName));
+
+  statusBar()->showMessage(tr("Connected to %1").arg(robotName), 5000);
+
+  // Show toast notification
+  Toast.showSuccess(tr("Connected to %1").arg(robotName));
+}
+
+void MainWindow::onRemoteConnectionFailed(const QString& error) {
+  connectRemoteAction_->setEnabled(true);
+  disconnectRemoteAction_->setEnabled(false);
+
+  statusBar()->showMessage(tr("Connection failed: %1").arg(error), 5000);
+
+  QMessageBox::warning(this, tr("Connection Failed"),
+                       tr("Failed to connect to remote robot:\n%1").arg(error));
+}
+
+void MainWindow::onRemoteConnectionLost() {
+  connectRemoteAction_->setEnabled(true);
+  disconnectRemoteAction_->setEnabled(false);
+
+  // Reset window title
+  updateWindowTitle();
+
+  statusBar()->showMessage(tr("Connection lost"), 5000);
+
+  Toast.showWarning(tr("Connection to remote robot lost"));
+}
+
+void MainWindow::onDisconnectRemote() {
+  if (remoteConnectionManager_->isConnected()) {
+    QString robotName = remoteConnectionManager_->connectedRobotName();
+    remoteConnectionManager_->disconnect();
+
+    connectRemoteAction_->setEnabled(true);
+    disconnectRemoteAction_->setEnabled(false);
+
+    // Reset window title
+    updateWindowTitle();
+
+    statusBar()->showMessage(tr("Disconnected from %1").arg(robotName), 3000);
   }
 }
 
