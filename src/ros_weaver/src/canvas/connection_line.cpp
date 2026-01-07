@@ -36,6 +36,8 @@ ConnectionLine::ConnectionLine(PackageBlock* sourceBlock, int sourcePin,
   , stats_()
   , showBandwidth_(false)
   , expectedRate_(0.0)
+  , isRemapped_(false)
+  , originalTopicName_()
 {
   setFlag(QGraphicsItem::ItemIsSelectable, true);
   setAcceptHoverEvents(true);
@@ -216,6 +218,13 @@ void ConnectionLine::paint(QPainter* painter, const QStyleOptionGraphicsItem* op
   qreal penWidth = LINE_WIDTH;
   QColor color = connectionColor_;
 
+  // Use different style for remapped connections
+  Qt::PenStyle penStyle = Qt::SolidLine;
+  if (isRemapped_) {
+    color = QColor(255, 193, 7);  // Amber color for remapped
+    penStyle = Qt::DashLine;      // Dashed line indicates remapping
+  }
+
   bool shouldAnimate = isHovered_ || isPinHighlighted_;
 
   // Check if this connection is actively receiving data
@@ -295,6 +304,7 @@ void ConnectionLine::paint(QPainter* painter, const QStyleOptionGraphicsItem* op
   QPen pen(color);
   pen.setWidthF(penWidth);
   pen.setCapStyle(Qt::RoundCap);
+  pen.setStyle(penStyle);
   painter->setPen(pen);
   painter->drawPath(path_);
 
@@ -799,6 +809,55 @@ void ConnectionLine::updateHealthState() {
   } else {
     setActivityState(TopicActivityState::Active);
   }
+}
+
+// Remapping visualization
+
+void ConnectionLine::setIsRemapped(bool remapped) {
+  if (isRemapped_ != remapped) {
+    isRemapped_ = remapped;
+    update();
+  }
+}
+
+void ConnectionLine::setOriginalTopicName(const QString& name) {
+  originalTopicName_ = name;
+}
+
+void ConnectionLine::updateRemappingStatus() {
+  if (!sourceBlock_ || topicName_.isEmpty()) {
+    isRemapped_ = false;
+    return;
+  }
+
+  // Check if the source block has a remapping for this topic
+  QString remappedName = sourceBlock_->getRemappedName(topicName_, "topic");
+  if (remappedName != topicName_) {
+    isRemapped_ = true;
+    originalTopicName_ = topicName_;
+    // Update tooltip with remapping info
+    QString tooltip = QString("Topic: %1\nRemapped from: %2\nType: %3")
+                          .arg(remappedName, topicName_, messageType_);
+    setToolTip(tooltip);
+  } else if (targetBlock_) {
+    // Also check target block for remappings
+    QString targetRemappedName = targetBlock_->getRemappedName(topicName_, "topic");
+    if (targetRemappedName != topicName_) {
+      isRemapped_ = true;
+      originalTopicName_ = topicName_;
+      QString tooltip = QString("Topic: %1\nRemapped from: %2\nType: %3")
+                            .arg(targetRemappedName, topicName_, messageType_);
+      setToolTip(tooltip);
+    } else {
+      isRemapped_ = false;
+      originalTopicName_.clear();
+    }
+  } else {
+    isRemapped_ = false;
+    originalTopicName_.clear();
+  }
+
+  update();
 }
 
 }  // namespace ros_weaver

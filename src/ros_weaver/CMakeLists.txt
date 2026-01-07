@@ -26,6 +26,7 @@ find_package(sensor_msgs REQUIRED)
 find_package(rosbag2_cpp REQUIRED)
 find_package(rosbag2_storage REQUIRED)
 find_package(rosgraph_msgs REQUIRED)
+find_package(lifecycle_msgs REQUIRED)
 
 # Qt5 setup
 set(CMAKE_AUTOMOC ON)
@@ -162,6 +163,12 @@ set(SOURCES
   src/widgets/command_palette.cpp
   src/widgets/empty_state.cpp
   src/widgets/canvas_tab_widget.cpp
+  src/core/generic_message_handler.cpp
+  src/widgets/message_inspector_panel.cpp
+  src/core/lifecycle_manager.cpp
+  src/widgets/lifecycle_panel.cpp
+  src/core/remote_connection_manager.cpp
+  src/widgets/remote_connection_dialog.cpp
 )
 
 # Header files (for MOC)
@@ -268,6 +275,12 @@ set(HEADERS
   include/ros_weaver/widgets/qos_editor_dialog.hpp
   include/ros_weaver/widgets/preset_selector_widget.hpp
   include/ros_weaver/widgets/canvas_tab_widget.hpp
+  include/ros_weaver/core/generic_message_handler.hpp
+  include/ros_weaver/widgets/message_inspector_panel.hpp
+  include/ros_weaver/core/lifecycle_manager.hpp
+  include/ros_weaver/widgets/lifecycle_panel.hpp
+  include/ros_weaver/core/remote_connection_manager.hpp
+  include/ros_weaver/widgets/remote_connection_dialog.hpp
 )
 
 # Create executable
@@ -300,6 +313,7 @@ ament_target_dependencies(${PROJECT_NAME}
   rosbag2_cpp
   rosbag2_storage
   rosgraph_msgs
+  lifecycle_msgs
 )
 
 # Install targets
