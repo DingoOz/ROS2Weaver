@@ -64,6 +64,8 @@
 #include "ros_weaver/core/static_analyzer.hpp"
 #include "ros_weaver/core/simulation_launcher.hpp"
 #include "ros_weaver/widgets/launch_preview_dialog.hpp"
+#include "ros_weaver/widgets/architecture_doc_dialog.hpp"
+#include "ros_weaver/core/architecture_doc_generator.hpp"
 #include "ros_weaver/widgets/preset_selector_widget.hpp"
 #include "ros_weaver/widgets/scenario_editor_widget.hpp"
 #include "ros_weaver/widgets/latency_heatmap_panel.hpp"
@@ -294,6 +296,11 @@ void MainWindow::setupMenuBar() {
     LaunchPreviewDialog dialog(&project, this);
     dialog.exec();
   });
+
+  QAction* generateDocAction = exportMenu->addAction(tr("Generate &Documentation..."));
+  generateDocAction->setToolTip(tr("Generate architecture documentation in Markdown, HTML, or PDF format"));
+  generateDocAction->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_D));
+  connect(generateDocAction, &QAction::triggered, this, &MainWindow::onGenerateDocumentation);
 
   // Import submenu
   QMenu* importMenu = fileMenu->addMenu(tr("&Import"));
@@ -1974,6 +1981,14 @@ void MainWindow::onExportToGraphviz() {
       ErrorHandler::showError(tr("Could not export to %1").arg(fileName));
     }
   }
+}
+
+void MainWindow::onGenerateDocumentation() {
+  Project project;
+  canvas_->exportToProject(project);
+
+  ArchitectureDocDialog dialog(&project, this);
+  dialog.exec();
 }
 
 void MainWindow::onImportFromDot() {

@@ -82,6 +82,7 @@ private slots:
   void onExportToPlantUML();
   void onExportToMermaid();
   void onExportToGraphviz();
+  void onGenerateDocumentation();
   void onImportFromDot();
   void onImportFromCaret();
   void onGenerateCode();

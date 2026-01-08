@@ -55,11 +55,16 @@ These are community and AI-suggested features to enhance ROS2Weaver, prioritized
 | Topic Latency Heatmap | Done | Color-coded latency visualization, auto-tune thresholds, historical graph, CSV export |
 | Test Message Scenario Editor | Done | Create/replay test message sequences, pytest export, recording from live system |
 
+### Completed Features (v1.4.0)
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Architecture Documentation Generator | Done | Markdown/HTML/PDF export, Mermaid/PlantUML diagrams, configurable sections |
+
 ### Remaining Features
 
 | Feature | Priority | Complexity |
 |---------|----------|------------|
-| Architecture Documentation Generator | Medium | Low |
 | ros2 doctor Integration | Medium | Low |
 | Message Schema Diff Tool | Medium | Low |
 | Visual Behavior Tree Editor | Low | High |

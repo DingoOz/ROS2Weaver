@@ -40,6 +40,7 @@ find_package(Qt5 REQUIRED COMPONENTS
   Network
   Charts
   Test
+  PrintSupport
 )
 
 # Include directories
@@ -173,6 +174,8 @@ set(SOURCES
   src/core/scenario_player.cpp
   src/widgets/scenario_editor_widget.cpp
   src/widgets/latency_heatmap_panel.cpp
+  src/core/architecture_doc_generator.cpp
+  src/widgets/architecture_doc_dialog.cpp
 )
 
 # Header files (for MOC)
@@ -289,6 +292,8 @@ set(HEADERS
   include/ros_weaver/core/scenario_player.hpp
   include/ros_weaver/widgets/scenario_editor_widget.hpp
   include/ros_weaver/widgets/latency_heatmap_panel.hpp
+  include/ros_weaver/core/architecture_doc_generator.hpp
+  include/ros_weaver/widgets/architecture_doc_dialog.hpp
 )
 
 # Create executable
@@ -304,6 +309,7 @@ target_link_libraries(${PROJECT_NAME}
   Qt5::Widgets
   Qt5::Network
   Qt5::Charts
+  Qt5::PrintSupport
   yaml-cpp
 )
 
