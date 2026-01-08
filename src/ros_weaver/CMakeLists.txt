@@ -169,6 +169,10 @@ set(SOURCES
   src/widgets/lifecycle_panel.cpp
   src/core/remote_connection_manager.cpp
   src/widgets/remote_connection_dialog.cpp
+  src/core/latency_tracker.cpp
+  src/core/scenario_player.cpp
+  src/widgets/scenario_editor_widget.cpp
+  src/widgets/latency_heatmap_panel.cpp
 )
 
 # Header files (for MOC)
@@ -281,6 +285,10 @@ set(HEADERS
   include/ros_weaver/widgets/lifecycle_panel.hpp
   include/ros_weaver/core/remote_connection_manager.hpp
   include/ros_weaver/widgets/remote_connection_dialog.hpp
+  include/ros_weaver/core/latency_tracker.hpp
+  include/ros_weaver/core/scenario_player.hpp
+  include/ros_weaver/widgets/scenario_editor_widget.hpp
+  include/ros_weaver/widgets/latency_heatmap_panel.hpp
 )
 
 # Create executable

@@ -38,6 +38,11 @@ ConnectionLine::ConnectionLine(PackageBlock* sourceBlock, int sourcePin,
   , expectedRate_(0.0)
   , isRemapped_(false)
   , originalTopicName_()
+  , showLatencyHeatmap_(false)
+  , currentLatency_(-1.0)
+  , latencyGoodMs_(10.0)
+  , latencyWarningMs_(50.0)
+  , latencyCriticalMs_(100.0)
 {
   setFlag(QGraphicsItem::ItemIsSelectable, true);
   setAcceptHoverEvents(true);
@@ -378,6 +383,12 @@ void ConnectionLine::paint(QPainter* painter, const QStyleOptionGraphicsItem* op
     if (showBandwidth_ && stats_.bandwidthBps > 0) {
       drawBandwidthLabel(painter);
     }
+  }
+
+  // Draw latency heatmap if enabled
+  if (showLatencyHeatmap_) {
+    drawLatencyHeatmap(painter);
+    drawLatencyLabel(painter);
   }
 }
 
@@ -858,6 +869,128 @@ void ConnectionLine::updateRemappingStatus() {
   }
 
   update();
+}
+
+// Latency heatmap visualization
+
+void ConnectionLine::setLatencyHeatmapEnabled(bool enabled) {
+  if (showLatencyHeatmap_ != enabled) {
+    showLatencyHeatmap_ = enabled;
+    update();
+  }
+}
+
+void ConnectionLine::setCurrentLatency(double latencyMs) {
+  if (currentLatency_ != latencyMs) {
+    currentLatency_ = latencyMs;
+    update();
+  }
+}
+
+void ConnectionLine::setLatencyThresholds(double goodMs, double warningMs, double criticalMs) {
+  latencyGoodMs_ = goodMs;
+  latencyWarningMs_ = warningMs;
+  latencyCriticalMs_ = criticalMs;
+  update();
+}
+
+QColor ConnectionLine::getLatencyColor() const {
+  if (currentLatency_ < 0) {
+    return QColor(150, 150, 150);  // Gray for unknown
+  }
+
+  // Color scale: green (< good) -> yellow (good-warning) -> orange (warning-critical) -> red (> critical)
+  if (currentLatency_ <= latencyGoodMs_) {
+    // Green
+    return QColor(100, 200, 100);
+  } else if (currentLatency_ <= latencyWarningMs_) {
+    // Interpolate green to yellow
+    double t = (currentLatency_ - latencyGoodMs_) / (latencyWarningMs_ - latencyGoodMs_);
+    int r = static_cast<int>(100 + 155 * t);
+    int g = static_cast<int>(200 + 55 * t);
+    int b = static_cast<int>(100 - 50 * t);
+    return QColor(r, g, b);
+  } else if (currentLatency_ <= latencyCriticalMs_) {
+    // Interpolate yellow to orange/red
+    double t = (currentLatency_ - latencyWarningMs_) / (latencyCriticalMs_ - latencyWarningMs_);
+    int r = 255;
+    int g = static_cast<int>(255 - 175 * t);
+    int b = static_cast<int>(50 - 50 * t);
+    return QColor(r, g, b);
+  } else {
+    // Red for critical
+    return QColor(255, 50, 50);
+  }
+}
+
+void ConnectionLine::drawLatencyHeatmap(QPainter* painter) {
+  if (path_.isEmpty() || !showLatencyHeatmap_ || currentLatency_ < 0) return;
+
+  QColor latencyColor = getLatencyColor();
+
+  // Draw colored glow based on latency
+  qreal glowIntensity = 0.0;
+  if (currentLatency_ > latencyGoodMs_) {
+    // Increase glow intensity as latency gets worse
+    glowIntensity = std::min(1.0, (currentLatency_ - latencyGoodMs_) / latencyCriticalMs_);
+  }
+
+  // Outer glow for high latency
+  if (glowIntensity > 0) {
+    QColor glowColor = latencyColor;
+    glowColor.setAlpha(static_cast<int>(80 + 80 * glowIntensity));
+    QPen glowPen(glowColor);
+    glowPen.setWidthF(LINE_WIDTH + 6 + 4 * glowIntensity);
+    glowPen.setCapStyle(Qt::RoundCap);
+    painter->setPen(glowPen);
+    painter->drawPath(path_);
+  }
+
+  // Draw the main line with latency color
+  QPen linePen(latencyColor);
+  qreal penWidth = LINE_WIDTH + (currentLatency_ > latencyWarningMs_ ? 1.0 : 0.0);
+  linePen.setWidthF(penWidth);
+  linePen.setCapStyle(Qt::RoundCap);
+  painter->setPen(linePen);
+  painter->drawPath(path_);
+}
+
+void ConnectionLine::drawLatencyLabel(QPainter* painter) {
+  if (path_.isEmpty() || !showLatencyHeatmap_ || currentLatency_ < 0) return;
+
+  // Position label at 70% along the path (below rate label if shown)
+  QPointF labelPoint = path_.pointAtPercent(0.7);
+
+  // Format latency string
+  QString latencyStr;
+  if (currentLatency_ >= 1000) {
+    latencyStr = QString("%1 s").arg(currentLatency_ / 1000.0, 0, 'f', 2);
+  } else if (currentLatency_ >= 1) {
+    latencyStr = QString("%1 ms").arg(currentLatency_, 0, 'f', 1);
+  } else {
+    latencyStr = QString("%1 us").arg(currentLatency_ * 1000, 0, 'f', 0);
+  }
+
+  // Set up font
+  QFont font("Sans", 8);
+  font.setBold(true);
+  painter->setFont(font);
+
+  QFontMetrics fm(font);
+  QRect textRect = fm.boundingRect(latencyStr);
+  textRect.moveCenter(labelPoint.toPoint());
+
+  // Draw background
+  QRect bgRect = textRect.adjusted(-4, -2, 4, 2);
+  QColor bgColor(0, 0, 0, 180);
+  painter->setBrush(bgColor);
+  painter->setPen(Qt::NoPen);
+  painter->drawRoundedRect(bgRect, 3, 3);
+
+  // Draw text colored by latency
+  QColor textColor = getLatencyColor();
+  painter->setPen(textColor);
+  painter->drawText(textRect, Qt::AlignCenter, latencyStr);
 }
 
 }  // namespace ros_weaver

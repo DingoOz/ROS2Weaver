@@ -65,6 +65,9 @@
 #include "ros_weaver/core/simulation_launcher.hpp"
 #include "ros_weaver/widgets/launch_preview_dialog.hpp"
 #include "ros_weaver/widgets/preset_selector_widget.hpp"
+#include "ros_weaver/widgets/scenario_editor_widget.hpp"
+#include "ros_weaver/widgets/latency_heatmap_panel.hpp"
+#include "ros_weaver/core/latency_tracker.hpp"
 
 #include <QApplication>
 #include <QCloseEvent>
@@ -167,6 +170,12 @@ MainWindow::MainWindow(QWidget* parent)
   , remoteConnectionManager_(nullptr)
   , connectRemoteAction_(nullptr)
   , disconnectRemoteAction_(nullptr)
+  , latencyTracker_(nullptr)
+  , latencyHeatmapPanel_(nullptr)
+  , latencyHeatmapDock_(nullptr)
+  , scenarioEditorWidget_(nullptr)
+  , scenarioEditorDock_(nullptr)
+  , latencyHeatmapAction_(nullptr)
 {
   setWindowTitle(baseWindowTitle_);
   setMinimumSize(constants::ui::MIN_WINDOW_WIDTH, constants::ui::MIN_WINDOW_HEIGHT);
@@ -643,6 +652,18 @@ void MainWindow::setupMenuBar() {
   showLifecycleAction->setChecked(false);  // Hidden by default
   showLifecycleAction->setObjectName("showLifecycleAction");
   showLifecycleAction->setToolTip(tr("Show/hide lifecycle node panel for managing lifecycle nodes"));
+
+  QAction* showLatencyHeatmapAction = panelsMenu->addAction(tr("Latency &Heatmap"));
+  showLatencyHeatmapAction->setCheckable(true);
+  showLatencyHeatmapAction->setChecked(false);  // Hidden by default
+  showLatencyHeatmapAction->setObjectName("showLatencyHeatmapAction");
+  showLatencyHeatmapAction->setToolTip(tr("Show/hide latency heatmap for connection latency visualization"));
+
+  QAction* showScenarioEditorAction = panelsMenu->addAction(tr("&Scenario Editor"));
+  showScenarioEditorAction->setCheckable(true);
+  showScenarioEditorAction->setChecked(false);  // Hidden by default
+  showScenarioEditorAction->setObjectName("showScenarioEditorAction");
+  showScenarioEditorAction->setToolTip(tr("Show/hide scenario editor for creating and running test scenarios"));
 
   panelsMenu->addSeparator();
 
@@ -1655,6 +1676,61 @@ void MainWindow::setupDockWidgets() {
   if (showLifecycleAction) {
     connect(showLifecycleAction, &QAction::toggled, lifecycleDock_, &QDockWidget::setVisible);
     connect(lifecycleDock_, &QDockWidget::visibilityChanged, showLifecycleAction, &QAction::setChecked);
+  }
+
+  // Latency Heatmap Panel
+  latencyHeatmapDock_ = new QDockWidget(tr("Latency Heatmap"), this);
+  latencyHeatmapDock_->setObjectName("latencyHeatmapDock");
+  latencyHeatmapDock_->setAllowedAreas(Qt::AllDockWidgetAreas);
+  latencyHeatmapDock_->setFeatures(QDockWidget::DockWidgetMovable |
+                                    QDockWidget::DockWidgetFloatable |
+                                    QDockWidget::DockWidgetClosable);
+
+  latencyTracker_ = new LatencyTracker(this);
+  latencyHeatmapPanel_ = new LatencyHeatmapPanel(this);
+  latencyHeatmapPanel_->setCanvas(canvas_);
+  latencyHeatmapPanel_->setLatencyTracker(latencyTracker_);
+  latencyHeatmapDock_->setWidget(latencyHeatmapPanel_);
+
+  addDockWidget(Qt::RightDockWidgetArea, latencyHeatmapDock_);
+  latencyHeatmapDock_->hide();  // Hidden by default
+
+  // Connect latency heatmap signals
+  connect(latencyHeatmapPanel_, &LatencyHeatmapPanel::heatmapEnabledChanged,
+          this, &MainWindow::onToggleLatencyHeatmap);
+  connect(latencyTracker_, &LatencyTracker::latencyAlert,
+          this, &MainWindow::onLatencyAlert);
+
+  QAction* showLatencyHeatmapAction = findChild<QAction*>("showLatencyHeatmapAction");
+  if (showLatencyHeatmapAction) {
+    connect(showLatencyHeatmapAction, &QAction::toggled, latencyHeatmapDock_, &QDockWidget::setVisible);
+    connect(latencyHeatmapDock_, &QDockWidget::visibilityChanged, showLatencyHeatmapAction, &QAction::setChecked);
+  }
+
+  // Scenario Editor Panel
+  scenarioEditorDock_ = new QDockWidget(tr("Scenario Editor"), this);
+  scenarioEditorDock_->setObjectName("scenarioEditorDock");
+  scenarioEditorDock_->setAllowedAreas(Qt::AllDockWidgetAreas);
+  scenarioEditorDock_->setFeatures(QDockWidget::DockWidgetMovable |
+                                    QDockWidget::DockWidgetFloatable |
+                                    QDockWidget::DockWidgetClosable);
+
+  scenarioEditorWidget_ = new ScenarioEditorWidget(this);
+  scenarioEditorDock_->setWidget(scenarioEditorWidget_);
+
+  addDockWidget(Qt::BottomDockWidgetArea, scenarioEditorDock_);
+  scenarioEditorDock_->hide();  // Hidden by default
+
+  // Connect scenario editor signals
+  connect(scenarioEditorWidget_, &ScenarioEditorWidget::scenarioLoaded,
+          this, &MainWindow::onScenarioLoaded);
+  connect(scenarioEditorWidget_, &ScenarioEditorWidget::scenarioCompleted,
+          this, &MainWindow::onScenarioCompleted);
+
+  QAction* showScenarioEditorAction = findChild<QAction*>("showScenarioEditorAction");
+  if (showScenarioEditorAction) {
+    connect(showScenarioEditorAction, &QAction::toggled, scenarioEditorDock_, &QDockWidget::setVisible);
+    connect(scenarioEditorDock_, &QDockWidget::visibilityChanged, showScenarioEditorAction, &QAction::setChecked);
   }
 
   // Initialize Remote Connection Manager
@@ -4414,6 +4490,37 @@ void MainWindow::onDisconnectRemote() {
     updateWindowTitle();
 
     statusBar()->showMessage(tr("Disconnected from %1").arg(robotName), 3000);
+  }
+}
+
+// Latency Heatmap slots
+
+void MainWindow::onToggleLatencyHeatmap(bool enabled) {
+  if (enabled) {
+    statusBar()->showMessage(tr("Latency heatmap enabled"), 3000);
+  } else {
+    statusBar()->showMessage(tr("Latency heatmap disabled"), 3000);
+  }
+}
+
+void MainWindow::onLatencyAlert(const QString& connectionId, double latencyMs, double thresholdMs) {
+  Q_UNUSED(connectionId)
+  Q_UNUSED(thresholdMs)
+
+  Toast.showWarning(tr("High latency detected: %1 ms").arg(latencyMs, 0, 'f', 1));
+}
+
+// Scenario Editor slots
+
+void MainWindow::onScenarioLoaded(const QString& name) {
+  statusBar()->showMessage(tr("Loaded scenario: %1").arg(name), 3000);
+}
+
+void MainWindow::onScenarioCompleted(bool success) {
+  if (success) {
+    Toast.showSuccess(tr("Scenario completed successfully"));
+  } else {
+    Toast.showError(tr("Scenario failed"));
   }
 }
 

@@ -140,6 +140,15 @@ public:
   // Check if this connection has a remapping from source or target block
   void updateRemappingStatus();
 
+  // Latency heatmap visualization
+  void setLatencyHeatmapEnabled(bool enabled);
+  bool isLatencyHeatmapEnabled() const { return showLatencyHeatmap_; }
+
+  void setCurrentLatency(double latencyMs);
+  double currentLatency() const { return currentLatency_; }
+
+  void setLatencyThresholds(double goodMs, double warningMs, double criticalMs);
+
   // Safely detach from blocks before canvas clearing
   // This prevents use-after-free when scene_->clear() deletes items in undefined order
   void detach();
@@ -163,7 +172,10 @@ private:
   void drawBandwidthLabel(QPainter* painter);
   void drawActivityIndicator(QPainter* painter);
   void drawHealthIndicator(QPainter* painter);
+  void drawLatencyHeatmap(QPainter* painter);
+  void drawLatencyLabel(QPainter* painter);
   QColor getActivityColor() const;
+  QColor getLatencyColor() const;
   QString formatBandwidth(double bytesPerSec) const;
   QPainterPath calculatePath() const;
   void updateHealthState();
@@ -204,6 +216,13 @@ private:
   // Remapping visualization
   bool isRemapped_;
   QString originalTopicName_;
+
+  // Latency heatmap visualization
+  bool showLatencyHeatmap_;
+  double currentLatency_;
+  double latencyGoodMs_;
+  double latencyWarningMs_;
+  double latencyCriticalMs_;
 
   static constexpr qreal LINE_WIDTH = 2.0;
   static constexpr qreal HIGHLIGHT_WIDTH = 4.0;
