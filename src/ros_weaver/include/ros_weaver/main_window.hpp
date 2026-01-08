@@ -63,6 +63,9 @@ class NodeHealthDashboard;
 class MessageInspectorPanel;
 class LifecyclePanel;
 class RemoteConnectionManager;
+class ScenarioEditorWidget;
+class LatencyHeatmapPanel;
+class LatencyTracker;
 
 class MainWindow : public QMainWindow {
   Q_OBJECT
@@ -190,6 +193,14 @@ private slots:
   void onRemoteConnectionFailed(const QString& error);
   void onRemoteConnectionLost();
   void onDisconnectRemote();
+
+  // Latency heatmap
+  void onToggleLatencyHeatmap(bool enabled);
+  void onLatencyAlert(const QString& connectionId, double latencyMs, double thresholdMs);
+
+  // Scenario editor
+  void onScenarioLoaded(const QString& name);
+  void onScenarioCompleted(bool success);
 
 protected:
   void closeEvent(QCloseEvent* event) override;
@@ -377,6 +388,14 @@ private:
   RemoteConnectionManager* remoteConnectionManager_;
   QAction* connectRemoteAction_;
   QAction* disconnectRemoteAction_;
+
+  // Latency heatmap and scenario editor
+  LatencyTracker* latencyTracker_;
+  LatencyHeatmapPanel* latencyHeatmapPanel_;
+  QDockWidget* latencyHeatmapDock_;
+  ScenarioEditorWidget* scenarioEditorWidget_;
+  QDockWidget* scenarioEditorDock_;
+  QAction* latencyHeatmapAction_;
 };
 
 }  // namespace ros_weaver
