@@ -47,12 +47,12 @@ These are community and AI-suggested features to enhance ROS2Weaver, prioritized
 | Live Message Inspector & Publisher | Done | View live messages, publish test messages |
 | Node Lifecycle State Visualization | Done | Visual state machine, transition controls |
 | Remote Robot Connection | Done | SSH tunnel, DDS configuration, profile management |
+| Topic Latency Heatmap | Done | Color-coded latency visualization, auto-tune thresholds, historical graph, CSV export |
 
 ### Remaining Features
 
 | Feature | Priority | Complexity |
 |---------|----------|------------|
-| Topic Latency Heatmap | Medium | Medium |
 | Test Message Scenario Editor | Medium | Medium |
 | Architecture Documentation Generator | Medium | Low |
 | ros2 doctor Integration | Medium | Low |

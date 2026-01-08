@@ -13,8 +13,21 @@
 #include <QCheckBox>
 #include <QGroupBox>
 #include <QTimer>
+#include <QMenu>
+#include <QProgressBar>
+#include <QFileDialog>
+#include <QMessageBox>
+#include <QtCharts/QChart>
+#include <QtCharts/QChartView>
+#include <QtCharts/QLineSeries>
+#include <QtCharts/QValueAxis>
+
+#include <deque>
+#include <cmath>
 
 #include "ros_weaver/core/latency_tracker.hpp"
+
+using namespace QtCharts;
 
 namespace ros_weaver {
 
@@ -52,11 +65,23 @@ private slots:
   void onTrackingStarted(const QString& connectionId);
   void onTrackingStopped(const QString& connectionId);
 
+  // Auto-tune slots
+  void onAutoTuneClicked();
+  void onCalibrationTimeout();
+
+  // Chart slots
+  void onTimeWindowChanged(int index);
+
+  // Export slots
+  void onExportCsvClicked();
+
 private:
   void setupUi();
   void setupThresholdControls();
   void setupConnectionTable();
   void setupStatsDisplay();
+  void setupLatencyChart();
+  void setupAutoTuneControls();
 
   void updateConnectionRow(int row, const QString& connectionId);
   void addConnectionRow(const QString& connectionId, ConnectionLine* connection);
@@ -64,6 +89,20 @@ private:
 
   QString formatLatency(double latencyMs) const;
   QColor getLatencyColor(double latencyMs) const;
+
+  // Auto-tune methods
+  void calculateAutoThresholds();
+  void startCalibration(int durationMs);
+  void finishCalibration();
+
+  // Chart methods
+  void updateLatencyChart(const QString& connectionId, double latencyMs);
+  void updateChartAxes();
+  void trimChartData();
+  QColor getSeriesColor(int index) const;
+
+  // Export methods
+  QString generateCsvContent() const;
 
   // UI Components
   QCheckBox* enableCheck_;
@@ -87,6 +126,29 @@ private:
   // Legend
   QWidget* legendWidget_;
 
+  // Auto-tune controls
+  QPushButton* autoTuneButton_;
+  QMenu* autoTuneMenu_;
+  QProgressBar* calibrationProgress_;
+  QTimer* calibrationTimer_;
+  bool isCalibrating_;
+  int calibrationDurationMs_;
+  qint64 calibrationStartTime_;
+
+  // Latency chart
+  QChart* latencyChart_;
+  QChartView* chartView_;
+  QValueAxis* timeAxis_;
+  QValueAxis* latencyAxis_;
+  QComboBox* timeWindowCombo_;
+  QMap<QString, QLineSeries*> latencySeries_;
+  QMap<QString, std::deque<QPair<qint64, double>>> latencyHistory_;
+  int timeWindowSec_;
+  qint64 chartStartTime_;
+
+  // Export button
+  QPushButton* exportCsvButton_;
+
   // Update timer
   QTimer* updateTimer_;
 
@@ -103,7 +165,13 @@ private:
   double warningThresholdMs_;
   double criticalThresholdMs_;
 
+  // Constants
   static constexpr int UPDATE_INTERVAL_MS = 500;
+  static constexpr int MAX_CHART_POINTS = 1000;
+  static constexpr int DEFAULT_TIME_WINDOW_SEC = 30;
+
+  // Color palette for chart series
+  static const QList<QColor> SERIES_COLORS;
 };
 
 }  // namespace ros_weaver
