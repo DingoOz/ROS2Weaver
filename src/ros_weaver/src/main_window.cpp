@@ -107,6 +107,98 @@
 
 namespace ros_weaver {
 
+// Helper to connect dock visibility toggles bidirectionally
+static void connectDockVisibilityToggle(MainWindow* window, const QString& actionName, QDockWidget* dock) {
+  QAction* action = window->findChild<QAction*>(actionName);
+  if (action && dock) {
+    QObject::connect(action, &QAction::toggled, dock, &QDockWidget::setVisible);
+    QObject::connect(dock, &QDockWidget::visibilityChanged, action, &QAction::setChecked);
+  }
+}
+
+// Helper to determine activity state from message rate
+static TopicActivityState activityStateFromRate(double rate) {
+  if (rate > ConnectionLine::HIGH_RATE_THRESHOLD) {
+    return TopicActivityState::HighRate;
+  }
+  if (rate > 0) {
+    return TopicActivityState::Active;
+  }
+  return TopicActivityState::Inactive;
+}
+
+// Helper to export canvas to a specific format with common dialog and error handling
+static void exportCanvasToFormat(MainWindow* window, WeaverCanvas* canvas,
+                                  ExportFormat format, const QString& dialogTitle,
+                                  const QString& defaultExt, const QStringList& validExts,
+                                  const QString& formatName) {
+  QString fileName = QFileDialog::getSaveFileName(
+    window,
+    dialogTitle,
+    QString(),
+    GraphExporter::fileFilter(format)
+  );
+
+  if (fileName.isEmpty()) {
+    return;
+  }
+
+  bool hasValidExt = false;
+  for (const QString& ext : validExts) {
+    if (fileName.endsWith(ext, Qt::CaseInsensitive)) {
+      hasValidExt = true;
+      break;
+    }
+  }
+  if (!hasValidExt) {
+    fileName += defaultExt;
+  }
+
+  Project project;
+  canvas->exportToProject(project);
+
+  ExportOptions options;
+  options.title = project.metadata().name;
+
+  if (GraphExporter::instance().exportToFile(project, fileName, format, options)) {
+    window->statusBar()->showMessage(QObject::tr("Exported to: %1").arg(fileName));
+    NotificationManager::instance().showSuccess(QObject::tr("Diagram exported to %1").arg(formatName));
+  } else {
+    ErrorHandler::showError(QObject::tr("Could not export to %1").arg(fileName));
+  }
+}
+
+// Helper to find example project file path with fallback locations
+static QString findExamplePath(const QString& exampleDir, const QString& fileName) {
+  QString examplePath;
+
+  // Try installed package share directory first
+  try {
+    std::string packageShare = ament_index_cpp::get_package_share_directory("ros_weaver");
+    examplePath = QString::fromStdString(packageShare) + "/examples/" + exampleDir + "/" + fileName;
+    if (QFile::exists(examplePath)) {
+      return examplePath;
+    }
+  } catch (const std::exception&) {
+    // Fall through to other paths
+  }
+
+  // Try source directory (for development)
+  examplePath = QDir::currentPath() + "/src/ros_weaver/examples/" + exampleDir + "/" + fileName;
+  if (QFile::exists(examplePath)) {
+    return examplePath;
+  }
+
+  // Try direct examples folder
+  QDir sourceDir(QDir::currentPath());
+  QString directPath = "examples/" + exampleDir + "/" + fileName;
+  if (sourceDir.exists(directPath)) {
+    return sourceDir.absoluteFilePath(directPath);
+  }
+
+  return QString();  // Not found
+}
+
 MainWindow::MainWindow(QWidget* parent)
   : QMainWindow(parent)
   , canvasTabWidget_(nullptr)
@@ -1678,12 +1770,7 @@ void MainWindow::setupDockWidgets() {
   addDockWidget(Qt::RightDockWidgetArea, lifecycleDock_);
   lifecycleDock_->hide();  // Hidden by default
 
-  // Connect lifecycle panel visibility toggle
-  QAction* showLifecycleAction = findChild<QAction*>("showLifecycleAction");
-  if (showLifecycleAction) {
-    connect(showLifecycleAction, &QAction::toggled, lifecycleDock_, &QDockWidget::setVisible);
-    connect(lifecycleDock_, &QDockWidget::visibilityChanged, showLifecycleAction, &QAction::setChecked);
-  }
+  connectDockVisibilityToggle(this, "showLifecycleAction", lifecycleDock_);
 
   // Latency Heatmap Panel
   latencyHeatmapDock_ = new QDockWidget(tr("Latency Heatmap"), this);
@@ -1708,11 +1795,7 @@ void MainWindow::setupDockWidgets() {
   connect(latencyTracker_, &LatencyTracker::latencyAlert,
           this, &MainWindow::onLatencyAlert);
 
-  QAction* showLatencyHeatmapAction = findChild<QAction*>("showLatencyHeatmapAction");
-  if (showLatencyHeatmapAction) {
-    connect(showLatencyHeatmapAction, &QAction::toggled, latencyHeatmapDock_, &QDockWidget::setVisible);
-    connect(latencyHeatmapDock_, &QDockWidget::visibilityChanged, showLatencyHeatmapAction, &QAction::setChecked);
-  }
+  connectDockVisibilityToggle(this, "showLatencyHeatmapAction", latencyHeatmapDock_);
 
   // Scenario Editor Panel
   scenarioEditorDock_ = new QDockWidget(tr("Scenario Editor"), this);
@@ -1734,11 +1817,7 @@ void MainWindow::setupDockWidgets() {
   connect(scenarioEditorWidget_, &ScenarioEditorWidget::scenarioCompleted,
           this, &MainWindow::onScenarioCompleted);
 
-  QAction* showScenarioEditorAction = findChild<QAction*>("showScenarioEditorAction");
-  if (showScenarioEditorAction) {
-    connect(showScenarioEditorAction, &QAction::toggled, scenarioEditorDock_, &QDockWidget::setVisible);
-    connect(scenarioEditorDock_, &QDockWidget::visibilityChanged, showScenarioEditorAction, &QAction::setChecked);
-  }
+  connectDockVisibilityToggle(this, "showScenarioEditorAction", scenarioEditorDock_);
 
   // Initialize Remote Connection Manager
   remoteConnectionManager_ = new RemoteConnectionManager(this);

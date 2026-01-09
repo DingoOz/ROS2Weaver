@@ -21,6 +21,70 @@
 namespace ros_weaver {
 
 // =============================================================================
+// Helper Functions
+// =============================================================================
+
+namespace {
+
+// Returns true if the robot type is a mobile robot (has wheels)
+bool isMobileRobot(RobotType type) {
+  return type == RobotType::DifferentialDrive ||
+         type == RobotType::CarLikeAckermann ||
+         type == RobotType::Tricycle;
+}
+
+// Returns true if the robot type is a manipulator arm
+bool isManipulatorRobot(RobotType type) {
+  return type == RobotType::SixDofArm ||
+         type == RobotType::RRBot ||
+         type == RobotType::Gripper;
+}
+
+// Helper to get the RobotTypeSelectionPage from a wizard
+RobotTypeSelectionPage* getTypeSelectionPage(QWizard* wizard) {
+  if (!wizard) return nullptr;
+  RobotWizard* wiz = qobject_cast<RobotWizard*>(wizard);
+  if (!wiz) return nullptr;
+  return qobject_cast<RobotTypeSelectionPage*>(
+    wiz->page(RobotWizard::Page_RobotTypeSelection));
+}
+
+// Helper to get RobotConfigurationPage from a wizard
+RobotConfigurationPage* getConfigurationPage(QWizard* wizard) {
+  if (!wizard) return nullptr;
+  RobotWizard* wiz = qobject_cast<RobotWizard*>(wizard);
+  if (!wiz) return nullptr;
+  return qobject_cast<RobotConfigurationPage*>(
+    wiz->page(RobotWizard::Page_RobotConfiguration));
+}
+
+// Helper to get ControllersSelectionPage from a wizard
+ControllersSelectionPage* getControllersPage(QWizard* wizard) {
+  if (!wizard) return nullptr;
+  RobotWizard* wiz = qobject_cast<RobotWizard*>(wizard);
+  if (!wiz) return nullptr;
+  return qobject_cast<ControllersSelectionPage*>(
+    wiz->page(RobotWizard::Page_ControllersSelection));
+}
+
+// Helper to get SensorsConfigurationPage from a wizard
+SensorsConfigurationPage* getSensorsPage(QWizard* wizard) {
+  if (!wizard) return nullptr;
+  RobotWizard* wiz = qobject_cast<RobotWizard*>(wizard);
+  if (!wiz) return nullptr;
+  return qobject_cast<SensorsConfigurationPage*>(
+    wiz->page(RobotWizard::Page_SensorsConfiguration));
+}
+
+// Regex pattern for valid robot names: starts with lowercase, contains only lowercase, digits, underscores
+const QRegularExpression& robotNamePattern() {
+  static const QRegularExpression pattern("^[a-z][a-z0-9_]*$");
+  return pattern;
+}
+
+}  // anonymous namespace
+
+// =============================================================================
 // RobotWizardProgressWidget
 // =============================================================================
 
@@ -603,13 +667,12 @@ void RobotTypeSelectionPage::onRobotTypeSelected(int index) {
 }
 
 void RobotTypeSelectionPage::onRobotNameChanged(const QString& name) {
-  QRegularExpression validName("^[a-z][a-z0-9_]*$");
   if (name.isEmpty()) {
-    nameValidationLabel_->setText("");
-  } else if (!validName.match(name).hasMatch()) {
+    nameValidationLabel_->clear();
+  } else if (!robotNamePattern().match(name).hasMatch()) {
     nameValidationLabel_->setText(tr("Must start with lowercase letter, contain only lowercase letters, numbers, underscores"));
   } else {
-    nameValidationLabel_->setText("");
+    nameValidationLabel_->clear();
   }
   emit completeChanged();
 }
@@ -619,8 +682,7 @@ void RobotTypeSelectionPage::initializePage() {
 }
 
 bool RobotTypeSelectionPage::validatePage() {
-  QRegularExpression validName("^[a-z][a-z0-9_]*$");
-  if (!validName.match(robotNameEdit_->text()).hasMatch()) {
+  if (!robotNamePattern().match(robotNameEdit_->text()).hasMatch()) {
     QMessageBox::warning(this, tr("Invalid Robot Name"),
       tr("Robot name must start with a lowercase letter and contain only "
          "lowercase letters, numbers, and underscores."));
@@ -630,17 +692,14 @@ bool RobotTypeSelectionPage::validatePage() {
 }
 
 bool RobotTypeSelectionPage::isComplete() const {
-  return !robotNameEdit_->text().isEmpty() &&
-         robotTypeList_->currentRow() >= 0 &&
-         getIncompleteReason().isEmpty();
+  return getIncompleteReason().isEmpty();
 }
 
 QString RobotTypeSelectionPage::getIncompleteReason() const {
   if (robotNameEdit_->text().isEmpty()) {
     return tr("Enter a robot name");
   }
-  QRegularExpression validName("^[a-z][a-z0-9_]*$");
-  if (!validName.match(robotNameEdit_->text()).hasMatch()) {
+  if (!robotNamePattern().match(robotNameEdit_->text()).hasMatch()) {
     return tr("Invalid robot name format");
   }
   if (robotTypeList_->currentRow() < 0) {
@@ -753,12 +812,8 @@ void RobotConfigurationPage::setRobotType(RobotType type) {
 }
 
 void RobotConfigurationPage::updateUiForRobotType(RobotType type) {
-  bool isMobile = (type == RobotType::DifferentialDrive ||
-                   type == RobotType::CarLikeAckermann ||
-                   type == RobotType::Tricycle);
-  wheelGroup_->setVisible(isMobile);
+  wheelGroup_->setVisible(isMobileRobot(type));
   jointGroup_->setVisible(true);
-
   populateDefaultJoints(type);
 }
 
@@ -850,10 +905,7 @@ void RobotConfigurationPage::onAddJoint() {
 }
 
 void RobotConfigurationPage::onRemoveJoint() {
-  QTreeWidgetItem* current = jointTree_->currentItem();
-  if (current) {
-    delete current;
-  }
+  delete jointTree_->currentItem();
 }
 
 void RobotConfigurationPage::onJointItemChanged(QTreeWidgetItem*, int) {
@@ -865,13 +917,8 @@ void RobotConfigurationPage::onWheelParameterChanged() {
 }
 
 void RobotConfigurationPage::initializePage() {
-  RobotWizard* wiz = qobject_cast<RobotWizard*>(wizard());
-  if (wiz) {
-    RobotTypeSelectionPage* typePage = qobject_cast<RobotTypeSelectionPage*>(
-      wiz->page(RobotWizard::Page_RobotTypeSelection));
-    if (typePage) {
-      setRobotType(typePage->selectedRobotType());
-    }
+  if (RobotTypeSelectionPage* typePage = getTypeSelectionPage(wizard())) {
+    setRobotType(typePage->selectedRobotType());
   }
 }
 
@@ -1053,24 +1100,16 @@ void HardwareInterfacesPage::setRobotType(RobotType type) {
 }
 
 void HardwareInterfacesPage::onHardwarePluginChanged(int index) {
-  QString desc;
-  switch (index) {
-    case 0:
-      desc = tr("Generic mock hardware for testing. Simulates perfect hardware response.");
-      break;
-    case 1:
-      desc = tr("Gazebo simulation hardware interface. Connects to Gazebo physics engine.");
-      break;
-    case 2:
-      desc = tr("Demo hardware for RRBot position-only control.");
-      break;
-    case 3:
-      desc = tr("Demo hardware for differential drive robots.");
-      break;
-    default:
-      desc = tr("Custom hardware plugin - you'll need to provide the full plugin name.");
-  }
-  pluginDescriptionText_->setText(desc);
+  static const char* descriptions[] = {
+    QT_TR_NOOP("Generic mock hardware for testing. Simulates perfect hardware response."),
+    QT_TR_NOOP("Gazebo simulation hardware interface. Connects to Gazebo physics engine."),
+    QT_TR_NOOP("Demo hardware for RRBot position-only control."),
+    QT_TR_NOOP("Demo hardware for differential drive robots."),
+    QT_TR_NOOP("Custom hardware plugin - you'll need to provide the full plugin name.")
+  };
+
+  int descIndex = (index >= 0 && index < 4) ? index : 4;
+  pluginDescriptionText_->setText(tr(descriptions[descIndex]));
 }
 
 void HardwareInterfacesPage::updateInterfaceDescription() {
@@ -1095,11 +1134,9 @@ bool HardwareInterfacesPage::validatePage() {
   return true;
 }
 
-ControlInterface HardwareInterfacesPage::commandInterface() const {
-  bool pos = cmdPositionCheck_->isChecked();
-  bool vel = cmdVelocityCheck_->isChecked();
-  bool eff = cmdEffortCheck_->isChecked();
+namespace {
 
+ControlInterface determineControlInterface(bool pos, bool vel, bool eff) {
   if (pos && vel && eff) return ControlInterface::All;
   if (pos && vel) return ControlInterface::PositionVelocity;
   if (vel && eff) return ControlInterface::VelocityEffort;
@@ -1108,17 +1145,20 @@ ControlInterface HardwareInterfacesPage::commandInterface() const {
   return ControlInterface::Effort;
 }
 
-ControlInterface HardwareInterfacesPage::stateInterface() const {
-  bool pos = statePositionCheck_->isChecked();
-  bool vel = stateVelocityCheck_->isChecked();
-  bool eff = stateEffortCheck_->isChecked();
+}  // anonymous namespace
 
-  if (pos && vel && eff) return ControlInterface::All;
-  if (pos && vel) return ControlInterface::PositionVelocity;
-  if (vel && eff) return ControlInterface::VelocityEffort;
-  if (pos) return ControlInterface::Position;
-  if (vel) return ControlInterface::Velocity;
-  return ControlInterface::Effort;
+ControlInterface HardwareInterfacesPage::commandInterface() const {
+  return determineControlInterface(
+    cmdPositionCheck_->isChecked(),
+    cmdVelocityCheck_->isChecked(),
+    cmdEffortCheck_->isChecked());
+}
+
+ControlInterface HardwareInterfacesPage::stateInterface() const {
+  return determineControlInterface(
+    statePositionCheck_->isChecked(),
+    stateVelocityCheck_->isChecked(),
+    stateEffortCheck_->isChecked());
 }
 
 QString HardwareInterfacesPage::hardwarePlugin() const {
@@ -1349,13 +1389,8 @@ void ControllersSelectionPage::updateControllerDetails(const QString&) {
 }
 
 void ControllersSelectionPage::initializePage() {
-  RobotWizard* wiz = qobject_cast<RobotWizard*>(wizard());
-  if (wiz) {
-    RobotTypeSelectionPage* typePage = qobject_cast<RobotTypeSelectionPage*>(
-      wiz->page(RobotWizard::Page_RobotTypeSelection));
-    if (typePage) {
-      populateControllersForType(typePage->selectedRobotType());
-    }
+  if (RobotTypeSelectionPage* typePage = getTypeSelectionPage(wizard())) {
+    populateControllersForType(typePage->selectedRobotType());
   }
 }
 
@@ -1571,10 +1606,7 @@ void SensorsConfigurationPage::onAddSensor() {
 }
 
 void SensorsConfigurationPage::onRemoveSensor() {
-  QListWidgetItem* current = sensorList_->currentItem();
-  if (current) {
-    delete current;
-  }
+  delete sensorList_->currentItem();
 }
 
 void SensorsConfigurationPage::onSensorSelectionChanged() {
@@ -1584,24 +1616,29 @@ void SensorsConfigurationPage::onSensorSelectionChanged() {
 void SensorsConfigurationPage::onSensorTypeChanged(int /*index*/) {
   QString type = sensorTypeCombo_->currentText();
 
-  lidarConfigWidget_->setVisible(type.contains("LiDAR"));
-  cameraConfigWidget_->setVisible(type.contains("Camera"));
+  bool isLidar = type.contains("LiDAR");
+  bool isCamera = type.contains("Camera");
+
+  lidarConfigWidget_->setVisible(isLidar);
+  cameraConfigWidget_->setVisible(isCamera);
   imuConfigWidget_->setVisible(type == "IMU");
 
-  // Update default topic names
-  if (type.contains("LiDAR")) {
-    sensorTopicEdit_->setPlaceholderText("/scan");
-    sensorFrameEdit_->setPlaceholderText("laser_frame");
-  } else if (type.contains("Camera")) {
-    sensorTopicEdit_->setPlaceholderText("/camera/image_raw");
-    sensorFrameEdit_->setPlaceholderText("camera_link");
+  // Set default topic and frame names based on sensor type
+  struct SensorDefaults { const char* topic; const char* frame; };
+  SensorDefaults defaults = {"/sensor/data", "sensor_link"};
+
+  if (isLidar) {
+    defaults = {"/scan", "laser_frame"};
+  } else if (isCamera) {
+    defaults = {"/camera/image_raw", "camera_link"};
   } else if (type == "IMU") {
-    sensorTopicEdit_->setPlaceholderText("/imu/data");
-    sensorFrameEdit_->setPlaceholderText("imu_link");
+    defaults = {"/imu/data", "imu_link"};
   } else if (type == "GPS") {
-    sensorTopicEdit_->setPlaceholderText("/gps/fix");
-    sensorFrameEdit_->setPlaceholderText("gps_link");
+    defaults = {"/gps/fix", "gps_link"};
   }
+
+  sensorTopicEdit_->setPlaceholderText(defaults.topic);
+  sensorFrameEdit_->setPlaceholderText(defaults.frame);
 }
 
 void SensorsConfigurationPage::updateSensorConfigPanel(const QString&) {
@@ -1609,13 +1646,8 @@ void SensorsConfigurationPage::updateSensorConfigPanel(const QString&) {
 }
 
 void SensorsConfigurationPage::initializePage() {
-  RobotWizard* wiz = qobject_cast<RobotWizard*>(wizard());
-  if (wiz) {
-    RobotTypeSelectionPage* typePage = qobject_cast<RobotTypeSelectionPage*>(
-      wiz->page(RobotWizard::Page_RobotTypeSelection));
-    if (typePage) {
-      populateDefaultSensors(typePage->selectedRobotType());
-    }
+  if (RobotTypeSelectionPage* typePage = getTypeSelectionPage(wizard())) {
+    populateDefaultSensors(typePage->selectedRobotType());
   }
 }
 
@@ -1749,18 +1781,13 @@ void TeleopSetupPage::setRobotType(RobotType type) {
 }
 
 void TeleopSetupPage::updateTeleopOptions(RobotType type) {
-  bool isMobile = (type == RobotType::DifferentialDrive ||
-                   type == RobotType::CarLikeAckermann ||
-                   type == RobotType::Tricycle);
+  bool mobile = isMobileRobot(type);
+  velocityGroup_->setVisible(mobile);
+  keyboardTeleopCheck_->setVisible(mobile);
 
-  velocityGroup_->setVisible(isMobile);
-  keyboardTeleopCheck_->setVisible(isMobile);
-
-  if (type == RobotType::SixDofArm || type == RobotType::RRBot) {
-    cmdVelTopicEdit_->setText("/joint_commands");
-  } else {
-    cmdVelTopicEdit_->setText("/cmd_vel");
-  }
+  cmdVelTopicEdit_->setText(
+    (type == RobotType::SixDofArm || type == RobotType::RRBot)
+      ? "/joint_commands" : "/cmd_vel");
 }
 
 void TeleopSetupPage::onTeleopMethodChanged() {
@@ -1768,13 +1795,8 @@ void TeleopSetupPage::onTeleopMethodChanged() {
 }
 
 void TeleopSetupPage::initializePage() {
-  RobotWizard* wiz = qobject_cast<RobotWizard*>(wizard());
-  if (wiz) {
-    RobotTypeSelectionPage* typePage = qobject_cast<RobotTypeSelectionPage*>(
-      wiz->page(RobotWizard::Page_RobotTypeSelection));
-    if (typePage) {
-      updateTeleopOptions(typePage->selectedRobotType());
-    }
+  if (RobotTypeSelectionPage* typePage = getTypeSelectionPage(wizard())) {
+    updateTeleopOptions(typePage->selectedRobotType());
   }
 }
 
@@ -1899,12 +1921,7 @@ void VisualizationSetupPage::setupUi() {
 
 void VisualizationSetupPage::setRobotType(RobotType type) {
   currentRobotType_ = type;
-
-  if (type == RobotType::SixDofArm || type == RobotType::RRBot || type == RobotType::Gripper) {
-    fixedFrameEdit_->setText("world");
-  } else {
-    fixedFrameEdit_->setText("odom");
-  }
+  fixedFrameEdit_->setText(isManipulatorRobot(type) ? "world" : "odom");
 }
 
 void VisualizationSetupPage::onRvizOptionChanged() {
@@ -1926,13 +1943,8 @@ void VisualizationSetupPage::onGazeboOptionChanged() {
 }
 
 void VisualizationSetupPage::initializePage() {
-  RobotWizard* wiz = qobject_cast<RobotWizard*>(wizard());
-  if (wiz) {
-    RobotTypeSelectionPage* typePage = qobject_cast<RobotTypeSelectionPage*>(
-      wiz->page(RobotWizard::Page_RobotTypeSelection));
-    if (typePage) {
-      setRobotType(typePage->selectedRobotType());
-    }
+  if (RobotTypeSelectionPage* typePage = getTypeSelectionPage(wizard())) {
+    setRobotType(typePage->selectedRobotType());
   }
 }
 
@@ -2078,15 +2090,8 @@ void RobotReviewGeneratePage::initializePage() {
   progressBar_->setVisible(false);
   statusLabel_->clear();
 
-  // Set defaults from wizard
-  RobotWizard* wiz = qobject_cast<RobotWizard*>(wizard());
-  if (wiz) {
-    RobotTypeSelectionPage* typePage = qobject_cast<RobotTypeSelectionPage*>(
-      wiz->page(RobotWizard::Page_RobotTypeSelection));
-    if (typePage) {
-      QString robotName = typePage->robotName();
-      packageNameEdit_->setText(robotName + "_description");
-    }
+  if (RobotTypeSelectionPage* typePage = getTypeSelectionPage(wizard())) {
+    packageNameEdit_->setText(typePage->robotName() + "_description");
   }
 
   if (outputPathEdit_->text().isEmpty()) {
@@ -2097,32 +2102,20 @@ void RobotReviewGeneratePage::initializePage() {
 }
 
 void RobotReviewGeneratePage::updateSummary() {
-  RobotWizard* wiz = qobject_cast<RobotWizard*>(wizard());
-  if (!wiz) return;
-
   QString html;
   QTextStream stream(&html);
 
-  RobotTypeSelectionPage* typePage = qobject_cast<RobotTypeSelectionPage*>(
-    wiz->page(RobotWizard::Page_RobotTypeSelection));
-  RobotConfigurationPage* configPage = qobject_cast<RobotConfigurationPage*>(
-    wiz->page(RobotWizard::Page_RobotConfiguration));
-  ControllersSelectionPage* ctrlPage = qobject_cast<ControllersSelectionPage*>(
-    wiz->page(RobotWizard::Page_ControllersSelection));
-  SensorsConfigurationPage* sensorPage = qobject_cast<SensorsConfigurationPage*>(
-    wiz->page(RobotWizard::Page_SensorsConfiguration));
-
-  if (typePage) {
+  if (auto* typePage = getTypeSelectionPage(wizard())) {
     stream << "<b>Robot:</b> " << typePage->robotName() << "<br>";
   }
-  if (configPage) {
+  if (auto* configPage = getConfigurationPage(wizard())) {
     stream << "<b>Joints:</b> " << configPage->joints().size() << "<br>";
     stream << "<b>Base Frame:</b> " << configPage->baseFrameName() << "<br>";
   }
-  if (ctrlPage) {
+  if (auto* ctrlPage = getControllersPage(wizard())) {
     stream << "<b>Controllers:</b> " << ctrlPage->controllers().size() << "<br>";
   }
-  if (sensorPage) {
+  if (auto* sensorPage = getSensorsPage(wizard())) {
     stream << "<b>Sensors:</b> " << sensorPage->sensors().size() << "<br>";
   }
 
@@ -2216,13 +2209,8 @@ bool RobotReviewGeneratePage::performGeneration() {
 }
 
 bool RobotReviewGeneratePage::generateUrdfFile(const QString& outputDir) {
-  RobotWizard* wiz = qobject_cast<RobotWizard*>(wizard());
-  if (!wiz) return false;
-
-  RobotTypeSelectionPage* typePage = qobject_cast<RobotTypeSelectionPage*>(
-    wiz->page(RobotWizard::Page_RobotTypeSelection));
-  RobotConfigurationPage* configPage = qobject_cast<RobotConfigurationPage*>(
-    wiz->page(RobotWizard::Page_RobotConfiguration));
+  auto* typePage = getTypeSelectionPage(wizard());
+  auto* configPage = getConfigurationPage(wizard());
 
   QString robotName = typePage ? typePage->robotName() : "robot";
   QString pkgName = packageNameEdit_->text();
@@ -2308,9 +2296,7 @@ bool RobotReviewGeneratePage::generateUrdfFile(const QString& outputDir) {
 }
 
 bool RobotReviewGeneratePage::generateControllerConfig(const QString& outputDir) {
-  RobotWizard* wiz = qobject_cast<RobotWizard*>(wizard());
-  ControllersSelectionPage* ctrlPage = wiz ? qobject_cast<ControllersSelectionPage*>(
-    wiz->page(RobotWizard::Page_ControllersSelection)) : nullptr;
+  auto* ctrlPage = getControllersPage(wizard());
 
   QFile file(outputDir + "/config/controllers.yaml");
   if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) return false;

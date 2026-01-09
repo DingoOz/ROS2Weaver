@@ -15,6 +15,123 @@
 
 namespace ros_weaver {
 
+namespace {
+
+// Helper to find a block by name on the canvas
+PackageBlock* findBlockByName(WeaverCanvas* canvas, const QString& name) {
+  if (!canvas) return nullptr;
+  for (QGraphicsItem* item : canvas->scene()->items()) {
+    if (PackageBlock* block = dynamic_cast<PackageBlock*>(item)) {
+      if (block->packageName() == name) {
+        return block;
+      }
+    }
+  }
+  return nullptr;
+}
+
+// Helper to find a block by ID or name
+PackageBlock* findBlock(WeaverCanvas* canvas, const QString& id, const QString& name) {
+  if (!canvas) return nullptr;
+  for (QGraphicsItem* item : canvas->scene()->items()) {
+    if (PackageBlock* block = dynamic_cast<PackageBlock*>(item)) {
+      if (!id.isEmpty() && block->id().toString() == id) {
+        return block;
+      }
+      if (!name.isEmpty() && block->packageName() == name) {
+        return block;
+      }
+    }
+  }
+  return nullptr;
+}
+
+// Helper to convert Pin::DataType to string
+QString pinDataTypeToString(Pin::DataType type) {
+  switch (type) {
+    case Pin::DataType::Topic: return "topic";
+    case Pin::DataType::Service: return "service";
+    case Pin::DataType::Action: return "action";
+    case Pin::DataType::Parameter: return "parameter";
+  }
+  return "unknown";
+}
+
+// Helper to create an error result
+AIToolResult errorResult(const QString& message) {
+  AIToolResult result;
+  result.success = false;
+  result.message = message;
+  return result;
+}
+
+// Helper to map color name to QColor
+QColor groupColorFromName(const QString& colorName) {
+  static const QMap<QString, QColor> colorMap = {
+    {"blue", QColor(80, 120, 180, 180)},
+    {"green", QColor(80, 160, 100, 180)},
+    {"red", QColor(180, 80, 80, 180)},
+    {"orange", QColor(200, 140, 60, 180)},
+    {"purple", QColor(140, 80, 180, 180)}
+  };
+  return colorMap.value(colorName, QColor(80, 120, 180, 180));
+}
+
+// Helper to convert BlockRuntimeStatus to string
+QString runtimeStatusToString(BlockRuntimeStatus status) {
+  switch (status) {
+    case BlockRuntimeStatus::Running: return "running";
+    case BlockRuntimeStatus::PartialMatch: return "partial_match";
+    case BlockRuntimeStatus::NotFound: return "not_found";
+    default: return "unknown";
+  }
+}
+
+// Helper to convert MCP server state to string
+QString mcpStateToString(MCPServerState state) {
+  switch (state) {
+    case MCPServerState::Connected: return "connected";
+    case MCPServerState::Connecting: return "connecting";
+    case MCPServerState::Error: return "error";
+    default: return "disconnected";
+  }
+}
+
+// Helper to run ros2 command with timeout
+struct Ros2CommandResult {
+  bool success;
+  QString output;
+  QString error;
+};
+
+Ros2CommandResult runRos2Command(const QStringList& args, int timeoutMs = 3000) {
+  Ros2CommandResult result;
+  QProcess process;
+  process.start("ros2", args);
+
+  if (!process.waitForStarted(2000)) {
+    result.success = false;
+    result.error = "Failed to start ros2 command";
+    return result;
+  }
+
+  if (!process.waitForFinished(timeoutMs)) {
+    process.kill();
+    process.waitForFinished(1000);
+    result.success = false;
+    result.error = "Command timed out - no controller_manager may be running";
+    return result;
+  }
+
+  result.output = process.readAllStandardOutput();
+  result.error = process.readAllStandardError();
+  result.success = (process.exitCode() == 0);
+
+  return result;
+}
+
+}  // namespace
+
 AIToolManager& AIToolManager::instance() {
   static AIToolManager instance;
   return instance;
@@ -66,13 +183,9 @@ void AIToolManager::registerLoadExampleTool() {
   tool.requiresPermission = true;
 
   tool.execute = [this](const QJsonObject& params) -> AIToolResult {
-    AIToolResult result;
     QString exampleName = params["example_name"].toString();
-
     if (exampleName.isEmpty()) {
-      result.success = false;
-      result.message = "Example name is required";
-      return result;
+      return errorResult("Example name is required");
     }
 
     // Store undo data (current project state)
@@ -83,22 +196,22 @@ void AIToolManager::registerLoadExampleTool() {
     action.timestamp = QDateTime::currentDateTime();
 
     // Store current state for undo
-    Project currentProject;
     if (canvas_) {
+      Project currentProject;
       canvas_->exportToProject(currentProject);
       action.undoData["previousProject"] = currentProject.toJson();
     }
 
-    // Emit signal to trigger example loading (MainWindow handles this)
+    action.approved = true;
+    undoStack_.push(action);
+    emit undoStackChanged(undoStack_.size());
+
+    AIToolResult result;
     result.success = true;
     result.message = QString("Loading example '%1'. The MainWindow will handle the actual loading.").arg(exampleName);
     result.data["example_name"] = exampleName;
     result.data["action"] = "load_example";
     result.undoDescription = QString("Loaded example: %1").arg(exampleName);
-
-    action.approved = true;
-    undoStack_.push(action);
-    emit undoStackChanged(undoStack_.size());
 
     return result;
   };
@@ -131,48 +244,41 @@ void AIToolManager::registerAddBlockTool() {
   tool.requiresPermission = true;
 
   tool.execute = [this](const QJsonObject& params) -> AIToolResult {
-    AIToolResult result;
-
     if (!canvas_) {
-      result.success = false;
-      result.message = "Canvas not available";
-      return result;
+      return errorResult("Canvas not available");
     }
 
     QString packageName = params["package_name"].toString();
+    if (packageName.isEmpty()) {
+      return errorResult("Package name is required");
+    }
+
     double x = params.contains("x") ? params["x"].toDouble() : 100.0;
     double y = params.contains("y") ? params["y"].toDouble() : 100.0;
 
-    if (packageName.isEmpty()) {
-      result.success = false;
-      result.message = "Package name is required";
-      return result;
-    }
-
     PackageBlock* block = canvas_->addPackageBlock(packageName, QPointF(x, y));
-
-    if (block) {
-      AIAction action;
-      action.toolName = "add_block";
-      action.parameters = params;
-      action.description = QString("Add block: %1").arg(packageName);
-      action.timestamp = QDateTime::currentDateTime();
-      action.undoData["block_id"] = block->id().toString();
-      action.approved = true;
-      undoStack_.push(action);
-      emit undoStackChanged(undoStack_.size());
-
-      result.success = true;
-      result.message = QString("Added block '%1' at position (%2, %3)")
-                           .arg(packageName)
-                           .arg(x)
-                           .arg(y);
-      result.data["block_id"] = block->id().toString();
-      result.undoDescription = QString("Added block: %1").arg(packageName);
-    } else {
-      result.success = false;
-      result.message = "Failed to add block";
+    if (!block) {
+      return errorResult("Failed to add block");
     }
+
+    AIAction action;
+    action.toolName = "add_block";
+    action.parameters = params;
+    action.description = QString("Add block: %1").arg(packageName);
+    action.timestamp = QDateTime::currentDateTime();
+    action.undoData["block_id"] = block->id().toString();
+    action.approved = true;
+    undoStack_.push(action);
+    emit undoStackChanged(undoStack_.size());
+
+    AIToolResult result;
+    result.success = true;
+    result.message = QString("Added block '%1' at position (%2, %3)")
+                         .arg(packageName)
+                         .arg(x)
+                         .arg(y);
+    result.data["block_id"] = block->id().toString();
+    result.undoDescription = QString("Added block: %1").arg(packageName);
 
     return result;
   };
@@ -200,60 +306,37 @@ void AIToolManager::registerRemoveBlockTool() {
   tool.requiresPermission = true;
 
   tool.execute = [this](const QJsonObject& params) -> AIToolResult {
-    AIToolResult result;
-
     if (!canvas_) {
-      result.success = false;
-      result.message = "Canvas not available";
-      return result;
+      return errorResult("Canvas not available");
     }
 
     QString blockId = params["block_id"].toString();
     QString blockName = params["block_name"].toString();
 
-    // Find the block
-    PackageBlock* targetBlock = nullptr;
-    for (QGraphicsItem* item : canvas_->scene()->items()) {
-      if (PackageBlock* block = dynamic_cast<PackageBlock*>(item)) {
-        if (!blockId.isEmpty() && block->id().toString() == blockId) {
-          targetBlock = block;
-          break;
-        }
-        if (!blockName.isEmpty() && block->packageName() == blockName) {
-          targetBlock = block;
-          break;
-        }
-      }
+    PackageBlock* targetBlock = findBlock(canvas_, blockId, blockName);
+    if (!targetBlock) {
+      return errorResult("Block not found");
     }
 
-    if (!targetBlock) {
-      result.success = false;
-      result.message = "Block not found";
-      return result;
-    }
+    QString name = targetBlock->packageName();
 
     // Store undo data
     AIAction action;
     action.toolName = "remove_block";
     action.parameters = params;
-    action.description = QString("Remove block: %1").arg(targetBlock->packageName());
+    action.description = QString("Remove block: %1").arg(name);
     action.timestamp = QDateTime::currentDateTime();
 
     // Store block data for undo
     BlockData blockData;
     blockData.id = targetBlock->id();
-    blockData.name = targetBlock->packageName();
+    blockData.name = name;
     blockData.position = targetBlock->pos();
     for (const Pin& pin : targetBlock->inputPins()) {
       PinData pinData;
       pinData.name = pin.name;
       pinData.type = "input";
-      switch (pin.dataType) {
-        case Pin::DataType::Topic: pinData.dataType = "topic"; break;
-        case Pin::DataType::Service: pinData.dataType = "service"; break;
-        case Pin::DataType::Action: pinData.dataType = "action"; break;
-        case Pin::DataType::Parameter: pinData.dataType = "parameter"; break;
-      }
+      pinData.dataType = pinDataTypeToString(pin.dataType);
       pinData.messageType = pin.messageType;
       blockData.inputPins.append(pinData);
     }
@@ -261,12 +344,7 @@ void AIToolManager::registerRemoveBlockTool() {
       PinData pinData;
       pinData.name = pin.name;
       pinData.type = "output";
-      switch (pin.dataType) {
-        case Pin::DataType::Topic: pinData.dataType = "topic"; break;
-        case Pin::DataType::Service: pinData.dataType = "service"; break;
-        case Pin::DataType::Action: pinData.dataType = "action"; break;
-        case Pin::DataType::Parameter: pinData.dataType = "parameter"; break;
-      }
+      pinData.dataType = pinDataTypeToString(pin.dataType);
       pinData.messageType = pin.messageType;
       blockData.outputPins.append(pinData);
     }
@@ -285,9 +363,10 @@ void AIToolManager::registerRemoveBlockTool() {
     undoStack_.push(action);
     emit undoStackChanged(undoStack_.size());
 
+    AIToolResult result;
     result.success = true;
-    result.message = QString("Removed block '%1'").arg(blockData.name);
-    result.undoDescription = QString("Removed block: %1").arg(blockData.name);
+    result.message = QString("Removed block '%1'").arg(name);
+    result.undoDescription = QString("Removed block: %1").arg(name);
 
     return result;
   };
@@ -320,36 +399,19 @@ void AIToolManager::registerSetParameterTool() {
   tool.requiresPermission = true;
 
   tool.execute = [this](const QJsonObject& params) -> AIToolResult {
-    AIToolResult result;
-
     if (!canvas_) {
-      result.success = false;
-      result.message = "Canvas not available";
-      return result;
+      return errorResult("Canvas not available");
     }
 
     QString blockName = params["block_name"].toString();
     QString paramName = params["parameter_name"].toString();
     QString paramValue = params["parameter_value"].toString();
 
-    // Find the block
-    PackageBlock* targetBlock = nullptr;
-    for (QGraphicsItem* item : canvas_->scene()->items()) {
-      if (PackageBlock* block = dynamic_cast<PackageBlock*>(item)) {
-        if (block->packageName() == blockName) {
-          targetBlock = block;
-          break;
-        }
-      }
-    }
-
+    PackageBlock* targetBlock = findBlockByName(canvas_, blockName);
     if (!targetBlock) {
-      result.success = false;
-      result.message = QString("Block '%1' not found").arg(blockName);
-      return result;
+      return errorResult(QString("Block '%1' not found").arg(blockName));
     }
 
-    // Get current parameters
     QList<BlockParamData> parameters = targetBlock->parameters();
 
     // Find and update the parameter
@@ -365,13 +427,11 @@ void AIToolManager::registerSetParameterTool() {
     }
 
     if (!found) {
-      // Add new parameter if not found
       BlockParamData newParam;
       newParam.name = paramName;
       newParam.currentValue = paramValue;
       newParam.type = "string";
       parameters.append(newParam);
-      oldValue = "";
     }
 
     targetBlock->setParameters(parameters);
@@ -390,6 +450,7 @@ void AIToolManager::registerSetParameterTool() {
     undoStack_.push(action);
     emit undoStackChanged(undoStack_.size());
 
+    AIToolResult result;
     result.success = true;
     result.message = QString("Set parameter '%1' on block '%2' to '%3'")
                          .arg(paramName, blockName, paramValue);
@@ -430,12 +491,8 @@ void AIToolManager::registerCreateConnectionTool() {
   tool.requiresPermission = true;
 
   tool.execute = [this](const QJsonObject& params) -> AIToolResult {
-    AIToolResult result;
-
     if (!canvas_) {
-      result.success = false;
-      result.message = "Canvas not available";
-      return result;
+      return errorResult("Canvas not available");
     }
 
     QString sourceBlockName = params["source_block"].toString();
@@ -443,68 +500,50 @@ void AIToolManager::registerCreateConnectionTool() {
     QString targetBlockName = params["target_block"].toString();
     int targetPin = params["target_pin"].toInt();
 
-    // Find blocks
-    PackageBlock* sourceBlock = nullptr;
-    PackageBlock* targetBlock = nullptr;
-
-    for (QGraphicsItem* item : canvas_->scene()->items()) {
-      if (PackageBlock* block = dynamic_cast<PackageBlock*>(item)) {
-        if (block->packageName() == sourceBlockName) sourceBlock = block;
-        if (block->packageName() == targetBlockName) targetBlock = block;
-      }
-    }
-
+    PackageBlock* sourceBlock = findBlockByName(canvas_, sourceBlockName);
     if (!sourceBlock) {
-      result.success = false;
-      result.message = QString("Source block '%1' not found").arg(sourceBlockName);
-      return result;
+      return errorResult(QString("Source block '%1' not found").arg(sourceBlockName));
     }
 
+    PackageBlock* targetBlock = findBlockByName(canvas_, targetBlockName);
     if (!targetBlock) {
-      result.success = false;
-      result.message = QString("Target block '%1' not found").arg(targetBlockName);
-      return result;
+      return errorResult(QString("Target block '%1' not found").arg(targetBlockName));
     }
 
     if (sourcePin < 0 || sourcePin >= sourceBlock->outputPins().size()) {
-      result.success = false;
-      result.message = QString("Invalid source pin index %1").arg(sourcePin);
-      return result;
+      return errorResult(QString("Invalid source pin index %1").arg(sourcePin));
     }
 
     if (targetPin < 0 || targetPin >= targetBlock->inputPins().size()) {
-      result.success = false;
-      result.message = QString("Invalid target pin index %1").arg(targetPin);
-      return result;
+      return errorResult(QString("Invalid target pin index %1").arg(targetPin));
     }
 
     ConnectionLine* conn = canvas_->createConnection(sourceBlock, sourcePin,
                                                       targetBlock, targetPin);
-
-    if (conn) {
-      AIAction action;
-      action.toolName = "create_connection";
-      action.parameters = params;
-      action.description = QString("Connect %1[%2] -> %3[%4]")
-                               .arg(sourceBlockName)
-                               .arg(sourcePin)
-                               .arg(targetBlockName)
-                               .arg(targetPin);
-      action.timestamp = QDateTime::currentDateTime();
-      action.undoData["source_block"] = sourceBlockName;
-      action.undoData["target_block"] = targetBlockName;
-      action.approved = true;
-      undoStack_.push(action);
-      emit undoStackChanged(undoStack_.size());
-
-      result.success = true;
-      result.message = QString("Created connection from %1 to %2")
-                           .arg(sourceBlockName, targetBlockName);
-      result.undoDescription = action.description;
-    } else {
-      result.success = false;
-      result.message = "Failed to create connection";
+    if (!conn) {
+      return errorResult("Failed to create connection");
     }
+
+    AIAction action;
+    action.toolName = "create_connection";
+    action.parameters = params;
+    action.description = QString("Connect %1[%2] -> %3[%4]")
+                             .arg(sourceBlockName)
+                             .arg(sourcePin)
+                             .arg(targetBlockName)
+                             .arg(targetPin);
+    action.timestamp = QDateTime::currentDateTime();
+    action.undoData["source_block"] = sourceBlockName;
+    action.undoData["target_block"] = targetBlockName;
+    action.approved = true;
+    undoStack_.push(action);
+    emit undoStackChanged(undoStack_.size());
+
+    AIToolResult result;
+    result.success = true;
+    result.message = QString("Created connection from %1 to %2")
+                         .arg(sourceBlockName, targetBlockName);
+    result.undoDescription = action.description;
 
     return result;
   };
@@ -537,12 +576,8 @@ void AIToolManager::registerRemoveConnectionTool() {
   tool.requiresPermission = true;
 
   tool.execute = [this](const QJsonObject& params) -> AIToolResult {
-    AIToolResult result;
-
     if (!canvas_) {
-      result.success = false;
-      result.message = "Canvas not available";
-      return result;
+      return errorResult("Canvas not available");
     }
 
     QString sourceBlockName = params["source_block"].toString();
@@ -560,10 +595,8 @@ void AIToolManager::registerRemoveConnectionTool() {
     }
 
     if (!targetConn) {
-      result.success = false;
-      result.message = QString("Connection from '%1' to '%2' not found")
-                           .arg(sourceBlockName, targetBlockName);
-      return result;
+      return errorResult(QString("Connection from '%1' to '%2' not found")
+                             .arg(sourceBlockName, targetBlockName));
     }
 
     // Store undo data
@@ -584,6 +617,7 @@ void AIToolManager::registerRemoveConnectionTool() {
     undoStack_.push(action);
     emit undoStackChanged(undoStack_.size());
 
+    AIToolResult result;
     result.success = true;
     result.message = QString("Removed connection from '%1' to '%2'")
                          .arg(sourceBlockName, targetBlockName);
@@ -622,12 +656,8 @@ void AIToolManager::registerCreateGroupTool() {
   tool.requiresPermission = true;
 
   tool.execute = [this](const QJsonObject& params) -> AIToolResult {
-    AIToolResult result;
-
     if (!canvas_) {
-      result.success = false;
-      result.message = "Canvas not available";
-      return result;
+      return errorResult("Canvas not available");
     }
 
     QString title = params["title"].toString();
@@ -637,47 +667,32 @@ void AIToolManager::registerCreateGroupTool() {
     // Select the specified blocks
     canvas_->scene()->clearSelection();
 
-    if (!blockNames.isEmpty()) {
-      for (const QJsonValue& nameVal : blockNames) {
-        QString blockName = nameVal.toString();
-        for (QGraphicsItem* item : canvas_->scene()->items()) {
-          if (PackageBlock* block = dynamic_cast<PackageBlock*>(item)) {
-            if (block->packageName() == blockName) {
-              block->setSelected(true);
-              break;
-            }
-          }
-        }
+    for (const QJsonValue& nameVal : blockNames) {
+      if (PackageBlock* block = findBlockByName(canvas_, nameVal.toString())) {
+        block->setSelected(true);
       }
     }
 
     NodeGroup* group = canvas_->createGroupFromSelection(title);
-
-    if (group) {
-      // Set color
-      QColor color(80, 120, 180, 180);  // Default blue
-      if (colorName == "green") color = QColor(80, 160, 100, 180);
-      else if (colorName == "red") color = QColor(180, 80, 80, 180);
-      else if (colorName == "orange") color = QColor(200, 140, 60, 180);
-      else if (colorName == "purple") color = QColor(140, 80, 180, 180);
-      group->setColor(color);
-
-      AIAction action;
-      action.toolName = "create_group";
-      action.parameters = params;
-      action.description = QString("Create group: %1").arg(title);
-      action.timestamp = QDateTime::currentDateTime();
-      action.approved = true;
-      undoStack_.push(action);
-      emit undoStackChanged(undoStack_.size());
-
-      result.success = true;
-      result.message = QString("Created group '%1'").arg(title);
-      result.undoDescription = action.description;
-    } else {
-      result.success = false;
-      result.message = "Failed to create group (no blocks selected?)";
+    if (!group) {
+      return errorResult("Failed to create group (no blocks selected?)");
     }
+
+    group->setColor(groupColorFromName(colorName));
+
+    AIAction action;
+    action.toolName = "create_group";
+    action.parameters = params;
+    action.description = QString("Create group: %1").arg(title);
+    action.timestamp = QDateTime::currentDateTime();
+    action.approved = true;
+    undoStack_.push(action);
+    emit undoStackChanged(undoStack_.size());
+
+    AIToolResult result;
+    result.success = true;
+    result.message = QString("Created group '%1'").arg(title);
+    result.undoDescription = action.description;
 
     return result;
   };
@@ -697,15 +712,10 @@ void AIToolManager::registerGetProjectStateTool() {
   tool.requiresPermission = false;  // Read-only, no permission needed
 
   tool.execute = [this](const QJsonObject& /*params*/) -> AIToolResult {
-    AIToolResult result;
-
     if (!canvas_) {
-      result.success = false;
-      result.message = "Canvas not available";
-      return result;
+      return errorResult("Canvas not available");
     }
 
-    QJsonObject projectState;
     QJsonArray blocksArray;
     QJsonArray connectionsArray;
     QJsonArray groupsArray;
@@ -721,28 +731,21 @@ void AIToolManager::registerGetProjectStateTool() {
 
         QJsonArray inputPins, outputPins;
         for (const Pin& pin : block->inputPins()) {
-          QJsonObject pinObj;
-          pinObj["name"] = pin.name;
-          pinObj["type"] = pin.messageType;
-          inputPins.append(pinObj);
+          inputPins.append(QJsonObject{{"name", pin.name}, {"type", pin.messageType}});
         }
         for (const Pin& pin : block->outputPins()) {
-          QJsonObject pinObj;
-          pinObj["name"] = pin.name;
-          pinObj["type"] = pin.messageType;
-          outputPins.append(pinObj);
+          outputPins.append(QJsonObject{{"name", pin.name}, {"type", pin.messageType}});
         }
         blockObj["input_pins"] = inputPins;
         blockObj["output_pins"] = outputPins;
 
-        // Parameters
         QJsonArray paramsArray;
         for (const BlockParamData& param : block->parameters()) {
-          QJsonObject paramObj;
-          paramObj["name"] = param.name;
-          paramObj["value"] = param.currentValue.toString();
-          paramObj["type"] = param.type;
-          paramsArray.append(paramObj);
+          paramsArray.append(QJsonObject{
+              {"name", param.name},
+              {"value", param.currentValue.toString()},
+              {"type", param.type}
+          });
         }
         blockObj["parameters"] = paramsArray;
 
@@ -768,29 +771,25 @@ void AIToolManager::registerGetProjectStateTool() {
 
     // Collect groups
     for (NodeGroup* group : canvas_->nodeGroups()) {
-      QJsonObject groupObj;
-      groupObj["title"] = group->title();
       QJsonArray memberBlocks;
       for (PackageBlock* block : group->containedNodes()) {
         memberBlocks.append(block->packageName());
       }
-      groupObj["blocks"] = memberBlocks;
-      groupsArray.append(groupObj);
+      groupsArray.append(QJsonObject{{"title", group->title()}, {"blocks", memberBlocks}});
     }
 
-    projectState["blocks"] = blocksArray;
-    projectState["connections"] = connectionsArray;
-    projectState["groups"] = groupsArray;
-    projectState["block_count"] = blocksArray.size();
-    projectState["connection_count"] = connectionsArray.size();
-    projectState["group_count"] = groupsArray.size();
-
+    AIToolResult result;
     result.success = true;
     result.message = QString("Project has %1 blocks, %2 connections, %3 groups")
                          .arg(blocksArray.size())
                          .arg(connectionsArray.size())
                          .arg(groupsArray.size());
-    result.data = projectState;
+    result.data["blocks"] = blocksArray;
+    result.data["connections"] = connectionsArray;
+    result.data["groups"] = groupsArray;
+    result.data["block_count"] = blocksArray.size();
+    result.data["connection_count"] = connectionsArray.size();
+    result.data["group_count"] = groupsArray.size();
 
     return result;
   };
@@ -815,31 +814,15 @@ void AIToolManager::registerGetBlockInfoTool() {
   tool.requiresPermission = false;  // Read-only
 
   tool.execute = [this](const QJsonObject& params) -> AIToolResult {
-    AIToolResult result;
-
     if (!canvas_) {
-      result.success = false;
-      result.message = "Canvas not available";
-      return result;
+      return errorResult("Canvas not available");
     }
 
     QString blockName = params["block_name"].toString();
 
-    // Find the block
-    PackageBlock* targetBlock = nullptr;
-    for (QGraphicsItem* item : canvas_->scene()->items()) {
-      if (PackageBlock* block = dynamic_cast<PackageBlock*>(item)) {
-        if (block->packageName() == blockName) {
-          targetBlock = block;
-          break;
-        }
-      }
-    }
-
+    PackageBlock* targetBlock = findBlockByName(canvas_, blockName);
     if (!targetBlock) {
-      result.success = false;
-      result.message = QString("Block '%1' not found").arg(blockName);
-      return result;
+      return errorResult(QString("Block '%1' not found").arg(blockName));
     }
 
     QJsonObject blockInfo;
@@ -853,21 +836,21 @@ void AIToolManager::registerGetBlockInfoTool() {
     QJsonArray inputPins, outputPins;
     for (int i = 0; i < targetBlock->inputPins().size(); ++i) {
       const Pin& pin = targetBlock->inputPins()[i];
-      QJsonObject pinObj;
-      pinObj["index"] = i;
-      pinObj["name"] = pin.name;
-      pinObj["type"] = pin.messageType;
-      pinObj["connections"] = targetBlock->connectionsForPin(i, false).size();
-      inputPins.append(pinObj);
+      inputPins.append(QJsonObject{
+          {"index", i},
+          {"name", pin.name},
+          {"type", pin.messageType},
+          {"connections", targetBlock->connectionsForPin(i, false).size()}
+      });
     }
     for (int i = 0; i < targetBlock->outputPins().size(); ++i) {
       const Pin& pin = targetBlock->outputPins()[i];
-      QJsonObject pinObj;
-      pinObj["index"] = i;
-      pinObj["name"] = pin.name;
-      pinObj["type"] = pin.messageType;
-      pinObj["connections"] = targetBlock->connectionsForPin(i, true).size();
-      outputPins.append(pinObj);
+      outputPins.append(QJsonObject{
+          {"index", i},
+          {"name", pin.name},
+          {"type", pin.messageType},
+          {"connections", targetBlock->connectionsForPin(i, true).size()}
+      });
     }
     blockInfo["input_pins"] = inputPins;
     blockInfo["output_pins"] = outputPins;
@@ -875,25 +858,18 @@ void AIToolManager::registerGetBlockInfoTool() {
     // Parameters
     QJsonArray paramsArray;
     for (const BlockParamData& param : targetBlock->parameters()) {
-      QJsonObject paramObj;
-      paramObj["name"] = param.name;
-      paramObj["value"] = param.currentValue.toString();
-      paramObj["type"] = param.type;
-      paramsArray.append(paramObj);
+      paramsArray.append(QJsonObject{
+          {"name", param.name},
+          {"value", param.currentValue.toString()},
+          {"type", param.type}
+      });
     }
     blockInfo["parameters"] = paramsArray;
 
-    // Runtime status
-    QString statusStr;
-    switch (targetBlock->runtimeStatus()) {
-      case BlockRuntimeStatus::Running: statusStr = "running"; break;
-      case BlockRuntimeStatus::PartialMatch: statusStr = "partial_match"; break;
-      case BlockRuntimeStatus::NotFound: statusStr = "not_found"; break;
-      default: statusStr = "unknown"; break;
-    }
-    blockInfo["runtime_status"] = statusStr;
+    blockInfo["runtime_status"] = runtimeStatusToString(targetBlock->runtimeStatus());
     blockInfo["matched_node"] = targetBlock->matchedNodeName();
 
+    AIToolResult result;
     result.success = true;
     result.message = QString("Block '%1' info retrieved").arg(blockName);
     result.data = blockInfo;
@@ -915,8 +891,6 @@ void AIToolManager::registerListAvailablePackagesTool() {
   tool.requiresPermission = false;  // Read-only
 
   tool.execute = [](const QJsonObject& /*params*/) -> AIToolResult {
-    AIToolResult result;
-
     // List of common ROS2 packages
     QJsonArray packages;
 
@@ -948,6 +922,7 @@ void AIToolManager::registerListAvailablePackagesTool() {
     packages.append(QJsonObject{{"name", "depth_image_proc"}, {"category", "perception"}, {"description", "Depth image processing"}});
     packages.append(QJsonObject{{"name", "pointcloud_to_laserscan"}, {"category", "perception"}, {"description", "Convert pointcloud to laser scan"}});
 
+    AIToolResult result;
     result.success = true;
     result.message = QString("Found %1 available packages").arg(packages.size());
     result.data["packages"] = packages;
@@ -971,7 +946,6 @@ void AIToolManager::registerMCPTools() {
     tool.requiresPermission = false;  // Read-only
 
     tool.execute = [](const QJsonObject& /*params*/) -> AIToolResult {
-      AIToolResult result;
       MCPManager& manager = MCPManager::instance();
 
       QJsonArray serversArray;
@@ -982,29 +956,21 @@ void AIToolManager::registerMCPTools() {
         serverObj["type"] = server->serverType();
         serverObj["description"] = server->description();
         serverObj["connected"] = server->isConnected();
+        serverObj["state"] = mcpStateToString(server->state());
 
-        QString stateStr;
-        switch (server->state()) {
-          case MCPServerState::Connected: stateStr = "connected"; break;
-          case MCPServerState::Connecting: stateStr = "connecting"; break;
-          case MCPServerState::Error: stateStr = "error"; break;
-          default: stateStr = "disconnected"; break;
-        }
-        serverObj["state"] = stateStr;
-
-        // List available tools
         QJsonArray toolsArray;
         for (const MCPTool& mcpTool : server->availableTools()) {
-          QJsonObject toolObj;
-          toolObj["name"] = mcpTool.name;
-          toolObj["description"] = mcpTool.description;
-          toolsArray.append(toolObj);
+          toolsArray.append(QJsonObject{
+              {"name", mcpTool.name},
+              {"description", mcpTool.description}
+          });
         }
         serverObj["tools"] = toolsArray;
 
         serversArray.append(serverObj);
       }
 
+      AIToolResult result;
       result.success = true;
       result.data["servers"] = serversArray;
       result.data["count"] = serversArray.size();
@@ -1044,8 +1010,6 @@ void AIToolManager::registerMCPTools() {
     tool.requiresPermission = false;  // MCP tools handle their own permissions
 
     tool.execute = [](const QJsonObject& params) -> AIToolResult {
-      AIToolResult result;
-
       QString serverName = params["server"].toString();
       QString toolName = params["tool"].toString();
       QJsonObject toolParams = params["parameters"].toObject();
@@ -1053,6 +1017,7 @@ void AIToolManager::registerMCPTools() {
       MCPManager& manager = MCPManager::instance();
       MCPToolResult mcpResult = manager.callTool(serverName, toolName, toolParams);
 
+      AIToolResult result;
       result.success = mcpResult.success;
       result.message = mcpResult.message;
       result.data = mcpResult.data;
@@ -1085,16 +1050,14 @@ void AIToolManager::registerMCPTools() {
     tool.requiresPermission = false;
 
     tool.execute = [](const QJsonObject& params) -> AIToolResult {
-      AIToolResult result;
-
       QString serverName = params["server"].toString();
       QString uri = params["uri"].toString();
 
       MCPManager& manager = MCPManager::instance();
       MCPResourceContent content = manager.readResource(serverName, uri);
 
-      result.success = !content.textContent.isEmpty() ||
-                       !content.binaryContent.isEmpty();
+      AIToolResult result;
+      result.success = !content.textContent.isEmpty() || !content.binaryContent.isEmpty();
       result.message = result.success ? "Resource read successfully" : "Failed to read resource";
       result.data["uri"] = content.uri;
       result.data["mimeType"] = content.mimeType;
@@ -1110,9 +1073,6 @@ void AIToolManager::registerMCPTools() {
 
     tools_[tool.name] = tool;
   }
-
-  // Register convenience shortcuts for common MCP operations
-  // These provide direct access to the most commonly used MCP tools
 
   // ROS Logs shortcut
   {
@@ -1139,9 +1099,10 @@ void AIToolManager::registerMCPTools() {
     tool.requiresPermission = false;
 
     tool.execute = [](const QJsonObject& params) -> AIToolResult {
-      AIToolResult result;
       MCPManager& manager = MCPManager::instance();
       MCPToolResult mcpResult = manager.callTool("ROS Logs", "get_logs", params);
+
+      AIToolResult result;
       result.success = mcpResult.success;
       result.message = mcpResult.message;
       result.data = mcpResult.data;
@@ -1163,9 +1124,10 @@ void AIToolManager::registerMCPTools() {
     tool.requiresPermission = false;
 
     tool.execute = [](const QJsonObject& /*params*/) -> AIToolResult {
-      AIToolResult result;
       MCPManager& manager = MCPManager::instance();
       MCPToolResult mcpResult = manager.callTool("ROS Topics", "list_topics", QJsonObject{});
+
+      AIToolResult result;
       result.success = mcpResult.success;
       result.message = mcpResult.message;
       result.data = mcpResult.data;
@@ -1187,9 +1149,10 @@ void AIToolManager::registerMCPTools() {
     tool.requiresPermission = false;
 
     tool.execute = [](const QJsonObject& /*params*/) -> AIToolResult {
-      AIToolResult result;
       MCPManager& manager = MCPManager::instance();
       MCPToolResult mcpResult = manager.callTool("System Stats", "get_all_stats", QJsonObject{});
+
+      AIToolResult result;
       result.success = mcpResult.success;
       result.message = mcpResult.message;
       result.data = mcpResult.data;
@@ -1211,9 +1174,10 @@ void AIToolManager::registerMCPTools() {
     tool.requiresPermission = false;
 
     tool.execute = [](const QJsonObject& /*params*/) -> AIToolResult {
-      AIToolResult result;
       MCPManager& manager = MCPManager::instance();
       MCPToolResult mcpResult = manager.callTool("ROSbag", "get_recording_status", QJsonObject{});
+
+      AIToolResult result;
       result.success = mcpResult.success;
       result.message = mcpResult.message;
       result.data = mcpResult.data;
@@ -1223,7 +1187,6 @@ void AIToolManager::registerMCPTools() {
     tools_[tool.name] = tool;
   }
 
-  // ros2_control shortcuts for direct CLI access
   // List controllers
   {
     AITool tool;
@@ -1238,12 +1201,9 @@ void AIToolManager::registerMCPTools() {
             }}
         }}
     };
-    tool.requiresPermission = false;  // Read-only
+    tool.requiresPermission = false;
 
     tool.execute = [](const QJsonObject& params) -> AIToolResult {
-      AIToolResult result;
-
-      QProcess process;
       QStringList args = {"control", "list_controllers"};
 
       QString manager = params["manager"].toString();
@@ -1251,34 +1211,15 @@ void AIToolManager::registerMCPTools() {
         args << "-c" << manager;
       }
 
-      process.start("ros2", args);
-      if (!process.waitForStarted(2000)) {
-        result.success = false;
-        result.message = "Failed to start ros2 command";
-        return result;
-      }
-
-      if (!process.waitForFinished(3000)) {
-        process.kill();
-        process.waitForFinished(1000);
-        result.success = false;
-        result.message = "Command timed out - no controller_manager may be running";
-        return result;
-      }
-
-      QString output = process.readAllStandardOutput();
-      QString error = process.readAllStandardError();
-
-      if (process.exitCode() != 0) {
-        result.success = false;
-        result.message = error.isEmpty() ? "No controller_manager available" : error.trimmed();
-        return result;
+      Ros2CommandResult cmdResult = runRos2Command(args);
+      if (!cmdResult.success) {
+        QString msg = cmdResult.error.isEmpty() ? "No controller_manager available" : cmdResult.error.trimmed();
+        return errorResult(msg);
       }
 
       // Parse output
       QJsonArray controllers;
-      QStringList lines = output.split('\n', Qt::SkipEmptyParts);
-      for (const QString& line : lines) {
+      for (const QString& line : cmdResult.output.split('\n', Qt::SkipEmptyParts)) {
         QString trimmed = line.trimmed();
         if (trimmed.isEmpty()) continue;
 
@@ -1297,11 +1238,12 @@ void AIToolManager::registerMCPTools() {
         }
       }
 
+      AIToolResult result;
       result.success = true;
       result.message = QString("Found %1 controllers").arg(controllers.size());
       result.data["controllers"] = controllers;
       result.data["count"] = controllers.size();
-      result.data["raw_output"] = output;
+      result.data["raw_output"] = cmdResult.output;
 
       return result;
     };
@@ -1327,48 +1269,32 @@ void AIToolManager::registerMCPTools() {
     tool.requiresPermission = false;
 
     tool.execute = [](const QJsonObject& params) -> AIToolResult {
-      AIToolResult result;
-
       QString controllerName = params["controller_name"].toString();
       if (controllerName.isEmpty()) {
-        result.success = false;
-        result.message = "Controller name is required";
-        return result;
+        return errorResult("Controller name is required");
       }
 
-      QProcess process;
-      process.start("ros2", {"control", "list_controllers", "-v"});
-      if (!process.waitForStarted(2000)) {
-        result.success = false;
-        result.message = "Failed to start ros2 command";
-        return result;
+      Ros2CommandResult cmdResult = runRos2Command({"control", "list_controllers", "-v"});
+      if (!cmdResult.success) {
+        return errorResult(cmdResult.error);
       }
-      if (!process.waitForFinished(3000)) {
-        process.kill();
-        process.waitForFinished(1000);
-        result.success = false;
-        result.message = "Command timed out - no controller_manager may be running";
-        return result;
-      }
-
-      QString output = process.readAllStandardOutput();
 
       // Filter output for the requested controller
       QStringList relevantLines;
       bool inController = false;
-      for (const QString& line : output.split('\n')) {
+      for (const QString& line : cmdResult.output.split('\n')) {
         if (line.contains(controllerName)) {
           inController = true;
         }
         if (inController) {
           relevantLines.append(line);
-          // Check if we've reached the next controller
           if (relevantLines.size() > 1 && !line.startsWith(" ") && !line.startsWith("\t")) {
             break;
           }
         }
       }
 
+      AIToolResult result;
       result.success = true;
       result.message = QString("Info for controller '%1'").arg(controllerName);
       result.data["name"] = controllerName;
@@ -1392,36 +1318,23 @@ void AIToolManager::registerMCPTools() {
     tool.requiresPermission = false;
 
     tool.execute = [](const QJsonObject& /*params*/) -> AIToolResult {
-      AIToolResult result;
-
-      QProcess process;
-      process.start("ros2", {"control", "list_hardware_interfaces"});
-      if (!process.waitForStarted(2000)) {
-        result.success = false;
-        result.message = "Failed to start ros2 command";
-        return result;
+      Ros2CommandResult cmdResult = runRos2Command({"control", "list_hardware_interfaces"});
+      if (!cmdResult.success) {
+        return errorResult(cmdResult.error);
       }
-      if (!process.waitForFinished(3000)) {
-        process.kill();
-        process.waitForFinished(1000);
-        result.success = false;
-        result.message = "Command timed out - no controller_manager may be running";
-        return result;
-      }
-
-      QString output = process.readAllStandardOutput();
 
       // Parse interfaces
       QJsonArray commandInterfaces;
       QJsonArray stateInterfaces;
       QString currentType;
 
-      for (const QString& line : output.split('\n')) {
+      for (const QString& line : cmdResult.output.split('\n')) {
         QString trimmed = line.trimmed();
         if (trimmed == "command interfaces") {
           currentType = "command";
           continue;
-        } else if (trimmed == "state interfaces") {
+        }
+        if (trimmed == "state interfaces") {
           currentType = "state";
           continue;
         }
@@ -1445,12 +1358,13 @@ void AIToolManager::registerMCPTools() {
         }
       }
 
+      AIToolResult result;
       result.success = true;
       result.message = QString("Found %1 command and %2 state interfaces")
           .arg(commandInterfaces.size()).arg(stateInterfaces.size());
       result.data["command_interfaces"] = commandInterfaces;
       result.data["state_interfaces"] = stateInterfaces;
-      result.data["raw_output"] = output;
+      result.data["raw_output"] = cmdResult.output;
 
       return result;
     };
@@ -1473,46 +1387,26 @@ void AIToolManager::registerMCPTools() {
         }},
         {"required", QJsonArray{"controller_name"}}
     };
-    tool.requiresPermission = true;  // Modifying state requires permission
+    tool.requiresPermission = true;
 
     tool.execute = [](const QJsonObject& params) -> AIToolResult {
-      AIToolResult result;
-
       QString controllerName = params["controller_name"].toString();
       if (controllerName.isEmpty()) {
-        result.success = false;
-        result.message = "Controller name is required";
-        return result;
+        return errorResult("Controller name is required");
       }
 
-      QProcess process;
-      process.start("ros2", {"control", "switch_controllers",
-                            "--activate", controllerName});
-      if (!process.waitForStarted(2000)) {
-        result.success = false;
-        result.message = "Failed to start ros2 command";
-        return result;
-      }
-      if (!process.waitForFinished(5000)) {
-        process.kill();
-        process.waitForFinished(1000);
-        result.success = false;
-        result.message = "Command timed out - no controller_manager may be running";
-        return result;
+      Ros2CommandResult cmdResult = runRos2Command(
+          {"control", "switch_controllers", "--activate", controllerName}, 5000);
+
+      if (!cmdResult.success) {
+        QString msg = cmdResult.error.isEmpty() ? "Failed to activate controller" : cmdResult.error.trimmed();
+        return errorResult(msg);
       }
 
-      QString output = process.readAllStandardOutput();
-      QString error = process.readAllStandardError();
-
-      if (process.exitCode() != 0) {
-        result.success = false;
-        result.message = error.isEmpty() ? "Failed to activate controller" : error.trimmed();
-        return result;
-      }
-
+      AIToolResult result;
       result.success = true;
       result.message = QString("Controller '%1' activated").arg(controllerName);
-      result.data["output"] = output;
+      result.data["output"] = cmdResult.output;
 
       return result;
     };
@@ -1538,43 +1432,23 @@ void AIToolManager::registerMCPTools() {
     tool.requiresPermission = true;
 
     tool.execute = [](const QJsonObject& params) -> AIToolResult {
-      AIToolResult result;
-
       QString controllerName = params["controller_name"].toString();
       if (controllerName.isEmpty()) {
-        result.success = false;
-        result.message = "Controller name is required";
-        return result;
+        return errorResult("Controller name is required");
       }
 
-      QProcess process;
-      process.start("ros2", {"control", "switch_controllers",
-                            "--deactivate", controllerName});
-      if (!process.waitForStarted(2000)) {
-        result.success = false;
-        result.message = "Failed to start ros2 command";
-        return result;
-      }
-      if (!process.waitForFinished(5000)) {
-        process.kill();
-        process.waitForFinished(1000);
-        result.success = false;
-        result.message = "Command timed out - no controller_manager may be running";
-        return result;
+      Ros2CommandResult cmdResult = runRos2Command(
+          {"control", "switch_controllers", "--deactivate", controllerName}, 5000);
+
+      if (!cmdResult.success) {
+        QString msg = cmdResult.error.isEmpty() ? "Failed to deactivate controller" : cmdResult.error.trimmed();
+        return errorResult(msg);
       }
 
-      QString output = process.readAllStandardOutput();
-      QString error = process.readAllStandardError();
-
-      if (process.exitCode() != 0) {
-        result.success = false;
-        result.message = error.isEmpty() ? "Failed to deactivate controller" : error.trimmed();
-        return result;
-      }
-
+      AIToolResult result;
       result.success = true;
       result.message = QString("Controller '%1' deactivated").arg(controllerName);
-      result.data["output"] = output;
+      result.data["output"] = cmdResult.output;
 
       return result;
     };
@@ -1605,19 +1479,14 @@ void AIToolManager::registerMCPTools() {
     tool.requiresPermission = true;
 
     tool.execute = [](const QJsonObject& params) -> AIToolResult {
-      AIToolResult result;
-
       QJsonArray activateArray = params["activate"].toArray();
       QJsonArray deactivateArray = params["deactivate"].toArray();
 
       if (activateArray.isEmpty() && deactivateArray.isEmpty()) {
-        result.success = false;
-        result.message = "At least one controller to activate or deactivate is required";
-        return result;
+        return errorResult("At least one controller to activate or deactivate is required");
       }
 
       QStringList args = {"control", "switch_controllers"};
-
       for (const QJsonValue& val : activateArray) {
         args << "--activate" << val.toString();
       }
@@ -1625,34 +1494,17 @@ void AIToolManager::registerMCPTools() {
         args << "--deactivate" << val.toString();
       }
 
-      QProcess process;
-      process.start("ros2", args);
-      if (!process.waitForStarted(2000)) {
-        result.success = false;
-        result.message = "Failed to start ros2 command";
-        return result;
-      }
-      if (!process.waitForFinished(5000)) {
-        process.kill();
-        process.waitForFinished(1000);
-        result.success = false;
-        result.message = "Command timed out - no controller_manager may be running";
-        return result;
+      Ros2CommandResult cmdResult = runRos2Command(args, 5000);
+      if (!cmdResult.success) {
+        QString msg = cmdResult.error.isEmpty() ? "Failed to switch controllers" : cmdResult.error.trimmed();
+        return errorResult(msg);
       }
 
-      QString output = process.readAllStandardOutput();
-      QString error = process.readAllStandardError();
-
-      if (process.exitCode() != 0) {
-        result.success = false;
-        result.message = error.isEmpty() ? "Failed to switch controllers" : error.trimmed();
-        return result;
-      }
-
+      AIToolResult result;
       result.success = true;
       result.message = QString("Switched controllers: activated %1, deactivated %2")
           .arg(activateArray.size()).arg(deactivateArray.size());
-      result.data["output"] = output;
+      result.data["output"] = cmdResult.output;
 
       return result;
     };
@@ -1850,12 +1702,8 @@ QList<QPair<QString, QJsonObject>> AIToolManager::parseToolCalls(const QString& 
 }
 
 AIToolResult AIToolManager::executeTool(const QString& toolName, const QJsonObject& params) {
-  AIToolResult result;
-
   if (!tools_.contains(toolName)) {
-    result.success = false;
-    result.message = QString("Unknown tool: %1").arg(toolName);
-    return result;
+    return errorResult(QString("Unknown tool: %1").arg(toolName));
   }
 
   const AITool& tool = tools_[toolName];
@@ -1869,6 +1717,7 @@ AIToolResult AIToolManager::executeTool(const QString& toolName, const QJsonObje
     emit permissionRequired(toolName, tool.description, params);
 
     // Return pending result - actual execution happens after permission granted
+    AIToolResult result;
     result.success = false;
     result.message = "Waiting for user permission";
     result.data["pending"] = true;
@@ -1876,7 +1725,7 @@ AIToolResult AIToolManager::executeTool(const QString& toolName, const QJsonObje
   }
 
   // Execute the tool
-  result = tool.execute(params);
+  AIToolResult result = tool.execute(params);
   emit toolExecuted(toolName, result.success, result.message);
 
   return result;
@@ -1939,43 +1788,39 @@ void AIToolManager::undoLastAction() {
     bool wasNew = action.undoData["was_new"].toBool();
 
     if (canvas_) {
-      for (QGraphicsItem* item : canvas_->scene()->items()) {
-        if (PackageBlock* block = dynamic_cast<PackageBlock*>(item)) {
-          if (block->packageName() == blockName) {
-            QList<BlockParamData> params = block->parameters();
-            if (wasNew) {
-              // Remove the newly added parameter
-              for (int i = 0; i < params.size(); ++i) {
-                if (params[i].name == paramName) {
-                  params.removeAt(i);
-                  break;
-                }
-              }
-            } else {
-              // Restore old value
-              for (int i = 0; i < params.size(); ++i) {
-                if (params[i].name == paramName) {
-                  params[i].currentValue = oldValue;
-                  break;
-                }
-              }
+      PackageBlock* block = findBlockByName(canvas_, blockName);
+      if (block) {
+        QList<BlockParamData> params = block->parameters();
+        if (wasNew) {
+          // Remove the newly added parameter
+          for (int i = 0; i < params.size(); ++i) {
+            if (params[i].name == paramName) {
+              params.removeAt(i);
+              break;
             }
-            block->setParameters(params);
-            break;
+          }
+        } else {
+          // Restore old value
+          for (int i = 0; i < params.size(); ++i) {
+            if (params[i].name == paramName) {
+              params[i].currentValue = oldValue;
+              break;
+            }
           }
         }
+        block->setParameters(params);
       }
     }
   } else if (action.toolName == "create_connection") {
     // Remove the created connection
-    QString sourceBlock = action.parameters["source_block"].toString();
-    QString targetBlock = action.parameters["target_block"].toString();
+    QString sourceBlockName = action.parameters["source_block"].toString();
+    QString targetBlockName = action.parameters["target_block"].toString();
 
     if (canvas_) {
       for (ConnectionLine* conn : canvas_->connections()) {
         if (conn->sourceBlock() && conn->targetBlock() &&
-            conn->sourceBlock()->packageName() == sourceBlock &&
-            conn->targetBlock()->packageName() == targetBlock) {
+            conn->sourceBlock()->packageName() == sourceBlockName &&
+            conn->targetBlock()->packageName() == targetBlockName) {
           canvas_->removeConnection(conn);
           break;
         }
@@ -1989,15 +1834,8 @@ void AIToolManager::undoLastAction() {
     int targetPin = action.undoData["target_pin"].toInt();
 
     if (canvas_) {
-      PackageBlock* sourceBlock = nullptr;
-      PackageBlock* targetBlock = nullptr;
-
-      for (QGraphicsItem* item : canvas_->scene()->items()) {
-        if (PackageBlock* block = dynamic_cast<PackageBlock*>(item)) {
-          if (block->packageName() == sourceBlockName) sourceBlock = block;
-          if (block->packageName() == targetBlockName) targetBlock = block;
-        }
-      }
+      PackageBlock* sourceBlock = findBlockByName(canvas_, sourceBlockName);
+      PackageBlock* targetBlock = findBlockByName(canvas_, targetBlockName);
 
       if (sourceBlock && targetBlock) {
         canvas_->createConnection(sourceBlock, sourcePin, targetBlock, targetPin);
@@ -2066,8 +1904,6 @@ void AIToolManager::registerArchitectureTools() {
     tool.requiresPermission = true;
 
     tool.execute = [this](const QJsonObject& params) -> AIToolResult {
-      AIToolResult result;
-
       QMap<QString, QString> options;
       options["slam_method"] = params["slam_method"].toString("slam_toolbox");
       options["use_lidar"] = params["use_lidar"].toBool(true) ? "true" : "false";
@@ -2082,17 +1918,16 @@ void AIToolManager::registerArchitectureTools() {
         ArchitectureGenerator::instance().applyToProject(genResult, tempProject);
         canvas_->importFromProject(tempProject);
 
+        AIToolResult result;
         result.success = true;
         result.message = QString("Generated SLAM stack with %1 nodes")
             .arg(genResult.nodes.size());
         result.data["nodes_created"] = genResult.nodes.size();
         result.data["connections_created"] = genResult.connections.size();
-      } else {
-        result.success = false;
-        result.message = genResult.errorMessage;
+        return result;
       }
 
-      return result;
+      return errorResult(genResult.errorMessage);
     };
 
     tools_[tool.name] = tool;
@@ -2122,8 +1957,6 @@ void AIToolManager::registerArchitectureTools() {
     tool.requiresPermission = true;
 
     tool.execute = [this](const QJsonObject& params) -> AIToolResult {
-      AIToolResult result;
-
       QMap<QString, QString> options;
       options["planner"] = params["planner"].toString("navfn");
       options["controller"] = params["controller"].toString("dwb_controller");
@@ -2137,15 +1970,14 @@ void AIToolManager::registerArchitectureTools() {
         ArchitectureGenerator::instance().applyToProject(genResult, tempProject);
         canvas_->importFromProject(tempProject);
 
+        AIToolResult result;
         result.success = true;
         result.message = QString("Generated Nav2 stack with %1 nodes")
             .arg(genResult.nodes.size());
-      } else {
-        result.success = false;
-        result.message = genResult.errorMessage;
+        return result;
       }
 
-      return result;
+      return errorResult(genResult.errorMessage);
     };
 
     tools_[tool.name] = tool;
@@ -2173,8 +2005,6 @@ void AIToolManager::registerArchitectureTools() {
     tool.requiresPermission = true;
 
     tool.execute = [this](const QJsonObject& params) -> AIToolResult {
-      AIToolResult result;
-
       QMap<QString, QString> options;
       options["object_detection"] = params["object_detection"].toBool(true) ? "true" : "false";
       options["pointcloud"] = params["pointcloud"].toBool(true) ? "true" : "false";
@@ -2188,15 +2018,14 @@ void AIToolManager::registerArchitectureTools() {
         ArchitectureGenerator::instance().applyToProject(genResult, tempProject);
         canvas_->importFromProject(tempProject);
 
+        AIToolResult result;
         result.success = true;
         result.message = QString("Generated perception stack with %1 nodes")
             .arg(genResult.nodes.size());
-      } else {
-        result.success = false;
-        result.message = genResult.errorMessage;
+        return result;
       }
 
-      return result;
+      return errorResult(genResult.errorMessage);
     };
 
     tools_[tool.name] = tool;
@@ -2220,8 +2049,6 @@ void AIToolManager::registerArchitectureTools() {
     tool.requiresPermission = true;
 
     tool.execute = [this](const QJsonObject& params) -> AIToolResult {
-      AIToolResult result;
-
       QMap<QString, QString> options;
       options["robot_name"] = params["robot_name"].toString("arm");
 
@@ -2234,15 +2061,14 @@ void AIToolManager::registerArchitectureTools() {
         ArchitectureGenerator::instance().applyToProject(genResult, tempProject);
         canvas_->importFromProject(tempProject);
 
+        AIToolResult result;
         result.success = true;
         result.message = QString("Generated manipulation stack with %1 nodes")
             .arg(genResult.nodes.size());
-      } else {
-        result.success = false;
-        result.message = genResult.errorMessage;
+        return result;
       }
 
-      return result;
+      return errorResult(genResult.errorMessage);
     };
 
     tools_[tool.name] = tool;
@@ -2267,8 +2093,6 @@ void AIToolManager::registerArchitectureTools() {
     tool.requiresPermission = true;
 
     tool.execute = [this](const QJsonObject& params) -> AIToolResult {
-      AIToolResult result;
-
       QMap<QString, QString> options;
       options["input_type"] = params["input_type"].toString("keyboard");
 
@@ -2281,15 +2105,14 @@ void AIToolManager::registerArchitectureTools() {
         ArchitectureGenerator::instance().applyToProject(genResult, tempProject);
         canvas_->importFromProject(tempProject);
 
+        AIToolResult result;
         result.success = true;
         result.message = QString("Generated teleop stack with %1 nodes")
             .arg(genResult.nodes.size());
-      } else {
-        result.success = false;
-        result.message = genResult.errorMessage;
+        return result;
       }
 
-      return result;
+      return errorResult(genResult.errorMessage);
     };
 
     tools_[tool.name] = tool;
@@ -2323,8 +2146,6 @@ void AIToolManager::registerArchitectureTools() {
     tool.requiresPermission = true;
 
     tool.execute = [](const QJsonObject& params) -> AIToolResult {
-      AIToolResult result;
-
       QString robotType = params["robot_type"].toString();
       QString useCase = params["use_case"].toString();
 
@@ -2335,15 +2156,14 @@ void AIToolManager::registerArchitectureTools() {
       }
 
       if (!ArchitectureGenerator::instance().isAIAvailable()) {
-        result.success = false;
-        result.message = "AI backend (Ollama) is not available. "
-                         "Start Ollama to use AI-powered suggestions.";
-        return result;
+        return errorResult("AI backend (Ollama) is not available. "
+                           "Start Ollama to use AI-powered suggestions.");
       }
 
       ArchitectureGenerationResult genResult =
           ArchitectureGenerator::instance().suggestArchitecture(robotType, useCase, sensors);
 
+      AIToolResult result;
       result.success = genResult.success;
       result.message = genResult.success
           ? QString("Generated architecture: %1").arg(genResult.architectureName)
@@ -2369,12 +2189,8 @@ void AIToolManager::registerArchitectureTools() {
     tool.requiresPermission = false;  // Read-only analysis
 
     tool.execute = [this](const QJsonObject& /*params*/) -> AIToolResult {
-      AIToolResult result;
-
       if (!canvas_) {
-        result.success = false;
-        result.message = "Canvas not available";
-        return result;
+        return errorResult("Canvas not available");
       }
 
       Project project;
@@ -2382,6 +2198,7 @@ void AIToolManager::registerArchitectureTools() {
 
       OptimizationResult optResult = ArchitectureOptimizer::instance().analyze(project);
 
+      AIToolResult result;
       result.success = optResult.success;
       result.message = optResult.summary;
       result.data["overall_score"] = optResult.overallScore;
@@ -2389,17 +2206,16 @@ void AIToolManager::registerArchitectureTools() {
       result.data["connection_count"] = optResult.metrics.connectionCount;
       result.data["recommendation_count"] = optResult.recommendations.size();
 
-      // Add recommendations
       QJsonArray recsArray;
       for (const auto& rec : optResult.recommendations) {
-        QJsonObject recObj;
-        recObj["id"] = rec.id;
-        recObj["title"] = rec.title;
-        recObj["description"] = rec.description;
-        recObj["category"] = ArchitectureOptimizer::categoryToString(rec.category);
-        recObj["priority"] = ArchitectureOptimizer::priorityToString(rec.priority);
-        recObj["suggestion"] = rec.suggestedChange;
-        recsArray.append(recObj);
+        recsArray.append(QJsonObject{
+            {"id", rec.id},
+            {"title", rec.title},
+            {"description", rec.description},
+            {"category", ArchitectureOptimizer::categoryToString(rec.category)},
+            {"priority", ArchitectureOptimizer::priorityToString(rec.priority)},
+            {"suggestion", rec.suggestedChange}
+        });
       }
       result.data["recommendations"] = recsArray;
 
@@ -2421,8 +2237,6 @@ void AIToolManager::registerArchitectureTools() {
     tool.requiresPermission = false;
 
     tool.execute = [](const QJsonObject& /*params*/) -> AIToolResult {
-      AIToolResult result;
-
       QJsonArray templates;
       templates.append(QJsonObject{
           {"name", "slam_stack"},
@@ -2445,6 +2259,7 @@ void AIToolManager::registerArchitectureTools() {
           {"description", "Teleoperation and remote control"}
       });
 
+      AIToolResult result;
       result.success = true;
       result.message = QString("Found %1 architecture templates").arg(templates.size());
       result.data["templates"] = templates;
