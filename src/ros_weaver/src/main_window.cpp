@@ -70,6 +70,7 @@
 #include "ros_weaver/widgets/scenario_editor_widget.hpp"
 #include "ros_weaver/widgets/latency_heatmap_panel.hpp"
 #include "ros_weaver/core/latency_tracker.hpp"
+#include "ros_weaver/widgets/diagnostics_panel.hpp"
 
 #include <QApplication>
 #include <QCloseEvent>
@@ -178,6 +179,8 @@ MainWindow::MainWindow(QWidget* parent)
   , scenarioEditorWidget_(nullptr)
   , scenarioEditorDock_(nullptr)
   , latencyHeatmapAction_(nullptr)
+  , diagnosticsPanel_(nullptr)
+  , diagnosticsDock_(nullptr)
 {
   setWindowTitle(baseWindowTitle_);
   setMinimumSize(constants::ui::MIN_WINDOW_WIDTH, constants::ui::MIN_WINDOW_HEIGHT);
@@ -671,6 +674,12 @@ void MainWindow::setupMenuBar() {
   showScenarioEditorAction->setChecked(false);  // Hidden by default
   showScenarioEditorAction->setObjectName("showScenarioEditorAction");
   showScenarioEditorAction->setToolTip(tr("Show/hide scenario editor for creating and running test scenarios"));
+
+  QAction* showDiagnosticsAction = panelsMenu->addAction(tr("&Diagnostics (ros2 doctor)"));
+  showDiagnosticsAction->setCheckable(true);
+  showDiagnosticsAction->setChecked(false);  // Hidden by default
+  showDiagnosticsAction->setObjectName("showDiagnosticsAction");
+  showDiagnosticsAction->setToolTip(tr("Show/hide system diagnostics panel (ros2 doctor)"));
 
   panelsMenu->addSeparator();
 
@@ -1739,6 +1748,23 @@ void MainWindow::setupDockWidgets() {
     connect(showScenarioEditorAction, &QAction::toggled, scenarioEditorDock_, &QDockWidget::setVisible);
     connect(scenarioEditorDock_, &QDockWidget::visibilityChanged, showScenarioEditorAction, &QAction::setChecked);
   }
+
+  // Diagnostics Panel (ros2 doctor)
+  diagnosticsDock_ = new QDockWidget(tr("Diagnostics"), this);
+  diagnosticsDock_->setObjectName("diagnosticsDock");
+  diagnosticsDock_->setAllowedAreas(Qt::AllDockWidgetAreas);
+  diagnosticsDock_->setFeatures(QDockWidget::DockWidgetMovable |
+                                 QDockWidget::DockWidgetFloatable |
+                                 QDockWidget::DockWidgetClosable);
+
+  diagnosticsPanel_ = new DiagnosticsPanel(this);
+  diagnosticsDock_->setWidget(diagnosticsPanel_);
+
+  addDockWidget(Qt::RightDockWidgetArea, diagnosticsDock_);
+  tabifyDockWidget(nodeHealthDock_, diagnosticsDock_);
+  diagnosticsDock_->hide();  // Hidden by default
+
+  connectDockVisibilityToggle(this, "showDiagnosticsAction", diagnosticsDock_);
 
   // Initialize Remote Connection Manager
   remoteConnectionManager_ = new RemoteConnectionManager(this);
