@@ -66,6 +66,7 @@ class RemoteConnectionManager;
 class ScenarioEditorWidget;
 class LatencyHeatmapPanel;
 class LatencyTracker;
+class DiagnosticsPanel;
 
 class MainWindow : public QMainWindow {
   Q_OBJECT
@@ -397,6 +398,10 @@ private:
   ScenarioEditorWidget* scenarioEditorWidget_;
   QDockWidget* scenarioEditorDock_;
   QAction* latencyHeatmapAction_;
+
+  // Diagnostics panel (ros2 doctor)
+  DiagnosticsPanel* diagnosticsPanel_;
+  QDockWidget* diagnosticsDock_;
 };
 
 }  // namespace ros_weaver
