@@ -1684,6 +1684,116 @@ Right-click a connection on canvas to:
     {"rosbag", "bag", "record", "playback", "messages", "topics", "replay"}
   };
   topicOrder_ << "rosbag-workbench";
+
+  // Network Topology View
+  topics_["network-topology"] = {
+    "network-topology",
+    tr("Network Topology View"),
+    tr(R"(# DDS Network Topology View
+
+The Network Topology View visualizes the physical network structure of your ROS2 system, showing which nodes are running on which hosts and how they communicate through DDS.
+
+## Overview Panel
+
+The top of the panel displays key DDS information:
+
+- **Domain ID**: Current ROS_DOMAIN_ID value
+- **RMW Implementation**: Active DDS middleware (rmw_fastrtps_cpp, rmw_cyclonedds_cpp, etc.)
+- **Discovery Type**: How nodes discover each other (Multicast, Unicast, or Discovery Server)
+- **Host/Node Count**: Total number of hosts and nodes detected
+
+## Graph View
+
+The graph view shows your network topology visually:
+
+- **Host Clusters**: Rounded rectangles representing physical machines
+- **Nodes**: Displayed inside their respective host clusters
+- **Local Host**: Highlighted with a special border style
+- **Color Coding**: Each host gets a distinct color for easy identification
+
+### Interacting with the Graph
+
+- **Click a host** to highlight all its nodes on the main canvas
+- **Click a node** within a host to select it on the canvas
+- **Drag** to pan the view
+- **Zoom controls** to adjust magnification
+- **Fit View** to see all hosts at once
+
+## Table View
+
+The table view provides a structured listing:
+
+### Hosts Table
+| Column | Description |
+|--------|-------------|
+| Host | Hostname or IP address |
+| IP Address | Network address |
+| Nodes | Number of nodes on this host |
+| Status | Local or Remote indicator |
+
+### Nodes Tree
+- Nodes grouped by host
+- Shows publisher and subscriber counts
+- Hover for detailed topic lists
+
+## Canvas Integration
+
+The Network Topology panel integrates bidirectionally with the main canvas:
+
+- **From Topology**: Click a node to highlight and center it on the canvas
+- **From Canvas**: Selection changes sync to the topology view (when supported)
+
+## Controls
+
+| Control | Description |
+|---------|-------------|
+| **Refresh** | Manually rescan the network topology |
+| **Auto** | Enable automatic periodic refresh |
+| **Interval** | Set auto-refresh interval (10-300 seconds) |
+| **View** | Switch between Graph and Table views |
+| **Zoom +/-** | Adjust graph magnification |
+| **Fit** | Fit all hosts in the visible area |
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| R | Refresh topology |
+| F | Fit view (graph mode) |
+
+## Settings
+
+Configure Network Topology behavior in **Settings > Network Topology**:
+
+- **Enable auto-refresh**: Automatically scan at intervals
+- **Refresh interval**: Time between auto-scans (10-300 seconds)
+- **Show bandwidth**: Display bandwidth info on connections
+- **Default view mode**: Graph or Table view on panel open
+
+## Discovery Methods
+
+### Multicast (Default)
+Standard DDS discovery using multicast. Works on local networks.
+
+### Unicast
+Configured peer list discovery. Used when multicast is unavailable.
+Check CYCLONEDDS_URI or FASTRTPS_DEFAULT_PROFILES_FILE environment variables.
+
+### Discovery Server
+FastDDS Discovery Server mode. Check ROS_DISCOVERY_SERVER environment variable.
+
+## Tips
+
+- Use the **Graph view** for a quick visual overview of your network
+- Use the **Table view** when you need to search or sort nodes
+- **Local host** is highlighted to easily identify your machine
+- Check the **Discovery Type** if nodes aren't being discovered
+- Different **ROS_DOMAIN_ID** values isolate networks
+)"),
+    "",
+    {"network", "topology", "dds", "domain", "hosts", "discovery", "multicast", "unicast"}
+  };
+  topicOrder_ << "network-topology";
 }
 
 void HelpBrowser::buildTableOfContents() {
@@ -1756,6 +1866,10 @@ void HelpBrowser::buildTableOfContents() {
   QTreeWidgetItem* rosbagItem = new QTreeWidgetItem(ros2Item);
   rosbagItem->setText(0, tr("Rosbag Workbench"));
   rosbagItem->setData(0, Qt::UserRole, "rosbag-workbench");
+
+  QTreeWidgetItem* networkTopoItem = new QTreeWidgetItem(ros2Item);
+  networkTopoItem->setText(0, tr("Network Topology"));
+  networkTopoItem->setData(0, Qt::UserRole, "network-topology");
 
   QTreeWidgetItem* aiItem = new QTreeWidgetItem(tocTree_);
   aiItem->setText(0, tr("Local AI Assistant"));

@@ -177,6 +177,8 @@ set(SOURCES
   src/core/architecture_doc_generator.cpp
   src/widgets/architecture_doc_dialog.cpp
   src/widgets/diagnostics_panel.cpp
+  src/core/network_topology_manager.cpp
+  src/widgets/network_topology_panel.cpp
 )
 
 # Header files (for MOC)
@@ -296,6 +298,8 @@ set(HEADERS
   include/ros_weaver/core/architecture_doc_generator.hpp
   include/ros_weaver/widgets/architecture_doc_dialog.hpp
   include/ros_weaver/widgets/diagnostics_panel.hpp
+  include/ros_weaver/core/network_topology_manager.hpp
+  include/ros_weaver/widgets/network_topology_panel.hpp
 )
 
 # Create executable

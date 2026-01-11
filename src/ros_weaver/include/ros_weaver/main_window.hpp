@@ -67,6 +67,8 @@ class ScenarioEditorWidget;
 class LatencyHeatmapPanel;
 class LatencyTracker;
 class DiagnosticsPanel;
+class NetworkTopologyManager;
+class NetworkTopologyPanel;
 
 class MainWindow : public QMainWindow {
   Q_OBJECT
@@ -402,6 +404,11 @@ private:
   // Diagnostics panel (ros2 doctor)
   DiagnosticsPanel* diagnosticsPanel_;
   QDockWidget* diagnosticsDock_;
+
+  // Network topology panel (DDS network view)
+  NetworkTopologyManager* networkTopologyManager_;
+  NetworkTopologyPanel* networkTopologyPanel_;
+  QDockWidget* networkTopologyDock_;
 };
 
 }  // namespace ros_weaver
