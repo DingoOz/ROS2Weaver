@@ -506,10 +506,10 @@ void LLMChatWidget::scrollToBottom() {
 
 void LLMChatWidget::clearChat() {
   // Remove all widgets except the stretch and bottom spacer
-  // Layout order: [stretch, messages..., bottomSpacer]
+  // Layout order: [messages..., stretch, bottomSpacer]
   while (chatLayout_->count() > 2) {
-    // Remove items between stretch (index 0) and bottomSpacer (last item)
-    QLayoutItem* item = chatLayout_->takeAt(1);
+    // Remove messages from the front (index 0), keeping stretch and bottomSpacer at the end
+    QLayoutItem* item = chatLayout_->takeAt(0);
     if (item->widget() && item->widget() != bottomSpacer_) {
       delete item->widget();
     }
