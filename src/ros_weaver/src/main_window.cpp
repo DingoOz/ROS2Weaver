@@ -71,6 +71,8 @@
 #include "ros_weaver/widgets/latency_heatmap_panel.hpp"
 #include "ros_weaver/core/latency_tracker.hpp"
 #include "ros_weaver/widgets/diagnostics_panel.hpp"
+#include "ros_weaver/core/network_topology_manager.hpp"
+#include "ros_weaver/widgets/network_topology_panel.hpp"
 
 #include <QApplication>
 #include <QCloseEvent>
@@ -181,6 +183,9 @@ MainWindow::MainWindow(QWidget* parent)
   , latencyHeatmapAction_(nullptr)
   , diagnosticsPanel_(nullptr)
   , diagnosticsDock_(nullptr)
+  , networkTopologyManager_(nullptr)
+  , networkTopologyPanel_(nullptr)
+  , networkTopologyDock_(nullptr)
 {
   setWindowTitle(baseWindowTitle_);
   setMinimumSize(constants::ui::MIN_WINDOW_WIDTH, constants::ui::MIN_WINDOW_HEIGHT);
@@ -680,6 +685,12 @@ void MainWindow::setupMenuBar() {
   showDiagnosticsAction->setChecked(false);  // Hidden by default
   showDiagnosticsAction->setObjectName("showDiagnosticsAction");
   showDiagnosticsAction->setToolTip(tr("Show/hide system diagnostics panel (ros2 doctor)"));
+
+  QAction* showNetworkTopologyAction = panelsMenu->addAction(tr("&Network Topology"));
+  showNetworkTopologyAction->setCheckable(true);
+  showNetworkTopologyAction->setChecked(false);  // Hidden by default
+  showNetworkTopologyAction->setObjectName("showNetworkTopologyAction");
+  showNetworkTopologyAction->setToolTip(tr("Show/hide DDS network topology view"));
 
   panelsMenu->addSeparator();
 
@@ -1764,7 +1775,51 @@ void MainWindow::setupDockWidgets() {
   tabifyDockWidget(nodeHealthDock_, diagnosticsDock_);
   diagnosticsDock_->hide();  // Hidden by default
 
-  connectDockVisibilityToggle(this, "showDiagnosticsAction", diagnosticsDock_);
+  QAction* showDiagnosticsAction = findChild<QAction*>("showDiagnosticsAction");
+  if (showDiagnosticsAction) {
+    connect(showDiagnosticsAction, &QAction::toggled, diagnosticsDock_, &QDockWidget::setVisible);
+    connect(diagnosticsDock_, &QDockWidget::visibilityChanged, showDiagnosticsAction, &QAction::setChecked);
+  }
+
+  // Network Topology Panel (DDS network view)
+  networkTopologyDock_ = new QDockWidget(tr("Network Topology"), this);
+  networkTopologyDock_->setObjectName("networkTopologyDock");
+  networkTopologyDock_->setAllowedAreas(Qt::AllDockWidgetAreas);
+  networkTopologyDock_->setFeatures(QDockWidget::DockWidgetMovable |
+                                     QDockWidget::DockWidgetFloatable |
+                                     QDockWidget::DockWidgetClosable);
+
+  networkTopologyManager_ = new NetworkTopologyManager(this);
+  networkTopologyPanel_ = new NetworkTopologyPanel(this);
+  networkTopologyPanel_->setCanvas(canvas_);
+  networkTopologyPanel_->setNetworkTopologyManager(networkTopologyManager_);
+  networkTopologyDock_->setWidget(networkTopologyPanel_);
+
+  addDockWidget(Qt::RightDockWidgetArea, networkTopologyDock_);
+  tabifyDockWidget(diagnosticsDock_, networkTopologyDock_);
+  networkTopologyDock_->hide();  // Hidden by default
+
+  QAction* showNetworkTopologyAction = findChild<QAction*>("showNetworkTopologyAction");
+  if (showNetworkTopologyAction) {
+    connect(showNetworkTopologyAction, &QAction::toggled, networkTopologyDock_, &QDockWidget::setVisible);
+    connect(networkTopologyDock_, &QDockWidget::visibilityChanged, showNetworkTopologyAction, &QAction::setChecked);
+  }
+
+  // Connect canvas integration signal
+  connect(networkTopologyPanel_, &NetworkTopologyPanel::nodeSelectedOnCanvas,
+          this, [this](const QString& nodeName) {
+    // Find and highlight the node on canvas
+    if (!canvas_) return;
+    for (QGraphicsItem* item : canvas_->scene()->items()) {
+      PackageBlock* block = dynamic_cast<PackageBlock*>(item);
+      if (block && block->packageName() == nodeName) {
+        canvas_->scene()->clearSelection();
+        block->setSelected(true);
+        canvas_->centerOn(block);
+        break;
+      }
+    }
+  });
 
   // Initialize Remote Connection Manager
   remoteConnectionManager_ = new RemoteConnectionManager(this);
@@ -3675,6 +3730,62 @@ void MainWindow::onOpenSettings() {
 
   settingsTabs->addTab(generalTab, tr("General"));
 
+  // ==================== Network Topology Settings Tab ====================
+  QWidget* networkTopoTab = new QWidget();
+  QVBoxLayout* networkTopoLayout = new QVBoxLayout(networkTopoTab);
+
+  // Auto-refresh group
+  QGroupBox* topoAutoRefreshGroup = new QGroupBox(tr("Auto-Refresh"), networkTopoTab);
+  QVBoxLayout* topoArLayout = new QVBoxLayout(topoAutoRefreshGroup);
+
+  QCheckBox* topoAutoRefreshCheck = new QCheckBox(tr("Enable auto-refresh"), topoAutoRefreshGroup);
+  topoAutoRefreshCheck->setChecked(networkTopologyManager_ ?
+      networkTopologyManager_->isAutoRefreshEnabled() : false);
+  topoAutoRefreshCheck->setToolTip(tr("Automatically refresh network topology at the specified interval"));
+  topoArLayout->addWidget(topoAutoRefreshCheck);
+
+  QHBoxLayout* topoIntervalLayout = new QHBoxLayout();
+  QLabel* topoIntervalLabel = new QLabel(tr("Refresh interval (seconds):"), topoAutoRefreshGroup);
+  QSpinBox* topoIntervalSpin = new QSpinBox(topoAutoRefreshGroup);
+  topoIntervalSpin->setRange(10, 300);
+  topoIntervalSpin->setValue(networkTopologyManager_ ?
+      networkTopologyManager_->autoRefreshInterval() : 30);
+  topoIntervalSpin->setToolTip(tr("Interval between automatic topology scans (10-300 seconds)"));
+  topoIntervalLayout->addWidget(topoIntervalLabel);
+  topoIntervalLayout->addWidget(topoIntervalSpin);
+  topoIntervalLayout->addStretch();
+  topoArLayout->addLayout(topoIntervalLayout);
+
+  networkTopoLayout->addWidget(topoAutoRefreshGroup);
+
+  // Display options group
+  QGroupBox* topoDisplayGroup = new QGroupBox(tr("Display Options"), networkTopoTab);
+  QVBoxLayout* topoDisplayLayout = new QVBoxLayout(topoDisplayGroup);
+
+  QCheckBox* topoShowBandwidthCheck = new QCheckBox(tr("Show bandwidth between hosts"), topoDisplayGroup);
+  topoShowBandwidthCheck->setChecked(networkTopologyManager_ ?
+      networkTopologyManager_->showBandwidth() : true);
+  topoShowBandwidthCheck->setToolTip(tr("Display estimated bandwidth on host connections"));
+  topoDisplayLayout->addWidget(topoShowBandwidthCheck);
+
+  QHBoxLayout* topoViewModeLayout = new QHBoxLayout();
+  QLabel* topoViewModeLabel = new QLabel(tr("Default view mode:"), topoDisplayGroup);
+  QComboBox* topoViewModeCombo = new QComboBox(topoDisplayGroup);
+  topoViewModeCombo->addItem(tr("Graph"), "graph");
+  topoViewModeCombo->addItem(tr("Table"), "table");
+  QString currentViewMode = networkTopologyManager_ ? networkTopologyManager_->viewMode() : "graph";
+  topoViewModeCombo->setCurrentIndex(currentViewMode == "table" ? 1 : 0);
+  topoViewModeCombo->setToolTip(tr("Default view when opening the Network Topology panel"));
+  topoViewModeLayout->addWidget(topoViewModeLabel);
+  topoViewModeLayout->addWidget(topoViewModeCombo);
+  topoViewModeLayout->addStretch();
+  topoDisplayLayout->addLayout(topoViewModeLayout);
+
+  networkTopoLayout->addWidget(topoDisplayGroup);
+  networkTopoLayout->addStretch();
+
+  settingsTabs->addTab(networkTopoTab, tr("Network Topology"));
+
   // ==================== Local LLM Settings Tab ====================
   OllamaSettingsWidget* ollamaSettingsWidget = new OllamaSettingsWidget();
   ollamaSettingsWidget->setLocalAIStatusWidget(localAIStatusWidget_);
@@ -3738,6 +3849,14 @@ void MainWindow::onOpenSettings() {
       if (!newPalette.isEmpty()) {
         plotPanel_->setColorPalette(newPalette);
       }
+    }
+
+    // Apply Network Topology settings
+    if (networkTopologyManager_) {
+      networkTopologyManager_->setAutoRefreshEnabled(topoAutoRefreshCheck->isChecked());
+      networkTopologyManager_->setAutoRefreshInterval(topoIntervalSpin->value());
+      networkTopologyManager_->setShowBandwidth(topoShowBandwidthCheck->isChecked());
+      networkTopologyManager_->setViewMode(topoViewModeCombo->currentData().toString());
     }
 
     // Apply Ollama/Local LLM settings

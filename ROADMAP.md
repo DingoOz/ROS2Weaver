@@ -61,16 +61,26 @@ These are community and AI-suggested features to enhance ROS2Weaver, prioritized
 |---------|--------|-------|
 | Architecture Documentation Generator | Done | Markdown/HTML/PDF export, Mermaid/PlantUML diagrams, configurable sections |
 
+### Completed Features (v1.5.0)
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| ros2 doctor Integration | Done | Built-in diagnostics panel with environment, network, DDS, and node health checks |
+
+### Completed Features (v1.6.0)
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| DDS Network Topology View | Done | Graph and table views, host clustering, discovery type detection, bidirectional canvas integration |
+
 ### Remaining Features
 
 | Feature | Priority | Complexity |
 |---------|----------|------------|
-| ros2 doctor Integration | Medium | Low |
 | Message Schema Diff Tool | Medium | Low |
 | Visual Behavior Tree Editor | Low | High |
 | Plugin/Extension System | Low | High |
 | CI/CD Pipeline Generator | Low | Medium |
-| DDS Network Topology View | Low | Medium |
 | Embedded mini-RViz / 3D view | Low | High |
 | Multi-user collaboration | Low | High |
 
@@ -1330,22 +1340,22 @@ jobs:
 
 ---
 
-### DDS Network Topology View
+## Completed Feature Details
 
-**Branch:** `feature/network-topology`
+### DDS Network Topology View ✅
+
+**Branch:** `feature/dds-network-topology`
 
 **Overview:** Visualize DDS discovery and network communication patterns.
 
-Shows:
-- Which nodes are on which hosts
-- DDS domain IDs
-- Unicast vs multicast discovery
-- QoS compatibility matrix
-- Network bandwidth between hosts
-
----
-
-## Completed Feature Details
+Features:
+- **Graph View**: Host clusters with contained nodes, color-coded
+- **Table View**: Sortable listing of hosts and nodes
+- **Discovery Detection**: Shows multicast, unicast, or Discovery Server mode
+- **Environment Info**: Displays ROS_DOMAIN_ID and RMW_IMPLEMENTATION
+- **Canvas Integration**: Bidirectional - click node in topology highlights it on canvas and vice versa
+- **Auto-refresh**: Configurable periodic topology rescanning
+- **Settings**: Refresh interval, default view mode, stored in settings dialog
 
 ### AI-Powered Features ✅
 

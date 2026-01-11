@@ -82,6 +82,7 @@ QString ContextHelp::getHelpTopic(QWidget* widget) {
     {"ros_weaver::WorkspaceBrowserPanel", "workspace-browser"},
     {"ros_weaver::NodeTemplatesPanel", "node-templates"},
     {"ros_weaver::RosbagWorkbenchPanel", "rosbag-workbench"},
+    {"ros_weaver::NetworkTopologyPanel", "network-topology"},
   };
 
   if (classTopicMap.contains(className)) {
