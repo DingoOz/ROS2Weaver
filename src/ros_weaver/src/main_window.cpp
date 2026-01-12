@@ -1,4 +1,5 @@
 #include "ros_weaver/main_window.hpp"
+#include <rclcpp/rclcpp.hpp>
 #include "ros_weaver/canvas/weaver_canvas.hpp"
 #include "ros_weaver/canvas/package_block.hpp"
 #include "ros_weaver/canvas/connection_line.hpp"
@@ -250,12 +251,56 @@ MainWindow::MainWindow(QWidget* parent)
 }
 
 MainWindow::~MainWindow() {
-  qDebug() << "MainWindow destructor starting";
-  // Child widgets are destroyed after this destructor body completes
-  qDebug() << "MainWindow destructor ending";
+  // CRITICAL: Shutdown ROS2 FIRST to unblock all spin threads
+  // Spin threads check rclcpp::ok() in their loops - this makes them exit
+  if (rclcpp::ok()) {
+    rclcpp::shutdown();
+  }
+
+  // Explicitly delete dock widgets in controlled order to ensure clean shutdown.
+  // This prevents issues with signal-slot connections to destroyed objects.
+  delete networkTopologyDock_;
+  networkTopologyDock_ = nullptr;
+  delete diagnosticsDock_;
+  diagnosticsDock_ = nullptr;
+  delete lifecycleDock_;
+  lifecycleDock_ = nullptr;
+  delete messageInspectorDock_;
+  messageInspectorDock_ = nullptr;
+  delete mcpExplorerDock_;
+  mcpExplorerDock_ = nullptr;
+  delete latencyHeatmapDock_;
+  latencyHeatmapDock_ = nullptr;
+  delete workspaceBrowserDock_;
+  workspaceBrowserDock_ = nullptr;
+  delete nodeTemplatesDock_;
+  nodeTemplatesDock_ = nullptr;
+  delete minimapDock_;
+  minimapDock_ = nullptr;
+  delete issueListDock_;
+  issueListDock_ = nullptr;
+  delete readmePreviewDock_;
+  readmePreviewDock_ = nullptr;
+  delete schemaViewerDock_;
+  schemaViewerDock_ = nullptr;
+  delete nodeHealthDock_;
+  nodeHealthDock_ = nullptr;
+  delete scenarioEditorDock_;
+  scenarioEditorDock_ = nullptr;
+  delete rosbagWorkbenchDock_;
+  rosbagWorkbenchDock_ = nullptr;
+  delete outputDock_;
+  outputDock_ = nullptr;
+  delete propertiesDock_;
+  propertiesDock_ = nullptr;
+  delete packageBrowserDock_;
+  packageBrowserDock_ = nullptr;
 }
 
 void MainWindow::setupMenuBar() {
+  // Force Qt menu bar instead of native (fixes issues on some Linux desktops)
+  menuBar()->setNativeMenuBar(false);
+
   // File menu
   QMenu* fileMenu = menuBar()->addMenu(tr("&File"));
 
@@ -1058,12 +1103,18 @@ void MainWindow::setupToolBar() {
   QToolBar* mainToolBar = addToolBar(tr("Main Toolbar"));
   mainToolBar->setMovable(false);
 
-  mainToolBar->addAction(tr("New"));
-  mainToolBar->addAction(tr("Open"));
-  mainToolBar->addAction(tr("Save"));
-  mainToolBar->addSeparator();
-  mainToolBar->addAction(tr("Build"));
-  mainToolBar->addAction(tr("Launch"));
+  QAction* newToolbarAction = mainToolBar->addAction(tr("New"));
+  newToolbarAction->setToolTip(tr("New Project (Ctrl+N)"));
+  connect(newToolbarAction, &QAction::triggered, this, &MainWindow::onNewProject);
+
+  QAction* openToolbarAction = mainToolBar->addAction(tr("Open"));
+  openToolbarAction->setToolTip(tr("Open Project (Ctrl+O)"));
+  connect(openToolbarAction, &QAction::triggered, this, &MainWindow::onOpenProject);
+
+  QAction* saveToolbarAction = mainToolBar->addAction(tr("Save"));
+  saveToolbarAction->setToolTip(tr("Save Project (Ctrl+S)"));
+  connect(saveToolbarAction, &QAction::triggered, this, &MainWindow::onSaveProject);
+
   mainToolBar->addSeparator();
 
   // Add scan system button to toolbar
@@ -1922,6 +1973,7 @@ void MainWindow::onNewProject() {
   baseWindowTitle_ = "ROS Weaver - Visual ROS2 Package Editor";
   setWindowTitle(baseWindowTitle_ + rosStatusWidget_->titleBarSuffix());
   statusBar()->showMessage(tr("New project created"));
+  NotificationManager::instance().showSuccess(tr("New project created"));
 }
 
 void MainWindow::onOpenProject() {
@@ -1929,7 +1981,9 @@ void MainWindow::onOpenProject() {
     this,
     tr("Open ROS Weaver Project"),
     QString(),
-    tr("ROS Weaver Projects (*.rwp);;All Files (*)")
+    tr("ROS Weaver Projects (*.rwp);;All Files (*)"),
+    nullptr,
+    QFileDialog::DontUseNativeDialog
   );
 
   if (!fileName.isEmpty()) {
@@ -1938,6 +1992,7 @@ void MainWindow::onOpenProject() {
       baseWindowTitle_ = QString("ROS Weaver - %1").arg(QFileInfo(fileName).fileName());
       setWindowTitle(baseWindowTitle_ + rosStatusWidget_->titleBarSuffix());
       statusBar()->showMessage(tr("Opened: %1").arg(fileName));
+      NotificationManager::instance().showSuccess(tr("Project opened successfully"));
     }
   }
 }
@@ -1958,7 +2013,9 @@ void MainWindow::onSaveProjectAs() {
     this,
     tr("Save ROS Weaver Project"),
     QString(),
-    tr("ROS Weaver Projects (*.rwp);;All Files (*)")
+    tr("ROS Weaver Projects (*.rwp);;All Files (*)"),
+    nullptr,
+    QFileDialog::DontUseNativeDialog
   );
 
   if (!fileName.isEmpty()) {
@@ -1972,6 +2029,7 @@ void MainWindow::onSaveProjectAs() {
       baseWindowTitle_ = QString("ROS Weaver - %1").arg(QFileInfo(fileName).fileName());
       setWindowTitle(baseWindowTitle_ + rosStatusWidget_->titleBarSuffix());
       statusBar()->showMessage(tr("Saved: %1").arg(fileName));
+      NotificationManager::instance().showSuccess(tr("Project saved successfully"));
     }
   }
 }
@@ -4173,6 +4231,7 @@ void MainWindow::closeEvent(QCloseEvent* event) {
       QFile::remove(autoSavePath);
     }
     event->accept();
+    QApplication::quit();  // Force the event loop to exit
   } else {
     event->ignore();
   }

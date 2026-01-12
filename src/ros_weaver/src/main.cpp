@@ -1,12 +1,14 @@
 #include <QApplication>
 #include <QStyleFactory>
 #include <QDebug>
-#include <iostream>
 #include "ros_weaver/main_window.hpp"
 #include "ros_weaver/core/theme_manager.hpp"
 #include <rclcpp/rclcpp.hpp>
 
 int main(int argc, char* argv[]) {
+  // Disable native menu bar before creating QApplication (fixes issues on some Linux desktops)
+  QApplication::setAttribute(Qt::AA_DontUseNativeMenuBar);
+
   QApplication app(argc, argv);
 
   // Set application info
@@ -21,28 +23,18 @@ int main(int argc, char* argv[]) {
   ros_weaver::ThemeManager& themeManager = ros_weaver::ThemeManager::instance();
   themeManager.applyTheme();
 
-  // Shutdown ROS2 before Qt destroys widgets (prevents hanging)
-  // This is called after event loop exits but before widget destruction
-  QObject::connect(&app, &QApplication::aboutToQuit, []() {
-    std::cerr << "aboutToQuit: rclcpp::ok() = " << rclcpp::ok() << std::endl;
-    if (rclcpp::ok()) {
-      std::cerr << "aboutToQuit: calling rclcpp::shutdown()" << std::endl;
-      rclcpp::shutdown();
-      std::cerr << "aboutToQuit: rclcpp::shutdown() completed" << std::endl;
-    }
-  });
-
-  std::cerr << "Creating MainWindow..." << std::endl;
   {
     ros_weaver::MainWindow mainWindow;
     mainWindow.show();
-
-    std::cerr << "Starting event loop" << std::endl;
-    int result = app.exec();
-    std::cerr << "Event loop exited with result: " << result << std::endl;
-    std::cerr << "MainWindow going out of scope..." << std::endl;
+    app.exec();
   }
-  std::cerr << "MainWindow destroyed, returning from main()" << std::endl;
+
+  // MainWindow and all child widgets are now destroyed.
+  // All panel destructors have stopped their spin threads and cleared ROS2 nodes.
+  // Now it's safe to call rclcpp::shutdown() without hanging.
+  if (rclcpp::ok()) {
+    rclcpp::shutdown();
+  }
 
   return 0;
 }

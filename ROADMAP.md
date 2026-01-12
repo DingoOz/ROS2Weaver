@@ -77,6 +77,7 @@ These are community and AI-suggested features to enhance ROS2Weaver, prioritized
 
 | Feature | Priority | Complexity |
 |---------|----------|------------|
+| Enhanced Architecture Documentation | High | Medium |
 | Message Schema Diff Tool | Medium | Low |
 | Visual Behavior Tree Editor | Low | High |
 | Plugin/Extension System | Low | High |
@@ -1118,6 +1119,593 @@ class ScenarioEditorPanel : public QWidget {
 ```python
 {GENERATED_LAUNCH_FILE}
 ```
+```
+
+---
+
+### Enhanced Architecture Documentation
+
+**Branch:** `feature/enhanced-architecture-docs`
+
+**Overview:** Major improvements to the Architecture Documentation Generator with multiple diagram types, better formatting, and richer content.
+
+#### Goals
+
+1. **Multiple Diagram Types** - Not just system overview, but specialized diagrams for different aspects
+2. **Clearer Formatting** - Better visual hierarchy, consistent styling, improved readability
+3. **Richer Content** - More detailed node descriptions, message schemas, communication patterns
+4. **Interactive HTML** - Collapsible sections, search, navigation sidebar
+
+#### New Diagram Types to Add
+
+##### 1. Node Communication Matrix
+
+Visual grid showing which nodes communicate with which:
+
+```
+                 | camera_node | detector | planner | controller |
+-----------------+-------------+----------+---------+------------|
+camera_node      |      -      |    →     |         |            |
+detector         |             |    -     |    →    |            |
+planner          |             |          |    -    |     →      |
+controller       |             |          |         |     -      |
+```
+
+Implementation:
+```cpp
+QString generateCommunicationMatrix(const Project& project) const;
+```
+
+##### 2. Message Flow Sequence Diagram
+
+Show temporal message flow between nodes:
+
+```mermaid
+sequenceDiagram
+    participant C as camera_node
+    participant D as detector
+    participant P as planner
+    participant M as controller
+
+    C->>D: sensor_msgs/Image
+    D->>P: vision_msgs/Detection3DArray
+    P->>M: nav_msgs/Path
+    M->>M: geometry_msgs/Twist (cmd_vel)
+```
+
+Implementation:
+```cpp
+QString generateSequenceDiagram(const Project& project,
+                                 const DocGeneratorOptions& options) const;
+```
+
+##### 3. Node Dependency Graph
+
+Show which nodes depend on which (based on topic connections):
+
+```mermaid
+graph LR
+    subgraph Perception
+        camera --> detector
+        lidar --> detector
+    end
+    subgraph Planning
+        detector --> planner
+        localization --> planner
+    end
+    subgraph Control
+        planner --> controller
+    end
+```
+
+Implementation:
+```cpp
+QString generateDependencyGraph(const Project& project,
+                                 const DocGeneratorOptions& options) const;
+```
+
+##### 4. Topic Fanout/Fanin Diagram
+
+Show topics with multiple publishers or subscribers:
+
+```mermaid
+graph TD
+    subgraph Publishers
+        sensor1[sensor_node_1]
+        sensor2[sensor_node_2]
+    end
+
+    topic[/scan/]
+
+    subgraph Subscribers
+        slam[slam_node]
+        nav[nav_node]
+        viz[rviz]
+    end
+
+    sensor1 --> topic
+    sensor2 --> topic
+    topic --> slam
+    topic --> nav
+    topic --> viz
+```
+
+##### 5. Parameter Hierarchy Diagram
+
+Show parameter namespaces and relationships:
+
+```mermaid
+graph TD
+    root["/"]
+    robot["/my_robot"]
+    nav["/my_robot/navigation"]
+    slam["/my_robot/slam"]
+
+    root --> robot
+    robot --> nav
+    robot --> slam
+
+    nav --> nav_params["max_velocity: 1.0<br>min_obstacle_dist: 0.5"]
+    slam --> slam_params["map_resolution: 0.05<br>loop_closure: true"]
+```
+
+##### 6. QoS Compatibility Diagram
+
+Visual representation of QoS settings across connections:
+
+```
+Topic: /camera/image_raw
+┌─────────────────────────────────────────────────────────────┐
+│ Publisher: camera_node                                       │
+│ ┌─────────────┬──────────────┬─────────────┬───────────────┐│
+│ │ Reliability │  Durability  │   History   │   Deadline    ││
+│ │ BEST_EFFORT │   VOLATILE   │  KEEP_LAST  │     N/A       ││
+│ └─────────────┴──────────────┴─────────────┴───────────────┘│
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│ Subscriber: image_processor  ✅ COMPATIBLE                  │
+│ ┌─────────────┬──────────────┬─────────────┬───────────────┐│
+│ │ BEST_EFFORT │   VOLATILE   │  KEEP_LAST  │     N/A       ││
+│ └─────────────┴──────────────┴─────────────┴───────────────┘│
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Enhanced Content Sections
+
+##### 1. Executive Summary
+
+AI-generated summary with key statistics:
+- Total nodes, topics, services, actions
+- Estimated message throughput
+- Identified subsystems/groups
+- Key data flows
+
+##### 2. Message Schema Documentation
+
+Full message definitions with field descriptions:
+
+```markdown
+### sensor_msgs/msg/LaserScan
+
+| Field | Type | Description |
+|-------|------|-------------|
+| header | std_msgs/Header | Timestamp and frame |
+| angle_min | float32 | Start angle of scan [rad] |
+| angle_max | float32 | End angle of scan [rad] |
+| angle_increment | float32 | Angular distance between measurements [rad] |
+| time_increment | float32 | Time between measurements [sec] |
+| scan_time | float32 | Time between scans [sec] |
+| range_min | float32 | Minimum range value [m] |
+| range_max | float32 | Maximum range value [m] |
+| ranges | float32[] | Range data [m] |
+| intensities | float32[] | Intensity data (optional) |
+```
+
+##### 3. Node Detail Cards
+
+Rich node documentation with:
+- Package description (from package.xml)
+- Lifecycle state (if lifecycle node)
+- Resource requirements (if known)
+- Common configuration examples
+- Troubleshooting tips
+
+##### 4. Data Flow Narrative
+
+Human-readable description of system operation:
+
+> "The camera_node publishes raw images at 30Hz to the /camera/image_raw topic.
+> The detector_node subscribes to this topic and runs object detection, publishing
+> results to /detections at approximately 10Hz. The planner_node combines detection
+> data with localization from /odom to generate navigation paths..."
+
+#### Interactive HTML Improvements
+
+##### 1. Navigation Sidebar
+
+```html
+<nav class="doc-sidebar">
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li>
+      <a href="#diagrams">System Diagrams</a>
+      <ul>
+        <li><a href="#system-diagram">System Overview</a></li>
+        <li><a href="#sequence-diagram">Message Flow</a></li>
+        <li><a href="#dependency-graph">Dependencies</a></li>
+      </ul>
+    </li>
+    <li>
+      <a href="#nodes">Nodes</a>
+      <ul>
+        <li><a href="#node-camera">camera_node</a></li>
+        <li><a href="#node-detector">detector_node</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+```
+
+##### 2. Collapsible Sections
+
+```html
+<details>
+  <summary>Message Schema: sensor_msgs/LaserScan</summary>
+  <div class="schema-content">
+    <!-- Full schema table -->
+  </div>
+</details>
+```
+
+##### 3. Search Functionality
+
+```javascript
+function searchDocs(query) {
+  // Highlight matching nodes, topics, parameters
+  // Jump to first match
+  // Show result count
+}
+```
+
+##### 4. Diagram Zoom and Pan
+
+```javascript
+// Use panzoom library for diagram interaction
+const diagram = document.querySelector('.mermaid svg');
+panzoom(diagram, {
+  maxZoom: 5,
+  minZoom: 0.5
+});
+```
+
+##### 5. Dark Mode Support
+
+```css
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-color: #1a1a2e;
+    --text-color: #eaeaea;
+    --code-bg: #16213e;
+  }
+}
+```
+
+#### Implementation Steps
+
+**Step 1: Add new diagram generators**
+
+File: `architecture_doc_generator.cpp`
+
+```cpp
+// New methods to add
+QString generateSequenceDiagram(const Project& project,
+                                 const DocGeneratorOptions& options) const;
+QString generateDependencyGraph(const Project& project,
+                                 const DocGeneratorOptions& options) const;
+QString generateCommunicationMatrix(const Project& project) const;
+QString generateTopicFanoutDiagram(const Project& project,
+                                    const DocGeneratorOptions& options) const;
+QString generateQoSCompatibilitySection(const Project& project) const;
+```
+
+**Step 2: Add options for new diagrams**
+
+```cpp
+struct DocGeneratorOptions {
+  // Existing options...
+
+  // New diagram options
+  bool includeSequenceDiagram = true;
+  bool includeDependencyGraph = true;
+  bool includeCommunicationMatrix = false;  // Optional, can be verbose
+  bool includeTopicFanout = true;
+  bool includeQoSDetails = true;
+  bool includeMessageSchemas = true;  // Full message definitions
+  bool includeDataFlowNarrative = false;  // AI-generated, requires Ollama
+
+  // HTML-specific options
+  bool enableSearch = true;
+  bool enableDarkMode = true;
+  bool enableDiagramZoom = true;
+  bool collapsibleSections = true;
+  bool includeSidebar = true;
+};
+```
+
+**Step 3: Update dialog UI**
+
+Add checkboxes for new diagram types in `ArchitectureDocDialog`:
+
+```cpp
+// Diagram options group
+QGroupBox* diagramOptionsGroup_;
+QCheckBox* includeSystemDiagramCheck_;
+QCheckBox* includeSequenceDiagramCheck_;
+QCheckBox* includeDependencyGraphCheck_;
+QCheckBox* includeMatrixCheck_;
+QCheckBox* includeQoSCheck_;
+
+// Content options group
+QCheckBox* includeMessageSchemasCheck_;
+QCheckBox* includeDataFlowNarrativeCheck_;
+
+// HTML options group
+QCheckBox* enableSearchCheck_;
+QCheckBox* enableDarkModeCheck_;
+QCheckBox* collapsibleSectionsCheck_;
+```
+
+**Step 4: Implement sequence diagram generation**
+
+```cpp
+QString ArchitectureDocGenerator::generateSequenceDiagram(
+    const Project& project,
+    const DocGeneratorOptions& options) const {
+
+  QString output;
+  QTextStream stream(&output);
+
+  stream << "```mermaid\n";
+  stream << "sequenceDiagram\n";
+
+  // Define participants (nodes)
+  for (const auto& block : project.blocks()) {
+    QString alias = sanitizeId(block.name);
+    stream << QString("    participant %1 as %2\n")
+              .arg(alias)
+              .arg(block.name);
+  }
+
+  stream << "\n";
+
+  // Generate message arrows based on connections
+  for (const auto& conn : project.connections()) {
+    QString sourceNode = getBlockName(conn.sourceBlockId, project);
+    QString targetNode = getBlockName(conn.targetBlockId, project);
+    QString msgType = extractMessageTypeName(conn.messageType);
+
+    stream << QString("    %1->>%2: %3\n")
+              .arg(sanitizeId(sourceNode))
+              .arg(sanitizeId(targetNode))
+              .arg(msgType);
+  }
+
+  stream << "```\n\n";
+
+  return output;
+}
+```
+
+**Step 5: Implement communication matrix**
+
+```cpp
+QString ArchitectureDocGenerator::generateCommunicationMatrix(
+    const Project& project) const {
+
+  QString output;
+  QTextStream stream(&output);
+
+  stream << "## Node Communication Matrix\n\n";
+
+  QStringList nodeNames;
+  for (const auto& block : project.blocks()) {
+    nodeNames << block.name;
+  }
+
+  // Header row
+  stream << "| |";
+  for (const auto& name : nodeNames) {
+    stream << " " << name << " |";
+  }
+  stream << "\n";
+
+  // Separator
+  stream << "|---|";
+  for (int i = 0; i < nodeNames.size(); ++i) {
+    stream << "---|";
+  }
+  stream << "\n";
+
+  // Data rows
+  for (const auto& sourceName : nodeNames) {
+    stream << "| " << sourceName << " |";
+
+    for (const auto& targetName : nodeNames) {
+      if (sourceName == targetName) {
+        stream << " - |";
+      } else if (hasConnection(project, sourceName, targetName)) {
+        stream << " → |";
+      } else {
+        stream << "   |";
+      }
+    }
+    stream << "\n";
+  }
+
+  stream << "\n";
+  return output;
+}
+```
+
+**Step 6: Enhanced HTML template**
+
+```cpp
+QString ArchitectureDocGenerator::generateHTMLHeader(
+    const Project& project,
+    const DocGeneratorOptions& options) const {
+
+  QString output;
+  QTextStream stream(&output);
+
+  stream << "<!DOCTYPE html>\n";
+  stream << "<html lang=\"en\">\n";
+  stream << "<head>\n";
+  stream << "  <meta charset=\"UTF-8\">\n";
+  stream << "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n";
+  stream << "  <title>" << project.metadata().name << " - Architecture</title>\n";
+
+  // Enhanced CSS with dark mode support
+  stream << generateEnhancedHTMLStyles(options);
+
+  // Mermaid for diagrams
+  stream << "  <script src=\"https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js\"></script>\n";
+  stream << "  <script>mermaid.initialize({startOnLoad:true, theme:'neutral'});</script>\n";
+
+  // PlantUML support
+  stream << "  <script src=\"https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js\"></script>\n";
+  stream << generatePlantUMLScript();
+
+  // Panzoom for diagram interaction
+  if (options.enableDiagramZoom) {
+    stream << "  <script src=\"https://cdn.jsdelivr.net/npm/panzoom@9.4.0/dist/panzoom.min.js\"></script>\n";
+  }
+
+  // Search functionality
+  if (options.enableSearch) {
+    stream << generateSearchScript();
+  }
+
+  stream << "</head>\n";
+  stream << "<body>\n";
+
+  // Sidebar navigation
+  if (options.includeSidebar) {
+    stream << generateSidebarHTML(project, options);
+  }
+
+  stream << "<main class=\"doc-content\">\n";
+
+  return output;
+}
+```
+
+**Step 7: Add message schema parser**
+
+```cpp
+struct MessageField {
+  QString name;
+  QString type;
+  QString defaultValue;
+  QString description;
+  bool isArray;
+  int arraySize;  // -1 for dynamic
+};
+
+struct MessageSchema {
+  QString packageName;
+  QString messageName;
+  QList<MessageField> fields;
+  QStringList constants;
+};
+
+MessageSchema parseMessageDefinition(const QString& messageType) const;
+QString generateMessageSchemaTable(const MessageSchema& schema) const;
+```
+
+#### Testing
+
+Create `test/test_enhanced_docs.cpp`:
+
+```cpp
+TEST(EnhancedDocsTest, SequenceDiagramGeneration) {
+  // Test sequence diagram output for sample project
+}
+
+TEST(EnhancedDocsTest, CommunicationMatrixAccuracy) {
+  // Verify matrix correctly shows connections
+}
+
+TEST(EnhancedDocsTest, HTMLInteractivity) {
+  // Test collapsible sections, search functionality
+}
+
+TEST(EnhancedDocsTest, DarkModeCSS) {
+  // Verify dark mode styles are included when enabled
+}
+
+TEST(EnhancedDocsTest, MessageSchemaParser) {
+  // Test parsing of common ROS2 message types
+}
+```
+
+#### Dependencies
+
+- Mermaid.js (already included) - For sequence diagrams and dependency graphs
+- PlantUML server (already integrated) - Alternative diagram format
+- panzoom.js (new) - For diagram zoom/pan in HTML
+- pako.js (already included) - For PlantUML encoding
+
+#### UI Mockup
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Generate Architecture Documentation                     [X] │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│ Output Format: [Markdown ▼]   Diagram Format: [Mermaid ▼]  │
+│                                                             │
+│ ┌─ Diagrams ──────────────────────────────────────────────┐ │
+│ │ ☑ System Overview Diagram                               │ │
+│ │ ☑ Message Flow Sequence Diagram                         │ │
+│ │ ☑ Node Dependency Graph                                 │ │
+│ │ ☐ Communication Matrix                                  │ │
+│ │ ☑ Topic Fanout/Fanin Diagrams                          │ │
+│ │ ☑ QoS Compatibility Diagrams                           │ │
+│ └─────────────────────────────────────────────────────────┘ │
+│                                                             │
+│ ┌─ Content ───────────────────────────────────────────────┐ │
+│ │ ☑ Executive Summary                                     │ │
+│ │ ☑ Node Details                                          │ │
+│ │ ☑ Topics Table                                          │ │
+│ │ ☑ Message Schemas (full definitions)                    │ │
+│ │ ☑ Parameters                                            │ │
+│ │ ☑ Launch Configuration                                  │ │
+│ │ ☐ Data Flow Narrative (requires Ollama)                 │ │
+│ └─────────────────────────────────────────────────────────┘ │
+│                                                             │
+│ ┌─ HTML Options ──────────────────────────────────────────┐ │
+│ │ ☑ Navigation Sidebar                                    │ │
+│ │ ☑ Search Functionality                                  │ │
+│ │ ☑ Collapsible Sections                                  │ │
+│ │ ☑ Diagram Zoom/Pan                                      │ │
+│ │ ☑ Dark Mode Support                                     │ │
+│ └─────────────────────────────────────────────────────────┘ │
+│                                                             │
+│ ┌─ Preview ───────────────────────────────────────────────┐ │
+│ │ # MyRobot Architecture                                  │ │
+│ │                                                         │ │
+│ │ ## Overview                                             │ │
+│ │ This architecture consists of 5 nodes...                │ │
+│ │                                                         │ │
+│ │ ## System Diagram                                       │ │
+│ │ ```mermaid                                              │ │
+│ │ graph TB                                                │ │
+│ └─────────────────────────────────────────────────────────┘ │
+│                                                             │
+│      [Copy to Clipboard]  [Export to File...]  [Close]      │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ---
