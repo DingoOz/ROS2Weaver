@@ -7,8 +7,6 @@
 #include <QPainter>
 #include <QMessageBox>
 
-#include <iostream>
-
 namespace ros_weaver {
 
 LifecyclePanel::LifecyclePanel(QWidget* parent)

@@ -1,4 +1,5 @@
 #include "ros_weaver/main_window.hpp"
+#include <rclcpp/rclcpp.hpp>
 #include "ros_weaver/canvas/weaver_canvas.hpp"
 #include "ros_weaver/canvas/package_block.hpp"
 #include "ros_weaver/canvas/connection_line.hpp"
@@ -250,9 +251,50 @@ MainWindow::MainWindow(QWidget* parent)
 }
 
 MainWindow::~MainWindow() {
-  qDebug() << "MainWindow destructor starting";
-  // Child widgets are destroyed after this destructor body completes
-  qDebug() << "MainWindow destructor ending";
+  // CRITICAL: Shutdown ROS2 FIRST to unblock all spin threads
+  // Spin threads check rclcpp::ok() in their loops - this makes them exit
+  if (rclcpp::ok()) {
+    rclcpp::shutdown();
+  }
+
+  // Explicitly delete dock widgets in controlled order to ensure clean shutdown.
+  // This prevents issues with signal-slot connections to destroyed objects.
+  delete networkTopologyDock_;
+  networkTopologyDock_ = nullptr;
+  delete diagnosticsDock_;
+  diagnosticsDock_ = nullptr;
+  delete lifecycleDock_;
+  lifecycleDock_ = nullptr;
+  delete messageInspectorDock_;
+  messageInspectorDock_ = nullptr;
+  delete mcpExplorerDock_;
+  mcpExplorerDock_ = nullptr;
+  delete latencyHeatmapDock_;
+  latencyHeatmapDock_ = nullptr;
+  delete workspaceBrowserDock_;
+  workspaceBrowserDock_ = nullptr;
+  delete nodeTemplatesDock_;
+  nodeTemplatesDock_ = nullptr;
+  delete minimapDock_;
+  minimapDock_ = nullptr;
+  delete issueListDock_;
+  issueListDock_ = nullptr;
+  delete readmePreviewDock_;
+  readmePreviewDock_ = nullptr;
+  delete schemaViewerDock_;
+  schemaViewerDock_ = nullptr;
+  delete nodeHealthDock_;
+  nodeHealthDock_ = nullptr;
+  delete scenarioEditorDock_;
+  scenarioEditorDock_ = nullptr;
+  delete rosbagWorkbenchDock_;
+  rosbagWorkbenchDock_ = nullptr;
+  delete outputDock_;
+  outputDock_ = nullptr;
+  delete propertiesDock_;
+  propertiesDock_ = nullptr;
+  delete packageBrowserDock_;
+  packageBrowserDock_ = nullptr;
 }
 
 void MainWindow::setupMenuBar() {
@@ -4173,6 +4215,7 @@ void MainWindow::closeEvent(QCloseEvent* event) {
       QFile::remove(autoSavePath);
     }
     event->accept();
+    QApplication::quit();  // Force the event loop to exit
   } else {
     event->ignore();
   }
