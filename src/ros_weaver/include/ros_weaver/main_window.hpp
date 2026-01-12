@@ -69,6 +69,7 @@ class LatencyTracker;
 class DiagnosticsPanel;
 class NetworkTopologyManager;
 class NetworkTopologyPanel;
+class BehaviorTreePanel;
 
 class MainWindow : public QMainWindow {
   Q_OBJECT
@@ -409,6 +410,10 @@ private:
   NetworkTopologyManager* networkTopologyManager_;
   NetworkTopologyPanel* networkTopologyPanel_;
   QDockWidget* networkTopologyDock_;
+
+  // Behavior tree panel
+  BehaviorTreePanel* behaviorTreePanel_;
+  QDockWidget* behaviorTreeDock_;
 };
 
 }  // namespace ros_weaver

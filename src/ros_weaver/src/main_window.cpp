@@ -74,6 +74,7 @@
 #include "ros_weaver/widgets/diagnostics_panel.hpp"
 #include "ros_weaver/core/network_topology_manager.hpp"
 #include "ros_weaver/widgets/network_topology_panel.hpp"
+#include "ros_weaver/widgets/behavior_tree_panel.hpp"
 
 #include <QApplication>
 #include <QCloseEvent>
@@ -187,6 +188,8 @@ MainWindow::MainWindow(QWidget* parent)
   , networkTopologyManager_(nullptr)
   , networkTopologyPanel_(nullptr)
   , networkTopologyDock_(nullptr)
+  , behaviorTreePanel_(nullptr)
+  , behaviorTreeDock_(nullptr)
 {
   setWindowTitle(baseWindowTitle_);
   setMinimumSize(constants::ui::MIN_WINDOW_WIDTH, constants::ui::MIN_WINDOW_HEIGHT);
@@ -259,6 +262,8 @@ MainWindow::~MainWindow() {
 
   // Explicitly delete dock widgets in controlled order to ensure clean shutdown.
   // This prevents issues with signal-slot connections to destroyed objects.
+  delete behaviorTreeDock_;
+  behaviorTreeDock_ = nullptr;
   delete networkTopologyDock_;
   networkTopologyDock_ = nullptr;
   delete diagnosticsDock_;
@@ -736,6 +741,12 @@ void MainWindow::setupMenuBar() {
   showNetworkTopologyAction->setChecked(false);  // Hidden by default
   showNetworkTopologyAction->setObjectName("showNetworkTopologyAction");
   showNetworkTopologyAction->setToolTip(tr("Show/hide DDS network topology view"));
+
+  QAction* showBehaviorTreeAction = panelsMenu->addAction(tr("&Behavior Tree"));
+  showBehaviorTreeAction->setCheckable(true);
+  showBehaviorTreeAction->setChecked(false);  // Hidden by default
+  showBehaviorTreeAction->setObjectName("showBehaviorTreeAction");
+  showBehaviorTreeAction->setToolTip(tr("Show/hide behavior tree visualization panel"));
 
   panelsMenu->addSeparator();
 
@@ -1871,6 +1882,27 @@ void MainWindow::setupDockWidgets() {
       }
     }
   });
+
+  // Behavior Tree Panel
+  behaviorTreeDock_ = new QDockWidget(tr("Behavior Tree"), this);
+  behaviorTreeDock_->setObjectName("behaviorTreeDock");
+  behaviorTreeDock_->setAllowedAreas(Qt::AllDockWidgetAreas);
+  behaviorTreeDock_->setFeatures(QDockWidget::DockWidgetMovable |
+                                  QDockWidget::DockWidgetFloatable |
+                                  QDockWidget::DockWidgetClosable);
+
+  behaviorTreePanel_ = new BehaviorTreePanel(this);
+  behaviorTreeDock_->setWidget(behaviorTreePanel_);
+
+  addDockWidget(Qt::RightDockWidgetArea, behaviorTreeDock_);
+  tabifyDockWidget(networkTopologyDock_, behaviorTreeDock_);
+  behaviorTreeDock_->hide();  // Hidden by default
+
+  QAction* showBehaviorTreeAction = findChild<QAction*>("showBehaviorTreeAction");
+  if (showBehaviorTreeAction) {
+    connect(showBehaviorTreeAction, &QAction::toggled, behaviorTreeDock_, &QDockWidget::setVisible);
+    connect(behaviorTreeDock_, &QDockWidget::visibilityChanged, showBehaviorTreeAction, &QAction::setChecked);
+  }
 
   // Initialize Remote Connection Manager
   remoteConnectionManager_ = new RemoteConnectionManager(this);
