@@ -298,6 +298,9 @@ MainWindow::~MainWindow() {
 }
 
 void MainWindow::setupMenuBar() {
+  // Force Qt menu bar instead of native (fixes issues on some Linux desktops)
+  menuBar()->setNativeMenuBar(false);
+
   // File menu
   QMenu* fileMenu = menuBar()->addMenu(tr("&File"));
 
@@ -1100,12 +1103,18 @@ void MainWindow::setupToolBar() {
   QToolBar* mainToolBar = addToolBar(tr("Main Toolbar"));
   mainToolBar->setMovable(false);
 
-  mainToolBar->addAction(tr("New"));
-  mainToolBar->addAction(tr("Open"));
-  mainToolBar->addAction(tr("Save"));
-  mainToolBar->addSeparator();
-  mainToolBar->addAction(tr("Build"));
-  mainToolBar->addAction(tr("Launch"));
+  QAction* newToolbarAction = mainToolBar->addAction(tr("New"));
+  newToolbarAction->setToolTip(tr("New Project (Ctrl+N)"));
+  connect(newToolbarAction, &QAction::triggered, this, &MainWindow::onNewProject);
+
+  QAction* openToolbarAction = mainToolBar->addAction(tr("Open"));
+  openToolbarAction->setToolTip(tr("Open Project (Ctrl+O)"));
+  connect(openToolbarAction, &QAction::triggered, this, &MainWindow::onOpenProject);
+
+  QAction* saveToolbarAction = mainToolBar->addAction(tr("Save"));
+  saveToolbarAction->setToolTip(tr("Save Project (Ctrl+S)"));
+  connect(saveToolbarAction, &QAction::triggered, this, &MainWindow::onSaveProject);
+
   mainToolBar->addSeparator();
 
   // Add scan system button to toolbar
@@ -1964,6 +1973,7 @@ void MainWindow::onNewProject() {
   baseWindowTitle_ = "ROS Weaver - Visual ROS2 Package Editor";
   setWindowTitle(baseWindowTitle_ + rosStatusWidget_->titleBarSuffix());
   statusBar()->showMessage(tr("New project created"));
+  NotificationManager::instance().showSuccess(tr("New project created"));
 }
 
 void MainWindow::onOpenProject() {
@@ -1971,7 +1981,9 @@ void MainWindow::onOpenProject() {
     this,
     tr("Open ROS Weaver Project"),
     QString(),
-    tr("ROS Weaver Projects (*.rwp);;All Files (*)")
+    tr("ROS Weaver Projects (*.rwp);;All Files (*)"),
+    nullptr,
+    QFileDialog::DontUseNativeDialog
   );
 
   if (!fileName.isEmpty()) {
@@ -1980,6 +1992,7 @@ void MainWindow::onOpenProject() {
       baseWindowTitle_ = QString("ROS Weaver - %1").arg(QFileInfo(fileName).fileName());
       setWindowTitle(baseWindowTitle_ + rosStatusWidget_->titleBarSuffix());
       statusBar()->showMessage(tr("Opened: %1").arg(fileName));
+      NotificationManager::instance().showSuccess(tr("Project opened successfully"));
     }
   }
 }
@@ -2000,7 +2013,9 @@ void MainWindow::onSaveProjectAs() {
     this,
     tr("Save ROS Weaver Project"),
     QString(),
-    tr("ROS Weaver Projects (*.rwp);;All Files (*)")
+    tr("ROS Weaver Projects (*.rwp);;All Files (*)"),
+    nullptr,
+    QFileDialog::DontUseNativeDialog
   );
 
   if (!fileName.isEmpty()) {
@@ -2014,6 +2029,7 @@ void MainWindow::onSaveProjectAs() {
       baseWindowTitle_ = QString("ROS Weaver - %1").arg(QFileInfo(fileName).fileName());
       setWindowTitle(baseWindowTitle_ + rosStatusWidget_->titleBarSuffix());
       statusBar()->showMessage(tr("Saved: %1").arg(fileName));
+      NotificationManager::instance().showSuccess(tr("Project saved successfully"));
     }
   }
 }

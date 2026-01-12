@@ -6,6 +6,9 @@
 #include <rclcpp/rclcpp.hpp>
 
 int main(int argc, char* argv[]) {
+  // Disable native menu bar before creating QApplication (fixes issues on some Linux desktops)
+  QApplication::setAttribute(Qt::AA_DontUseNativeMenuBar);
+
   QApplication app(argc, argv);
 
   // Set application info
