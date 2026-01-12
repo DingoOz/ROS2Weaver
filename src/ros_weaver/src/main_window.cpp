@@ -1145,10 +1145,19 @@ void MainWindow::setupToolBar() {
 }
 
 void MainWindow::setupDockWidgets() {
+  // Configure VS Code-like dock behavior
+  setDockOptions(QMainWindow::AnimatedDocks |
+                 QMainWindow::AllowNestedDocks |
+                 QMainWindow::AllowTabbedDocks |
+                 QMainWindow::GroupedDragging);
+
+  // Set dock nesting to allow more flexible layouts
+  setDockNestingEnabled(true);
+
   // Browser Dock (left side) - contains Package Browser and System Mapping tabs
   packageBrowserDock_ = new QDockWidget(tr("Browser"), this);
   packageBrowserDock_->setObjectName("packageBrowserDock");
-  packageBrowserDock_->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+  packageBrowserDock_->setAllowedAreas(Qt::AllDockWidgetAreas);
 
   browserTab_ = new QTabWidget();
 
@@ -1244,7 +1253,7 @@ void MainWindow::setupDockWidgets() {
   // Properties Dock (right side) with Param Dashboard
   propertiesDock_ = new QDockWidget(tr("Properties"), this);
   propertiesDock_->setObjectName("propertiesDock");
-  propertiesDock_->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+  propertiesDock_->setAllowedAreas(Qt::AllDockWidgetAreas);
 
   propertiesTab_ = new QTabWidget();
 
@@ -1359,7 +1368,7 @@ void MainWindow::setupDockWidgets() {
   // Output Dock (bottom) - with tabs for Build Output, ROS Logs, and Terminal
   outputDock_ = new QDockWidget(tr("Output"), this);
   outputDock_->setObjectName("outputDock");
-  outputDock_->setAllowedAreas(Qt::BottomDockWidgetArea | Qt::TopDockWidgetArea);
+  outputDock_->setAllowedAreas(Qt::AllDockWidgetAreas);
 
   outputPanel_ = new OutputPanel();
   outputDock_->setWidget(outputPanel_);
@@ -1386,7 +1395,7 @@ void MainWindow::setupDockWidgets() {
   // Rosbag Workbench Dock (bottom, initially hidden)
   rosbagWorkbenchDock_ = new QDockWidget(tr("Rosbag Workbench"), this);
   rosbagWorkbenchDock_->setObjectName("rosbagWorkbenchDock");
-  rosbagWorkbenchDock_->setAllowedAreas(Qt::BottomDockWidgetArea | Qt::TopDockWidgetArea);
+  rosbagWorkbenchDock_->setAllowedAreas(Qt::AllDockWidgetAreas);
 
   // Create panel with deferred initialization to avoid blocking startup
   rosbagWorkbenchPanel_ = new RosbagWorkbenchPanel();

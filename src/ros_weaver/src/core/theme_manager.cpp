@@ -108,21 +108,51 @@ QString ThemeManager::currentStyleSheet() const {
       "QMenu { background-color: #ffffff; border: 1px solid #c0c0c0; }"
       "QMenu::item:selected { background-color: #2a82da; color: white; }"
       "QMenuBar { background-color: #f0f0f0; }"
-      "QMenuBar::item:selected { background-color: #2a82da; color: white; }";
+      "QMenuBar::item:selected { background-color: #2a82da; color: white; }"
+      // VS Code-like dock widget styling (light theme)
+      "QDockWidget { font-weight: bold; }"
+      "QDockWidget::title { background: #e8e8e8; padding: 6px; border-bottom: 1px solid #c0c0c0; }"
+      "QDockWidget::close-button, QDockWidget::float-button { background: transparent; border: none; padding: 2px; }"
+      "QDockWidget::close-button:hover, QDockWidget::float-button:hover { background: #d0d0d0; border-radius: 2px; }"
+      "QMainWindow::separator { background: #c0c0c0; width: 4px; height: 4px; }"
+      "QMainWindow::separator:hover { background: #2a82da; }"
+      "QTabBar::tab { padding: 6px 12px; background: #f0f0f0; border: 1px solid #c0c0c0; border-bottom: none; }"
+      "QTabBar::tab:selected { background: #ffffff; border-bottom: 2px solid #2a82da; }"
+      "QTabBar::tab:hover:!selected { background: #e0e0e0; }";
   } else if (currentTheme_ == Theme::HighContrast) {
     return
       "QToolTip { color: #ffffff; background-color: #000000; border: 2px solid #ffff00; }"
       "QMenu { background-color: #000000; border: 2px solid #ffffff; }"
       "QMenu::item:selected { background-color: #ffff00; color: #000000; }"
       "QMenuBar { background-color: #000000; }"
-      "QMenuBar::item:selected { background-color: #ffff00; color: #000000; }";
+      "QMenuBar::item:selected { background-color: #ffff00; color: #000000; }"
+      // VS Code-like dock widget styling (high contrast)
+      "QDockWidget { font-weight: bold; }"
+      "QDockWidget::title { background: #1a1a1a; padding: 6px; border-bottom: 2px solid #ffff00; }"
+      "QDockWidget::close-button, QDockWidget::float-button { background: transparent; border: none; padding: 2px; }"
+      "QDockWidget::close-button:hover, QDockWidget::float-button:hover { background: #ffff00; }"
+      "QMainWindow::separator { background: #ffffff; width: 4px; height: 4px; }"
+      "QMainWindow::separator:hover { background: #ffff00; }"
+      "QTabBar::tab { padding: 6px 12px; background: #000000; border: 2px solid #ffffff; }"
+      "QTabBar::tab:selected { background: #1a1a1a; border-bottom: 2px solid #ffff00; }"
+      "QTabBar::tab:hover:!selected { background: #333333; }";
   } else {
     return
       "QToolTip { color: #ffffff; background-color: #2a2a2a; border: 1px solid #3a3a3a; }"
       "QMenu { background-color: #353535; border: 1px solid #3a3a3a; }"
       "QMenu::item:selected { background-color: #2a82da; }"
       "QMenuBar { background-color: #353535; }"
-      "QMenuBar::item:selected { background-color: #2a82da; }";
+      "QMenuBar::item:selected { background-color: #2a82da; }"
+      // VS Code-like dock widget styling (dark theme)
+      "QDockWidget { font-weight: bold; }"
+      "QDockWidget::title { background: #2d2d2d; padding: 6px; border-bottom: 1px solid #3a3a3a; }"
+      "QDockWidget::close-button, QDockWidget::float-button { background: transparent; border: none; padding: 2px; }"
+      "QDockWidget::close-button:hover, QDockWidget::float-button:hover { background: #404040; border-radius: 2px; }"
+      "QMainWindow::separator { background: #3a3a3a; width: 4px; height: 4px; }"
+      "QMainWindow::separator:hover { background: #2a82da; }"
+      "QTabBar::tab { padding: 6px 12px; background: #2d2d2d; border: 1px solid #3a3a3a; border-bottom: none; }"
+      "QTabBar::tab:selected { background: #353535; border-bottom: 2px solid #2a82da; }"
+      "QTabBar::tab:hover:!selected { background: #404040; }";
   }
 }
 
