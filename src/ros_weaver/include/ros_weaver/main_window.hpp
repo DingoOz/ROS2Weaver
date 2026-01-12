@@ -165,6 +165,9 @@ private slots:
   void onSaveLayoutPreset();
   void onLoadLayoutPreset(const QString& name);
 
+  // Panel management
+  void onDockAllPanels();
+
   // Recent projects
   void onOpenRecentProject();
   void onClearRecentProjects();

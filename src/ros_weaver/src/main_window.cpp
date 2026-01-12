@@ -750,6 +750,11 @@ void MainWindow::setupMenuBar() {
 
   panelsMenu->addSeparator();
 
+  QAction* dockAllPanelsAction = panelsMenu->addAction(tr("&Dock All Floating Panels"));
+  dockAllPanelsAction->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_D));
+  dockAllPanelsAction->setToolTip(tr("Dock all floating panels back to their default positions"));
+  connect(dockAllPanelsAction, &QAction::triggered, this, &MainWindow::onDockAllPanels);
+
   QAction* resetLayoutAction = panelsMenu->addAction(tr("&Reset Layout"));
   resetLayoutAction->setToolTip(tr("Reset all panels to their default positions"));
   connect(resetLayoutAction, &QAction::triggered, this, [this]() {
@@ -4412,6 +4417,31 @@ void MainWindow::registerCommands() {
 void MainWindow::onShowCommandPalette() {
   if (commandPalette_) {
     commandPalette_->showPalette();
+  }
+}
+
+// =============================================================================
+// Panel Management
+// =============================================================================
+
+void MainWindow::onDockAllPanels() {
+  int dockedCount = 0;
+
+  // Find all dock widgets and dock any that are floating
+  QList<QDockWidget*> dockWidgets = findChildren<QDockWidget*>();
+
+  for (QDockWidget* dock : dockWidgets) {
+    if (dock && dock->isFloating() && dock->isVisible()) {
+      // Dock it back - Qt remembers the last docked position
+      dock->setFloating(false);
+      dockedCount++;
+    }
+  }
+
+  if (dockedCount > 0) {
+    statusBar()->showMessage(tr("Docked %1 floating panel(s)").arg(dockedCount), 3000);
+  } else {
+    statusBar()->showMessage(tr("No floating panels to dock"), 2000);
   }
 }
 
