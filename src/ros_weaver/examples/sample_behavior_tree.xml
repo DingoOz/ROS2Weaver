@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<root main_tree_to_execute="MainTree">
+  <!-- BehaviorTree.CPP XML format example -->
+  <BehaviorTree ID="MainTree">
+    <Sequence name="root_sequence">
+      <Condition ID="IsBatteryOK" name="battery_check"/>
+      <Fallback name="navigate_fallback">
+        <Sequence name="safe_navigate">
+          <Condition ID="IsPathClear" name="path_check"/>
+          <Action ID="Navigate" name="navigate" goal="waypoint_1"/>
+        </Sequence>
+        <Action ID="StopAndWait" name="stop"/>
+      </Fallback>
+      <Parallel threshold="2" name="concurrent_tasks">
+        <Action ID="UpdateMap" name="mapping"/>
+        <Action ID="PublishState" name="state_pub"/>
+      </Parallel>
+    </Sequence>
+  </BehaviorTree>
+</root>
