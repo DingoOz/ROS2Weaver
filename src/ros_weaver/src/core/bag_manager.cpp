@@ -34,7 +34,10 @@ BagManager::BagManager(QObject* parent)
 }
 
 BagManager::~BagManager() {
-  closeBag();
+  // Don't call closeBag() which emits bagClosed() signal - receivers may
+  // already be destroyed during parent destruction. Just close internal state.
+  std::lock_guard<std::mutex> lock(mutex_);
+  closeBagInternal();
 }
 
 bool BagManager::openBag(const QString& path) {
