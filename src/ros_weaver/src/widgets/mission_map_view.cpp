@@ -156,6 +156,10 @@ void MissionMapView::addWaypointItem(const Waypoint& waypoint) {
 
   connect(item, &WaypointGraphicsItem::waypointMoved,
           this, &MissionMapView::onWaypointMoved);
+  connect(item, &WaypointGraphicsItem::waypointDragStarted,
+          this, &MissionMapView::onWaypointDragStarted);
+  connect(item, &WaypointGraphicsItem::waypointDragging,
+          this, &MissionMapView::onWaypointDragging);
   connect(item, &WaypointGraphicsItem::waypointOrientationChanged,
           this, &MissionMapView::onWaypointOrientationChanged);
   connect(item, &WaypointGraphicsItem::waypointClicked,
@@ -197,6 +201,7 @@ void MissionMapView::updateWaypoint(const Waypoint& waypoint) {
 void MissionMapView::selectWaypoint(int waypointId) {
   clearSelection();
   selectedWaypointId_ = waypointId;
+  selectedWaypointIds_.insert(waypointId);
 
   WaypointGraphicsItem* item = findWaypointItem(waypointId);
   if (item) {
@@ -205,6 +210,56 @@ void MissionMapView::selectWaypoint(int waypointId) {
   }
 
   emit waypointSelected(waypointId);
+  emit selectionChanged(selectedWaypointIds_.values());
+}
+
+void MissionMapView::selectWaypoints(const QList<int>& waypointIds) {
+  clearSelection();
+  for (int id : waypointIds) {
+    selectedWaypointIds_.insert(id);
+    WaypointGraphicsItem* item = findWaypointItem(id);
+    if (item) {
+      item->setSelected(true);
+    }
+  }
+  if (!waypointIds.isEmpty()) {
+    selectedWaypointId_ = waypointIds.first();
+  }
+  emit selectionChanged(selectedWaypointIds_.values());
+}
+
+void MissionMapView::addToSelection(int waypointId) {
+  selectedWaypointIds_.insert(waypointId);
+  WaypointGraphicsItem* item = findWaypointItem(waypointId);
+  if (item) {
+    item->setSelected(true);
+  }
+  emit selectionChanged(selectedWaypointIds_.values());
+}
+
+void MissionMapView::toggleSelection(int waypointId) {
+  if (selectedWaypointIds_.contains(waypointId)) {
+    selectedWaypointIds_.remove(waypointId);
+    WaypointGraphicsItem* item = findWaypointItem(waypointId);
+    if (item) {
+      item->setSelected(false);
+    }
+  } else {
+    selectedWaypointIds_.insert(waypointId);
+    WaypointGraphicsItem* item = findWaypointItem(waypointId);
+    if (item) {
+      item->setSelected(true);
+    }
+  }
+  emit selectionChanged(selectedWaypointIds_.values());
+}
+
+QList<int> MissionMapView::selectedWaypointIds() const {
+  return selectedWaypointIds_.values();
+}
+
+bool MissionMapView::isWaypointSelected(int waypointId) const {
+  return selectedWaypointIds_.contains(waypointId);
 }
 
 void MissionMapView::clearWaypoints() {
@@ -345,6 +400,42 @@ void MissionMapView::mousePressEvent(QMouseEvent* event) {
       case SetStartPose:
         handleSetStartPoseClick(scenePos);
         return;
+      case Normal: {
+        // Check if clicking on empty space (not on a waypoint)
+        QGraphicsItem* itemUnderMouse = scene_->itemAt(scenePos, transform());
+
+        // Check if it's a waypoint or the start pose
+        bool clickedOnWaypoint = false;
+        for (auto* wpItem : waypointItems_) {
+          if (itemUnderMouse == wpItem) {
+            clickedOnWaypoint = true;
+            break;
+          }
+        }
+        bool clickedOnStartPose = (itemUnderMouse == startPoseItem_ && startPoseItem_ != nullptr);
+
+        if (clickedOnWaypoint || clickedOnStartPose) {
+          // Clicking on a draggable item - temporarily disable ScrollHandDrag
+          // so the item can receive the mouse events for dragging
+          setDragMode(QGraphicsView::NoDrag);
+        } else {
+          // Clicked on empty space - start rubber band selection
+          if (!rubberBand_) {
+            rubberBand_ = new QRubberBand(QRubberBand::Rectangle, this);
+          }
+          rubberBandOrigin_ = event->pos();
+          rubberBand_->setGeometry(QRect(rubberBandOrigin_, QSize()));
+          rubberBand_->show();
+          isRubberBandSelecting_ = true;
+
+          // Clear selection unless Ctrl is held
+          if (!(event->modifiers() & Qt::ControlModifier)) {
+            clearSelection();
+          }
+          return;
+        }
+        break;
+      }
       default:
         break;
     }
@@ -361,10 +452,51 @@ void MissionMapView::mouseMoveEvent(QMouseEvent* event) {
     emit coordinateHovered(meters);
   }
 
+  // Handle rubber band selection
+  if (isRubberBandSelecting_ && rubberBand_) {
+    rubberBand_->setGeometry(QRect(rubberBandOrigin_, event->pos()).normalized());
+    return;
+  }
+
   QGraphicsView::mouseMoveEvent(event);
 }
 
 void MissionMapView::mouseReleaseEvent(QMouseEvent* event) {
+  // Handle rubber band selection completion
+  if (isRubberBandSelecting_ && rubberBand_) {
+    isRubberBandSelecting_ = false;
+    rubberBand_->hide();
+
+    // Get the selection rectangle in scene coordinates
+    QRect viewRect = rubberBand_->geometry();
+    QRectF sceneRect = QRectF(mapToScene(viewRect.topLeft()),
+                               mapToScene(viewRect.bottomRight())).normalized();
+
+    // Select all waypoints within the rectangle
+    bool addToExisting = (event->modifiers() & Qt::ControlModifier);
+    if (!addToExisting) {
+      clearSelection();
+    }
+
+    for (auto* item : waypointItems_) {
+      if (sceneRect.contains(item->pos())) {
+        selectedWaypointIds_.insert(item->waypointId());
+        item->setSelected(true);
+      }
+    }
+
+    if (!selectedWaypointIds_.isEmpty()) {
+      selectedWaypointId_ = *selectedWaypointIds_.begin();
+      emit selectionChanged(selectedWaypointIds_.values());
+    }
+    return;
+  }
+
+  // Restore ScrollHandDrag mode after item dragging in Normal mode
+  if (currentMode_ == Normal && dragMode() == QGraphicsView::NoDrag) {
+    setDragMode(QGraphicsView::ScrollHandDrag);
+  }
+
   QGraphicsView::mouseReleaseEvent(event);
 }
 
@@ -425,6 +557,35 @@ void MissionMapView::onWaypointMoved(int waypointId, const QPointF& newPos) {
     item->setWaypoint(wp);
   }
 
+  // Handle multi-waypoint drag completion
+  if (isMultiDragging_ && selectedWaypointIds_.size() > 1) {
+    // Calculate the delta for the emit signal
+    QPointF delta = newPos - multiDragStartPos_;
+
+    // Update waypoint data for all other selected waypoints
+    for (int id : selectedWaypointIds_) {
+      if (id == waypointId) continue;
+
+      WaypointGraphicsItem* otherItem = findWaypointItem(id);
+      if (otherItem) {
+        QPointF otherMeters = pixelToMeters(otherItem->pos());
+        Waypoint otherWp = otherItem->waypoint();
+        otherWp.x = otherMeters.x();
+        otherWp.y = otherMeters.y();
+        otherItem->setWaypoint(otherWp);
+
+        // Emit move signal for each waypoint
+        emit waypointMoved(id, otherMeters);
+      }
+    }
+
+    // Emit signal for multi-waypoint move
+    emit waypointsMovedTogether(selectedWaypointIds_.values(), pixelToMeters(delta));
+
+    isMultiDragging_ = false;
+    dragStartPositions_.clear();
+  }
+
   updateWaypointPath();
   emit waypointMoved(waypointId, meters);
 }
@@ -440,16 +601,84 @@ void MissionMapView::onWaypointOrientationChanged(int waypointId, double theta) 
   emit waypointOrientationChanged(waypointId, theta);
 }
 
-void MissionMapView::onWaypointClicked(int waypointId) {
-  clearSelection();
-  selectedWaypointId_ = waypointId;
+void MissionMapView::onWaypointClicked(int waypointId, Qt::KeyboardModifiers modifiers) {
+  if (modifiers & Qt::ControlModifier) {
+    // Ctrl+click: toggle selection (add/remove from multi-selection)
+    toggleSelection(waypointId);
+  } else {
+    // Normal click behavior:
+    // If the clicked waypoint is already selected (part of multi-selection),
+    // keep the selection intact so user can drag all selected waypoints together.
+    // Only clear selection if clicking on an unselected waypoint.
+    if (selectedWaypointIds_.contains(waypointId)) {
+      // Already selected - just update the primary selection
+      selectedWaypointId_ = waypointId;
+      emit waypointSelected(waypointId);
+    } else {
+      // Not selected - select only this waypoint
+      clearSelection();
+      selectedWaypointId_ = waypointId;
+      selectedWaypointIds_.insert(waypointId);
 
-  WaypointGraphicsItem* item = findWaypointItem(waypointId);
-  if (item) {
-    item->setSelected(true);
+      WaypointGraphicsItem* item = findWaypointItem(waypointId);
+      if (item) {
+        item->setSelected(true);
+      }
+
+      emit waypointSelected(waypointId);
+      emit selectionChanged(selectedWaypointIds_.values());
+    }
+  }
+}
+
+void MissionMapView::onWaypointDragStarted(int waypointId, const QPointF& startPos) {
+  // Store start positions of all selected waypoints for multi-drag
+  dragStartPositions_.clear();
+
+  // If the dragged waypoint is not selected, select it exclusively
+  if (!selectedWaypointIds_.contains(waypointId)) {
+    clearSelection();
+    selectedWaypointId_ = waypointId;
+    selectedWaypointIds_.insert(waypointId);
+    WaypointGraphicsItem* item = findWaypointItem(waypointId);
+    if (item) {
+      item->setSelected(true);
+    }
+    emit selectionChanged(selectedWaypointIds_.values());
   }
 
-  emit waypointSelected(waypointId);
+  // Store all selected waypoint positions
+  for (int id : selectedWaypointIds_) {
+    WaypointGraphicsItem* item = findWaypointItem(id);
+    if (item) {
+      dragStartPositions_[id] = item->pos();
+    }
+  }
+
+  multiDragStartPos_ = startPos;
+  isMultiDragging_ = (selectedWaypointIds_.size() > 1);
+}
+
+void MissionMapView::onWaypointDragging(int waypointId, const QPointF& currentPos) {
+  if (!isMultiDragging_ || selectedWaypointIds_.size() <= 1) {
+    return;  // Single waypoint drag is handled by Qt's ItemIsMovable
+  }
+
+  // Calculate the delta from the dragged waypoint's start position
+  QPointF delta = currentPos - multiDragStartPos_;
+
+  // Move all other selected waypoints by the same delta
+  for (int id : selectedWaypointIds_) {
+    if (id == waypointId) continue;  // Skip the one being dragged by Qt
+
+    WaypointGraphicsItem* item = findWaypointItem(id);
+    if (item && dragStartPositions_.contains(id)) {
+      QPointF newPos = dragStartPositions_[id] + delta;
+      item->setPos(newPos);
+    }
+  }
+
+  updateWaypointPath();
 }
 
 void MissionMapView::onWaypointDoubleClicked(int waypointId) {
@@ -491,6 +720,7 @@ void MissionMapView::clearSelection() {
     item->setSelected(false);
   }
   selectedWaypointId_ = -1;
+  selectedWaypointIds_.clear();
 }
 
 void MissionMapView::handleScaleCalibrationClick(const QPointF& scenePos) {

@@ -39,8 +39,10 @@ public:
 
 signals:
   void waypointMoved(int waypointId, const QPointF& newPosition);
+  void waypointDragStarted(int waypointId, const QPointF& startPosition);
+  void waypointDragging(int waypointId, const QPointF& currentPosition);
   void waypointOrientationChanged(int waypointId, double theta);
-  void waypointClicked(int waypointId);
+  void waypointClicked(int waypointId, Qt::KeyboardModifiers modifiers);
   void waypointDoubleClicked(int waypointId);
 
 protected:

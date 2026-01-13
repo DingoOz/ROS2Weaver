@@ -12,7 +12,8 @@ namespace ros_weaver {
 WaypointGraphicsItem::WaypointGraphicsItem(const Waypoint& waypoint, QGraphicsItem* parent)
     : QGraphicsObject(parent), waypoint_(waypoint) {
   setFlag(QGraphicsItem::ItemIsMovable, true);
-  setFlag(QGraphicsItem::ItemIsSelectable, true);
+  // Don't use Qt's built-in selection - we manage selection ourselves
+  setFlag(QGraphicsItem::ItemIsSelectable, false);
   setFlag(QGraphicsItem::ItemSendsGeometryChanges, true);
   setAcceptHoverEvents(true);
   setCursor(Qt::PointingHandCursor);
@@ -178,8 +179,9 @@ void WaypointGraphicsItem::mousePressEvent(QGraphicsSceneMouseEvent* event) {
     dragStartPos_ = pos();
     setCursor(Qt::ClosedHandCursor);  // Change cursor to show grabbing
     update();  // Update visual to show drag state
+    emit waypointDragStarted(waypoint_.id, pos());
   }
-  emit waypointClicked(waypoint_.id);
+  emit waypointClicked(waypoint_.id, event->modifiers());
   QGraphicsObject::mousePressEvent(event);
 }
 
@@ -192,6 +194,12 @@ void WaypointGraphicsItem::mouseMoveEvent(QGraphicsSceneMouseEvent* event) {
     emit waypointOrientationChanged(waypoint_.id, newTheta);
     return;
   }
+
+  if (isDragging_) {
+    // Emit dragging signal with current position for multi-waypoint drag support
+    emit waypointDragging(waypoint_.id, pos());
+  }
+
   QGraphicsObject::mouseMoveEvent(event);
 }
 
@@ -241,7 +249,8 @@ void WaypointGraphicsItem::hoverMoveEvent(QGraphicsSceneHoverEvent* event) {
 RobotStartPoseItem::RobotStartPoseItem(QGraphicsItem* parent)
     : QGraphicsObject(parent) {
   setFlag(QGraphicsItem::ItemIsMovable, true);
-  setFlag(QGraphicsItem::ItemIsSelectable, true);
+  // Don't use Qt's built-in selection - we manage selection ourselves
+  setFlag(QGraphicsItem::ItemIsSelectable, false);
   setFlag(QGraphicsItem::ItemSendsGeometryChanges, true);
   setAcceptHoverEvents(true);
   setCursor(Qt::PointingHandCursor);

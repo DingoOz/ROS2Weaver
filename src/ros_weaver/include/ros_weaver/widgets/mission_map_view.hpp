@@ -7,6 +7,9 @@
 #include <QWheelEvent>
 #include <QMouseEvent>
 #include <QKeyEvent>
+#include <QRubberBand>
+#include <QSet>
+#include <QMap>
 
 #include "ros_weaver/core/mission_data.hpp"
 #include "ros_weaver/widgets/waypoint_graphics_item.hpp"
@@ -47,6 +50,11 @@ public:
   void removeWaypoint(int waypointId);
   void updateWaypoint(const Waypoint& waypoint);
   void selectWaypoint(int waypointId);
+  void selectWaypoints(const QList<int>& waypointIds);
+  void addToSelection(int waypointId);
+  void toggleSelection(int waypointId);
+  QList<int> selectedWaypointIds() const;
+  bool isWaypointSelected(int waypointId) const;
   void clearWaypoints();
   void setWaypoints(const QList<Waypoint>& waypoints);
   QList<Waypoint> getWaypoints() const;
@@ -84,7 +92,9 @@ signals:
   void waypointAdded(const Waypoint& waypoint);
   void waypointRemoved(int waypointId);
   void waypointSelected(int waypointId);
+  void selectionChanged(const QList<int>& selectedIds);
   void waypointMoved(int waypointId, const QPointF& newPositionMeters);
+  void waypointsMovedTogether(const QList<int>& waypointIds, const QPointF& delta);
   void waypointOrientationChanged(int waypointId, double theta);
   void waypointDoubleClicked(int waypointId);
   void startPoseChanged(const RobotStartPose& pose);
@@ -103,8 +113,10 @@ protected:
 
 private slots:
   void onWaypointMoved(int waypointId, const QPointF& newPos);
+  void onWaypointDragStarted(int waypointId, const QPointF& startPos);
+  void onWaypointDragging(int waypointId, const QPointF& currentPos);
   void onWaypointOrientationChanged(int waypointId, double theta);
-  void onWaypointClicked(int waypointId);
+  void onWaypointClicked(int waypointId, Qt::KeyboardModifiers modifiers);
   void onWaypointDoubleClicked(int waypointId);
   void onStartPoseMoved(const QPointF& newPos);
   void onStartPoseOrientationChanged(double theta);
@@ -134,6 +146,17 @@ private:
 
   int nextWaypointId_ = 1;
   int selectedWaypointId_ = -1;
+  QSet<int> selectedWaypointIds_;
+
+  // Rubber band selection
+  QRubberBand* rubberBand_ = nullptr;
+  QPoint rubberBandOrigin_;
+  bool isRubberBandSelecting_ = false;
+
+  // Multi-waypoint drag tracking
+  bool isMultiDragging_ = false;
+  QPointF multiDragStartPos_;
+  QMap<int, QPointF> dragStartPositions_;
 
   // Display options
   bool showGrid_ = false;
