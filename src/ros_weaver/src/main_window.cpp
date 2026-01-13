@@ -74,6 +74,7 @@
 #include "ros_weaver/widgets/diagnostics_panel.hpp"
 #include "ros_weaver/core/network_topology_manager.hpp"
 #include "ros_weaver/widgets/network_topology_panel.hpp"
+#include "ros_weaver/widgets/behavior_tree_panel.hpp"
 
 #include <QApplication>
 #include <QCloseEvent>
@@ -187,6 +188,8 @@ MainWindow::MainWindow(QWidget* parent)
   , networkTopologyManager_(nullptr)
   , networkTopologyPanel_(nullptr)
   , networkTopologyDock_(nullptr)
+  , behaviorTreePanel_(nullptr)
+  , behaviorTreeDock_(nullptr)
 {
   setWindowTitle(baseWindowTitle_);
   setMinimumSize(constants::ui::MIN_WINDOW_WIDTH, constants::ui::MIN_WINDOW_HEIGHT);
@@ -259,6 +262,8 @@ MainWindow::~MainWindow() {
 
   // Explicitly delete dock widgets in controlled order to ensure clean shutdown.
   // This prevents issues with signal-slot connections to destroyed objects.
+  delete behaviorTreeDock_;
+  behaviorTreeDock_ = nullptr;
   delete networkTopologyDock_;
   networkTopologyDock_ = nullptr;
   delete diagnosticsDock_;
@@ -298,6 +303,9 @@ MainWindow::~MainWindow() {
 }
 
 void MainWindow::setupMenuBar() {
+  // Force Qt menu bar instead of native (fixes issues on some Linux desktops)
+  menuBar()->setNativeMenuBar(false);
+
   // File menu
   QMenu* fileMenu = menuBar()->addMenu(tr("&File"));
 
@@ -734,7 +742,18 @@ void MainWindow::setupMenuBar() {
   showNetworkTopologyAction->setObjectName("showNetworkTopologyAction");
   showNetworkTopologyAction->setToolTip(tr("Show/hide DDS network topology view"));
 
+  QAction* showBehaviorTreeAction = panelsMenu->addAction(tr("&Behavior Tree"));
+  showBehaviorTreeAction->setCheckable(true);
+  showBehaviorTreeAction->setChecked(false);  // Hidden by default
+  showBehaviorTreeAction->setObjectName("showBehaviorTreeAction");
+  showBehaviorTreeAction->setToolTip(tr("Show/hide behavior tree visualization panel"));
+
   panelsMenu->addSeparator();
+
+  QAction* dockAllPanelsAction = panelsMenu->addAction(tr("&Dock All Floating Panels"));
+  dockAllPanelsAction->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_D));
+  dockAllPanelsAction->setToolTip(tr("Dock all floating panels back to their default positions"));
+  connect(dockAllPanelsAction, &QAction::triggered, this, &MainWindow::onDockAllPanels);
 
   QAction* resetLayoutAction = panelsMenu->addAction(tr("&Reset Layout"));
   resetLayoutAction->setToolTip(tr("Reset all panels to their default positions"));
@@ -1100,12 +1119,18 @@ void MainWindow::setupToolBar() {
   QToolBar* mainToolBar = addToolBar(tr("Main Toolbar"));
   mainToolBar->setMovable(false);
 
-  mainToolBar->addAction(tr("New"));
-  mainToolBar->addAction(tr("Open"));
-  mainToolBar->addAction(tr("Save"));
-  mainToolBar->addSeparator();
-  mainToolBar->addAction(tr("Build"));
-  mainToolBar->addAction(tr("Launch"));
+  QAction* newToolbarAction = mainToolBar->addAction(tr("New"));
+  newToolbarAction->setToolTip(tr("New Project (Ctrl+N)"));
+  connect(newToolbarAction, &QAction::triggered, this, &MainWindow::onNewProject);
+
+  QAction* openToolbarAction = mainToolBar->addAction(tr("Open"));
+  openToolbarAction->setToolTip(tr("Open Project (Ctrl+O)"));
+  connect(openToolbarAction, &QAction::triggered, this, &MainWindow::onOpenProject);
+
+  QAction* saveToolbarAction = mainToolBar->addAction(tr("Save"));
+  saveToolbarAction->setToolTip(tr("Save Project (Ctrl+S)"));
+  connect(saveToolbarAction, &QAction::triggered, this, &MainWindow::onSaveProject);
+
   mainToolBar->addSeparator();
 
   // Add scan system button to toolbar
@@ -1863,6 +1888,27 @@ void MainWindow::setupDockWidgets() {
     }
   });
 
+  // Behavior Tree Panel
+  behaviorTreeDock_ = new QDockWidget(tr("Behavior Tree"), this);
+  behaviorTreeDock_->setObjectName("behaviorTreeDock");
+  behaviorTreeDock_->setAllowedAreas(Qt::AllDockWidgetAreas);
+  behaviorTreeDock_->setFeatures(QDockWidget::DockWidgetMovable |
+                                  QDockWidget::DockWidgetFloatable |
+                                  QDockWidget::DockWidgetClosable);
+
+  behaviorTreePanel_ = new BehaviorTreePanel(this);
+  behaviorTreeDock_->setWidget(behaviorTreePanel_);
+
+  addDockWidget(Qt::RightDockWidgetArea, behaviorTreeDock_);
+  tabifyDockWidget(networkTopologyDock_, behaviorTreeDock_);
+  behaviorTreeDock_->hide();  // Hidden by default
+
+  QAction* showBehaviorTreeAction = findChild<QAction*>("showBehaviorTreeAction");
+  if (showBehaviorTreeAction) {
+    connect(showBehaviorTreeAction, &QAction::toggled, behaviorTreeDock_, &QDockWidget::setVisible);
+    connect(behaviorTreeDock_, &QDockWidget::visibilityChanged, showBehaviorTreeAction, &QAction::setChecked);
+  }
+
   // Initialize Remote Connection Manager
   remoteConnectionManager_ = new RemoteConnectionManager(this);
 
@@ -1964,6 +2010,7 @@ void MainWindow::onNewProject() {
   baseWindowTitle_ = "ROS Weaver - Visual ROS2 Package Editor";
   setWindowTitle(baseWindowTitle_ + rosStatusWidget_->titleBarSuffix());
   statusBar()->showMessage(tr("New project created"));
+  NotificationManager::instance().showSuccess(tr("New project created"));
 }
 
 void MainWindow::onOpenProject() {
@@ -1971,7 +2018,9 @@ void MainWindow::onOpenProject() {
     this,
     tr("Open ROS Weaver Project"),
     QString(),
-    tr("ROS Weaver Projects (*.rwp);;All Files (*)")
+    tr("ROS Weaver Projects (*.rwp);;All Files (*)"),
+    nullptr,
+    QFileDialog::DontUseNativeDialog
   );
 
   if (!fileName.isEmpty()) {
@@ -1980,6 +2029,7 @@ void MainWindow::onOpenProject() {
       baseWindowTitle_ = QString("ROS Weaver - %1").arg(QFileInfo(fileName).fileName());
       setWindowTitle(baseWindowTitle_ + rosStatusWidget_->titleBarSuffix());
       statusBar()->showMessage(tr("Opened: %1").arg(fileName));
+      NotificationManager::instance().showSuccess(tr("Project opened successfully"));
     }
   }
 }
@@ -2000,7 +2050,9 @@ void MainWindow::onSaveProjectAs() {
     this,
     tr("Save ROS Weaver Project"),
     QString(),
-    tr("ROS Weaver Projects (*.rwp);;All Files (*)")
+    tr("ROS Weaver Projects (*.rwp);;All Files (*)"),
+    nullptr,
+    QFileDialog::DontUseNativeDialog
   );
 
   if (!fileName.isEmpty()) {
@@ -2014,6 +2066,7 @@ void MainWindow::onSaveProjectAs() {
       baseWindowTitle_ = QString("ROS Weaver - %1").arg(QFileInfo(fileName).fileName());
       setWindowTitle(baseWindowTitle_ + rosStatusWidget_->titleBarSuffix());
       statusBar()->showMessage(tr("Saved: %1").arg(fileName));
+      NotificationManager::instance().showSuccess(tr("Project saved successfully"));
     }
   }
 }
@@ -4215,6 +4268,7 @@ void MainWindow::closeEvent(QCloseEvent* event) {
       QFile::remove(autoSavePath);
     }
     event->accept();
+    QApplication::quit();  // Force the event loop to exit
   } else {
     event->ignore();
   }
@@ -4363,6 +4417,31 @@ void MainWindow::registerCommands() {
 void MainWindow::onShowCommandPalette() {
   if (commandPalette_) {
     commandPalette_->showPalette();
+  }
+}
+
+// =============================================================================
+// Panel Management
+// =============================================================================
+
+void MainWindow::onDockAllPanels() {
+  int dockedCount = 0;
+
+  // Find all dock widgets and dock any that are floating
+  QList<QDockWidget*> dockWidgets = findChildren<QDockWidget*>();
+
+  for (QDockWidget* dock : dockWidgets) {
+    if (dock && dock->isFloating() && dock->isVisible()) {
+      // Dock it back - Qt remembers the last docked position
+      dock->setFloating(false);
+      dockedCount++;
+    }
+  }
+
+  if (dockedCount > 0) {
+    statusBar()->showMessage(tr("Docked %1 floating panel(s)").arg(dockedCount), 3000);
+  } else {
+    statusBar()->showMessage(tr("No floating panels to dock"), 2000);
   }
 }
 

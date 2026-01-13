@@ -635,6 +635,20 @@ QString ArchitectureDocGenerator::generateHTMLStyles(const DocGeneratorOptions& 
   stream << "    border-radius: 5px;\n";
   stream << "    margin: 20px 0;\n";
   stream << "  }\n";
+  stream << "  .plantuml-diagram {\n";
+  stream << "    background: white;\n";
+  stream << "    padding: 20px;\n";
+  stream << "    border-radius: 5px;\n";
+  stream << "    margin: 20px 0;\n";
+  stream << "    text-align: center;\n";
+  stream << "  }\n";
+  stream << "  .plantuml-diagram img {\n";
+  stream << "    max-width: 100%;\n";
+  stream << "    height: auto;\n";
+  stream << "  }\n";
+  stream << "  .plantuml-diagram pre {\n";
+  stream << "    display: none;\n";
+  stream << "  }\n";
 
   // Add custom CSS if provided
   if (!options.customCss.isEmpty()) {
@@ -646,6 +660,64 @@ QString ArchitectureDocGenerator::generateHTMLStyles(const DocGeneratorOptions& 
   // Include Mermaid for diagram rendering
   stream << "<script src=\"https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js\"></script>\n";
   stream << "<script>mermaid.initialize({startOnLoad:true});</script>\n";
+
+  // Include pako for PlantUML deflate compression
+  stream << "<script src=\"https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js\"></script>\n";
+
+  // PlantUML encoding and rendering script
+  stream << "<script>\n";
+  stream << "function encodePlantUML(text) {\n";
+  stream << "  // PlantUML uses deflate compression then custom base64 encoding\n";
+  stream << "  const deflated = pako.deflateRaw(text, { level: 9, to: 'string' });\n";
+  stream << "  const uint8 = new Uint8Array(deflated.length);\n";
+  stream << "  for (let i = 0; i < deflated.length; i++) {\n";
+  stream << "    uint8[i] = deflated.charCodeAt(i);\n";
+  stream << "  }\n";
+  stream << "  return encode64(uint8);\n";
+  stream << "}\n";
+  stream << "function encode64(data) {\n";
+  stream << "  // PlantUML uses a custom base64 alphabet\n";
+  stream << "  const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_';\n";
+  stream << "  let result = '';\n";
+  stream << "  for (let i = 0; i < data.length; i += 3) {\n";
+  stream << "    const b1 = data[i] || 0;\n";
+  stream << "    const b2 = data[i + 1] || 0;\n";
+  stream << "    const b3 = data[i + 2] || 0;\n";
+  stream << "    result += chars[b1 >> 2];\n";
+  stream << "    result += chars[((b1 & 0x3) << 4) | (b2 >> 4)];\n";
+  stream << "    result += chars[((b2 & 0xF) << 2) | (b3 >> 6)];\n";
+  stream << "    result += chars[b3 & 0x3F];\n";
+  stream << "  }\n";
+  stream << "  return result;\n";
+  stream << "}\n";
+  stream << "function renderPlantUML() {\n";
+  stream << "  document.querySelectorAll('.plantuml-diagram').forEach(function(div) {\n";
+  stream << "    const pre = div.querySelector('pre');\n";
+  stream << "    if (!pre) return;\n";
+  stream << "    const code = pre.textContent.trim();\n";
+  stream << "    if (!code) return;\n";
+  stream << "    try {\n";
+  stream << "      const encoded = encodePlantUML(code);\n";
+  stream << "      const img = document.createElement('img');\n";
+  stream << "      img.src = 'https://www.plantuml.com/plantuml/svg/' + encoded;\n";
+  stream << "      img.alt = 'PlantUML Diagram';\n";
+  stream << "      img.onerror = function() {\n";
+  stream << "        pre.style.display = 'block';\n";
+  stream << "        this.remove();\n";
+  stream << "      };\n";
+  stream << "      div.insertBefore(img, pre);\n";
+  stream << "    } catch (e) {\n";
+  stream << "      console.error('PlantUML encoding error:', e);\n";
+  stream << "      pre.style.display = 'block';\n";
+  stream << "    }\n";
+  stream << "  });\n";
+  stream << "}\n";
+  stream << "if (document.readyState === 'loading') {\n";
+  stream << "  document.addEventListener('DOMContentLoaded', renderPlantUML);\n";
+  stream << "} else {\n";
+  stream << "  renderPlantUML();\n";
+  stream << "}\n";
+  stream << "</script>\n";
 
   return output;
 }
@@ -672,7 +744,7 @@ QString ArchitectureDocGenerator::markdownToBasicHTML(const QString& markdown) c
   html.replace(QRegularExpression("```python\\n([\\s\\S]*?)```"),
                "<pre><code class=\"language-python\">\\1</code></pre>");
   html.replace(QRegularExpression("```plantuml\\n([\\s\\S]*?)```"),
-               "<pre><code class=\"language-plantuml\">\\1</code></pre>");
+               "<div class=\"plantuml-diagram\"><pre>\\1</pre></div>");
   html.replace(QRegularExpression("```\\n([\\s\\S]*?)```"),
                "<pre><code>\\1</code></pre>");
 

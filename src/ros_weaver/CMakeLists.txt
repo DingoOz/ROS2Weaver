@@ -41,6 +41,7 @@ find_package(Qt5 REQUIRED COMPONENTS
   Charts
   Test
   PrintSupport
+  Xml
 )
 
 # Include directories
@@ -179,6 +180,9 @@ set(SOURCES
   src/widgets/diagnostics_panel.cpp
   src/core/network_topology_manager.cpp
   src/widgets/network_topology_panel.cpp
+  src/core/behavior_tree_parser.cpp
+  src/widgets/bt_node_item.cpp
+  src/widgets/behavior_tree_panel.cpp
 )
 
 # Header files (for MOC)
@@ -300,6 +304,9 @@ set(HEADERS
   include/ros_weaver/widgets/diagnostics_panel.hpp
   include/ros_weaver/core/network_topology_manager.hpp
   include/ros_weaver/widgets/network_topology_panel.hpp
+  include/ros_weaver/core/behavior_tree_parser.hpp
+  include/ros_weaver/widgets/bt_node_item.hpp
+  include/ros_weaver/widgets/behavior_tree_panel.hpp
 )
 
 # Create executable
@@ -316,6 +323,7 @@ target_link_libraries(${PROJECT_NAME}
   Qt5::Network
   Qt5::Charts
   Qt5::PrintSupport
+  Qt5::Xml
   yaml-cpp
 )
 
