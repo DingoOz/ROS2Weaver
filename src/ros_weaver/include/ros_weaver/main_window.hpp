@@ -70,6 +70,7 @@ class DiagnosticsPanel;
 class NetworkTopologyManager;
 class NetworkTopologyPanel;
 class BehaviorTreePanel;
+class MissionPlannerPanel;
 
 class MainWindow : public QMainWindow {
   Q_OBJECT
@@ -417,6 +418,10 @@ private:
   // Behavior tree panel
   BehaviorTreePanel* behaviorTreePanel_;
   QDockWidget* behaviorTreeDock_;
+
+  // Mission planner panel
+  MissionPlannerPanel* missionPlannerPanel_;
+  QDockWidget* missionPlannerDock_;
 };
 
 }  // namespace ros_weaver

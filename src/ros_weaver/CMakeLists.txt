@@ -183,6 +183,12 @@ set(SOURCES
   src/core/behavior_tree_parser.cpp
   src/widgets/bt_node_item.cpp
   src/widgets/behavior_tree_panel.cpp
+  src/core/mission_data.cpp
+  src/core/nav2_exporter.cpp
+  src/widgets/waypoint_graphics_item.cpp
+  src/widgets/mission_map_view.cpp
+  src/widgets/waypoint_editor_widget.cpp
+  src/widgets/mission_planner_panel.cpp
 )
 
 # Header files (for MOC)
@@ -307,6 +313,12 @@ set(HEADERS
   include/ros_weaver/core/behavior_tree_parser.hpp
   include/ros_weaver/widgets/bt_node_item.hpp
   include/ros_weaver/widgets/behavior_tree_panel.hpp
+  include/ros_weaver/core/mission_data.hpp
+  include/ros_weaver/core/nav2_exporter.hpp
+  include/ros_weaver/widgets/waypoint_graphics_item.hpp
+  include/ros_weaver/widgets/mission_map_view.hpp
+  include/ros_weaver/widgets/waypoint_editor_widget.hpp
+  include/ros_weaver/widgets/mission_planner_panel.hpp
 )
 
 # Create executable

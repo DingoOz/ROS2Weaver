@@ -75,6 +75,7 @@
 #include "ros_weaver/core/network_topology_manager.hpp"
 #include "ros_weaver/widgets/network_topology_panel.hpp"
 #include "ros_weaver/widgets/behavior_tree_panel.hpp"
+#include "ros_weaver/widgets/mission_planner_panel.hpp"
 
 #include <QApplication>
 #include <QCloseEvent>
@@ -747,6 +748,12 @@ void MainWindow::setupMenuBar() {
   showBehaviorTreeAction->setChecked(false);  // Hidden by default
   showBehaviorTreeAction->setObjectName("showBehaviorTreeAction");
   showBehaviorTreeAction->setToolTip(tr("Show/hide behavior tree visualization panel"));
+
+  QAction* showMissionPlannerAction = panelsMenu->addAction(tr("&Mission Planner"));
+  showMissionPlannerAction->setCheckable(true);
+  showMissionPlannerAction->setChecked(false);  // Hidden by default
+  showMissionPlannerAction->setObjectName("showMissionPlannerAction");
+  showMissionPlannerAction->setToolTip(tr("Show/hide mission waypoint planner panel"));
 
   panelsMenu->addSeparator();
 
@@ -1907,6 +1914,28 @@ void MainWindow::setupDockWidgets() {
   if (showBehaviorTreeAction) {
     connect(showBehaviorTreeAction, &QAction::toggled, behaviorTreeDock_, &QDockWidget::setVisible);
     connect(behaviorTreeDock_, &QDockWidget::visibilityChanged, showBehaviorTreeAction, &QAction::setChecked);
+  }
+
+  // Mission Planner Panel
+  missionPlannerDock_ = new QDockWidget(tr("Mission Planner"), this);
+  missionPlannerDock_->setObjectName("missionPlannerDock");
+  missionPlannerDock_->setAllowedAreas(Qt::AllDockWidgetAreas);
+  missionPlannerDock_->setFeatures(QDockWidget::DockWidgetMovable |
+                                    QDockWidget::DockWidgetFloatable |
+                                    QDockWidget::DockWidgetClosable);
+
+  missionPlannerPanel_ = new MissionPlannerPanel(this);
+  missionPlannerPanel_->setBehaviorTreeEditor(behaviorTreePanel_);
+  missionPlannerDock_->setWidget(missionPlannerPanel_);
+
+  addDockWidget(Qt::RightDockWidgetArea, missionPlannerDock_);
+  tabifyDockWidget(behaviorTreeDock_, missionPlannerDock_);
+  missionPlannerDock_->hide();  // Hidden by default
+
+  QAction* showMissionPlannerAction = findChild<QAction*>("showMissionPlannerAction");
+  if (showMissionPlannerAction) {
+    connect(showMissionPlannerAction, &QAction::toggled, missionPlannerDock_, &QDockWidget::setVisible);
+    connect(missionPlannerDock_, &QDockWidget::visibilityChanged, showMissionPlannerAction, &QAction::setChecked);
   }
 
   // Initialize Remote Connection Manager

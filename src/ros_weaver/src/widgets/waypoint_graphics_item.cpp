@@ -1,0 +1,533 @@
+#include "ros_weaver/widgets/waypoint_graphics_item.hpp"
+#include <QPen>
+#include <QBrush>
+#include <QFont>
+#include <QCursor>
+#include <cmath>
+
+namespace ros_weaver {
+
+// WaypointGraphicsItem implementation
+
+WaypointGraphicsItem::WaypointGraphicsItem(const Waypoint& waypoint, QGraphicsItem* parent)
+    : QGraphicsObject(parent), waypoint_(waypoint) {
+  setFlag(QGraphicsItem::ItemIsMovable, true);
+  setFlag(QGraphicsItem::ItemIsSelectable, true);
+  setFlag(QGraphicsItem::ItemSendsGeometryChanges, true);
+  setAcceptHoverEvents(true);
+  setCursor(Qt::PointingHandCursor);
+}
+
+void WaypointGraphicsItem::setWaypoint(const Waypoint& waypoint) {
+  waypoint_ = waypoint;
+  update();
+}
+
+void WaypointGraphicsItem::setSelected(bool selected) {
+  isSelected_ = selected;
+  update();
+}
+
+void WaypointGraphicsItem::setSequenceNumber(int number) {
+  sequenceNumber_ = number;
+  update();
+}
+
+void WaypointGraphicsItem::setShowOrientation(bool show) {
+  showOrientation_ = show;
+  update();
+}
+
+void WaypointGraphicsItem::setShowTolerance(bool show) {
+  showTolerance_ = show;
+  update();
+}
+
+QRectF WaypointGraphicsItem::boundingRect() const {
+  double extent = WAYPOINT_RADIUS + ORIENTATION_ARROW_LENGTH + 5.0;
+  return QRectF(-extent, -extent, extent * 2, extent * 2);
+}
+
+void WaypointGraphicsItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget*) {
+  painter->setRenderHint(QPainter::Antialiasing);
+
+  // Draw tolerance circle if enabled
+  if (showTolerance_) {
+    drawToleranceCircle(painter);
+  }
+
+  // Draw orientation arrow if enabled
+  if (showOrientation_) {
+    drawOrientationArrow(painter);
+  }
+
+  // Draw waypoint circle
+  QColor baseColor = waypoint_.color;
+  if (isHovered_) {
+    baseColor = baseColor.lighter(120);
+  }
+  if (isSelected_) {
+    painter->setPen(QPen(Qt::yellow, 3));
+  } else {
+    painter->setPen(QPen(baseColor.darker(120), 2));
+  }
+  painter->setBrush(baseColor);
+  painter->drawEllipse(QPointF(0, 0), WAYPOINT_RADIUS, WAYPOINT_RADIUS);
+
+  // Draw sequence number
+  painter->setPen(Qt::white);
+  QFont font = painter->font();
+  font.setBold(true);
+  font.setPointSize(10);
+  painter->setFont(font);
+
+  QString label = sequenceNumber_ > 0 ? QString::number(sequenceNumber_) : waypoint_.name;
+  if (label.length() > 3) {
+    label = label.left(3);
+  }
+  QRectF textRect(-WAYPOINT_RADIUS, -WAYPOINT_RADIUS, WAYPOINT_RADIUS * 2, WAYPOINT_RADIUS * 2);
+  painter->drawText(textRect, Qt::AlignCenter, label);
+
+  // Draw name label below
+  if (!waypoint_.name.isEmpty() && sequenceNumber_ > 0) {
+    painter->setPen(Qt::black);
+    font.setPointSize(8);
+    font.setBold(false);
+    painter->setFont(font);
+    QRectF nameRect(-50, WAYPOINT_RADIUS + 2, 100, 16);
+    painter->drawText(nameRect, Qt::AlignCenter, waypoint_.name);
+  }
+}
+
+void WaypointGraphicsItem::drawOrientationArrow(QPainter* painter) {
+  double endX = ORIENTATION_ARROW_LENGTH * std::cos(waypoint_.theta);
+  double endY = -ORIENTATION_ARROW_LENGTH * std::sin(waypoint_.theta);  // Qt Y is inverted
+
+  // Draw arrow line
+  painter->setPen(QPen(waypoint_.color.darker(110), 2));
+  painter->drawLine(QPointF(0, 0), QPointF(endX, endY));
+
+  // Draw arrowhead
+  double arrowSize = 8.0;
+  double angle = std::atan2(-endY, endX);
+  QPointF arrowP1 = QPointF(endX, endY) -
+      QPointF(arrowSize * std::cos(angle - M_PI / 6),
+              -arrowSize * std::sin(angle - M_PI / 6));
+  QPointF arrowP2 = QPointF(endX, endY) -
+      QPointF(arrowSize * std::cos(angle + M_PI / 6),
+              -arrowSize * std::sin(angle + M_PI / 6));
+
+  painter->setBrush(waypoint_.color.darker(110));
+  QPolygonF arrowHead;
+  arrowHead << QPointF(endX, endY) << arrowP1 << arrowP2;
+  painter->drawPolygon(arrowHead);
+
+  // Draw orientation handle
+  QPointF handlePos = orientationHandlePos();
+  QColor handleColor = isHovered_ || isDraggingOrientation_ ? Qt::yellow : Qt::white;
+  painter->setPen(QPen(Qt::black, 1));
+  painter->setBrush(handleColor);
+  painter->drawEllipse(handlePos, ORIENTATION_HANDLE_RADIUS, ORIENTATION_HANDLE_RADIUS);
+}
+
+void WaypointGraphicsItem::drawToleranceCircle(QPainter* painter) {
+  // Scale tolerance to pixel coordinates (assuming 1 pixel = metersPerPixel in scene)
+  // For now, use a fixed visual radius; actual scaling happens in MissionMapView
+  double visualRadius = waypoint_.tolerance * 100;  // Placeholder scaling
+  if (visualRadius < WAYPOINT_RADIUS + 5) {
+    visualRadius = WAYPOINT_RADIUS + 5;
+  }
+
+  QColor toleranceColor = waypoint_.color;
+  toleranceColor.setAlphaF(TOLERANCE_CIRCLE_OPACITY);
+  painter->setPen(QPen(waypoint_.color.darker(110), 1, Qt::DashLine));
+  painter->setBrush(toleranceColor);
+  painter->drawEllipse(QPointF(0, 0), visualRadius, visualRadius);
+}
+
+QPointF WaypointGraphicsItem::orientationHandlePos() const {
+  double handleDist = ORIENTATION_ARROW_LENGTH * 0.8;
+  return QPointF(handleDist * std::cos(waypoint_.theta),
+                 -handleDist * std::sin(waypoint_.theta));
+}
+
+bool WaypointGraphicsItem::isOnOrientationHandle(const QPointF& pos) const {
+  QPointF handlePos = orientationHandlePos();
+  return QLineF(pos, handlePos).length() <= ORIENTATION_HANDLE_RADIUS + 2;
+}
+
+void WaypointGraphicsItem::mousePressEvent(QGraphicsSceneMouseEvent* event) {
+  if (event->button() == Qt::LeftButton) {
+    if (isOnOrientationHandle(event->pos())) {
+      isDraggingOrientation_ = true;
+      dragStartTheta_ = waypoint_.theta;
+      event->accept();
+      return;
+    }
+    isDragging_ = true;
+    dragStartPos_ = pos();
+  }
+  emit waypointClicked(waypoint_.id);
+  QGraphicsObject::mousePressEvent(event);
+}
+
+void WaypointGraphicsItem::mouseMoveEvent(QGraphicsSceneMouseEvent* event) {
+  if (isDraggingOrientation_) {
+    QPointF delta = event->pos();
+    double newTheta = std::atan2(-delta.y(), delta.x());  // Qt Y is inverted
+    waypoint_.theta = newTheta;
+    update();
+    emit waypointOrientationChanged(waypoint_.id, newTheta);
+    return;
+  }
+  QGraphicsObject::mouseMoveEvent(event);
+}
+
+void WaypointGraphicsItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event) {
+  if (isDraggingOrientation_) {
+    isDraggingOrientation_ = false;
+    update();
+    return;
+  }
+
+  if (isDragging_) {
+    isDragging_ = false;
+    if (pos() != dragStartPos_) {
+      emit waypointMoved(waypoint_.id, pos());
+    }
+  }
+  QGraphicsObject::mouseReleaseEvent(event);
+}
+
+void WaypointGraphicsItem::mouseDoubleClickEvent(QGraphicsSceneMouseEvent* event) {
+  emit waypointDoubleClicked(waypoint_.id);
+  QGraphicsObject::mouseDoubleClickEvent(event);
+}
+
+void WaypointGraphicsItem::hoverEnterEvent(QGraphicsSceneHoverEvent*) {
+  isHovered_ = true;
+  update();
+}
+
+void WaypointGraphicsItem::hoverLeaveEvent(QGraphicsSceneHoverEvent*) {
+  isHovered_ = false;
+  update();
+}
+
+void WaypointGraphicsItem::hoverMoveEvent(QGraphicsSceneHoverEvent* event) {
+  if (isOnOrientationHandle(event->pos())) {
+    setCursor(Qt::CrossCursor);
+  } else {
+    setCursor(Qt::PointingHandCursor);
+  }
+}
+
+// RobotStartPoseItem implementation
+
+RobotStartPoseItem::RobotStartPoseItem(QGraphicsItem* parent)
+    : QGraphicsObject(parent) {
+  setFlag(QGraphicsItem::ItemIsMovable, true);
+  setFlag(QGraphicsItem::ItemIsSelectable, true);
+  setFlag(QGraphicsItem::ItemSendsGeometryChanges, true);
+  setAcceptHoverEvents(true);
+  setCursor(Qt::PointingHandCursor);
+}
+
+void RobotStartPoseItem::setPose(const RobotStartPose& pose) {
+  pose_ = pose;
+  update();
+}
+
+void RobotStartPoseItem::setSelected(bool selected) {
+  isSelected_ = selected;
+  update();
+}
+
+QRectF RobotStartPoseItem::boundingRect() const {
+  double extent = ROBOT_SIZE + ORIENTATION_ARROW_LENGTH + 5.0;
+  return QRectF(-extent, -extent, extent * 2, extent * 2);
+}
+
+void RobotStartPoseItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget*) {
+  painter->setRenderHint(QPainter::Antialiasing);
+
+  // Draw orientation arrow
+  double endX = ORIENTATION_ARROW_LENGTH * std::cos(pose_.theta);
+  double endY = -ORIENTATION_ARROW_LENGTH * std::sin(pose_.theta);
+
+  painter->setPen(QPen(QColor(0, 150, 0), 2));
+  painter->drawLine(QPointF(0, 0), QPointF(endX, endY));
+
+  // Arrowhead
+  double arrowSize = 10.0;
+  double angle = std::atan2(-endY, endX);
+  QPointF arrowP1 = QPointF(endX, endY) -
+      QPointF(arrowSize * std::cos(angle - M_PI / 6),
+              -arrowSize * std::sin(angle - M_PI / 6));
+  QPointF arrowP2 = QPointF(endX, endY) -
+      QPointF(arrowSize * std::cos(angle + M_PI / 6),
+              -arrowSize * std::sin(angle + M_PI / 6));
+
+  painter->setBrush(QColor(0, 150, 0));
+  QPolygonF arrowHead;
+  arrowHead << QPointF(endX, endY) << arrowP1 << arrowP2;
+  painter->drawPolygon(arrowHead);
+
+  // Draw robot shape (simplified as a house/arrow shape)
+  QColor robotColor = isHovered_ ? QColor(0, 200, 0) : QColor(0, 150, 0);
+  if (isSelected_) {
+    painter->setPen(QPen(Qt::yellow, 3));
+  } else {
+    painter->setPen(QPen(robotColor.darker(120), 2));
+  }
+  painter->setBrush(robotColor);
+
+  // Draw as a circle with robot icon
+  painter->drawEllipse(QPointF(0, 0), ROBOT_SIZE, ROBOT_SIZE);
+
+  // Draw "R" for robot
+  painter->setPen(Qt::white);
+  QFont font = painter->font();
+  font.setBold(true);
+  font.setPointSize(12);
+  painter->setFont(font);
+  painter->drawText(QRectF(-ROBOT_SIZE, -ROBOT_SIZE, ROBOT_SIZE * 2, ROBOT_SIZE * 2),
+                    Qt::AlignCenter, "R");
+
+  // Label
+  painter->setPen(Qt::black);
+  font.setPointSize(9);
+  font.setBold(false);
+  painter->setFont(font);
+  painter->drawText(QRectF(-40, ROBOT_SIZE + 2, 80, 16), Qt::AlignCenter, "Start");
+}
+
+QPointF RobotStartPoseItem::orientationHandlePos() const {
+  double handleDist = ORIENTATION_ARROW_LENGTH * 0.8;
+  return QPointF(handleDist * std::cos(pose_.theta),
+                 -handleDist * std::sin(pose_.theta));
+}
+
+bool RobotStartPoseItem::isOnOrientationHandle(const QPointF& pos) const {
+  QPointF handlePos = orientationHandlePos();
+  return QLineF(pos, handlePos).length() <= 8.0;
+}
+
+void RobotStartPoseItem::mousePressEvent(QGraphicsSceneMouseEvent* event) {
+  if (event->button() == Qt::LeftButton) {
+    if (isOnOrientationHandle(event->pos())) {
+      isDraggingOrientation_ = true;
+      dragStartTheta_ = pose_.theta;
+      event->accept();
+      return;
+    }
+    isDragging_ = true;
+    dragStartPos_ = pos();
+  }
+  emit poseClicked();
+  QGraphicsObject::mousePressEvent(event);
+}
+
+void RobotStartPoseItem::mouseMoveEvent(QGraphicsSceneMouseEvent* event) {
+  if (isDraggingOrientation_) {
+    QPointF delta = event->pos();
+    double newTheta = std::atan2(-delta.y(), delta.x());
+    pose_.theta = newTheta;
+    update();
+    emit poseOrientationChanged(newTheta);
+    return;
+  }
+  QGraphicsObject::mouseMoveEvent(event);
+}
+
+void RobotStartPoseItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event) {
+  if (isDraggingOrientation_) {
+    isDraggingOrientation_ = false;
+    update();
+    return;
+  }
+
+  if (isDragging_) {
+    isDragging_ = false;
+    if (pos() != dragStartPos_) {
+      emit poseMoved(pos());
+    }
+  }
+  QGraphicsObject::mouseReleaseEvent(event);
+}
+
+void RobotStartPoseItem::hoverEnterEvent(QGraphicsSceneHoverEvent*) {
+  isHovered_ = true;
+  update();
+}
+
+void RobotStartPoseItem::hoverLeaveEvent(QGraphicsSceneHoverEvent*) {
+  isHovered_ = false;
+  update();
+}
+
+void RobotStartPoseItem::hoverMoveEvent(QGraphicsSceneHoverEvent* event) {
+  if (isOnOrientationHandle(event->pos())) {
+    setCursor(Qt::CrossCursor);
+  } else {
+    setCursor(Qt::PointingHandCursor);
+  }
+}
+
+// ScaleCalibrationOverlay implementation
+
+ScaleCalibrationOverlay::ScaleCalibrationOverlay(QGraphicsItem* parent)
+    : QGraphicsObject(parent) {
+  setFlag(QGraphicsItem::ItemHasNoContents, false);
+}
+
+void ScaleCalibrationOverlay::setFirstPoint(const QPointF& point) {
+  point1_ = point;
+  hasPoint1_ = true;
+  update();
+}
+
+void ScaleCalibrationOverlay::setSecondPoint(const QPointF& point) {
+  point2_ = point;
+  hasPoint2_ = true;
+  update();
+  if (hasPoint1_ && hasPoint2_) {
+    emit calibrationComplete(point1_, point2_);
+  }
+}
+
+void ScaleCalibrationOverlay::setMeasuring(bool measuring) {
+  isMeasuring_ = measuring;
+  update();
+}
+
+void ScaleCalibrationOverlay::clear() {
+  hasPoint1_ = false;
+  hasPoint2_ = false;
+  isMeasuring_ = false;
+  update();
+}
+
+double ScaleCalibrationOverlay::pixelDistance() const {
+  if (hasPoint1_ && hasPoint2_) {
+    return QLineF(point1_, point2_).length();
+  }
+  return 0.0;
+}
+
+QRectF ScaleCalibrationOverlay::boundingRect() const {
+  return QRectF(-10000, -10000, 20000, 20000);  // Full scene
+}
+
+void ScaleCalibrationOverlay::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget*) {
+  if (!hasPoint1_ && !isMeasuring_) {
+    return;
+  }
+
+  painter->setRenderHint(QPainter::Antialiasing);
+
+  // Draw first point
+  if (hasPoint1_) {
+    painter->setPen(QPen(Qt::red, 2));
+    painter->setBrush(Qt::red);
+    painter->drawEllipse(point1_, 6, 6);
+  }
+
+  // Draw line and second point
+  if (hasPoint1_ && hasPoint2_) {
+    painter->setPen(QPen(Qt::red, 2, Qt::DashLine));
+    painter->drawLine(point1_, point2_);
+
+    painter->setBrush(Qt::red);
+    painter->drawEllipse(point2_, 6, 6);
+
+    // Draw distance label
+    QPointF midPoint = (point1_ + point2_) / 2.0;
+    double dist = pixelDistance();
+    QString label = QString("%1 px").arg(dist, 0, 'f', 1);
+
+    painter->setPen(Qt::black);
+    QFont font = painter->font();
+    font.setBold(true);
+    painter->setFont(font);
+
+    QRectF labelRect(midPoint.x() - 40, midPoint.y() - 20, 80, 20);
+    painter->fillRect(labelRect, QColor(255, 255, 200, 200));
+    painter->drawText(labelRect, Qt::AlignCenter, label);
+  }
+}
+
+// WaypointPathItem implementation
+
+WaypointPathItem::WaypointPathItem(QGraphicsItem* parent)
+    : QGraphicsItem(parent) {
+  setZValue(-1);  // Draw behind waypoints
+}
+
+void WaypointPathItem::setPath(const QList<QPointF>& points) {
+  pathPoints_ = points;
+  update();
+}
+
+void WaypointPathItem::setShowArrows(bool show) {
+  showArrows_ = show;
+  update();
+}
+
+QRectF WaypointPathItem::boundingRect() const {
+  if (pathPoints_.isEmpty()) {
+    return QRectF();
+  }
+
+  double minX = pathPoints_[0].x(), maxX = minX;
+  double minY = pathPoints_[0].y(), maxY = minY;
+
+  for (const auto& pt : pathPoints_) {
+    minX = std::min(minX, pt.x());
+    maxX = std::max(maxX, pt.x());
+    minY = std::min(minY, pt.y());
+    maxY = std::max(maxY, pt.y());
+  }
+
+  return QRectF(minX - 10, minY - 10, maxX - minX + 20, maxY - minY + 20);
+}
+
+void WaypointPathItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget*) {
+  if (pathPoints_.size() < 2) {
+    return;
+  }
+
+  painter->setRenderHint(QPainter::Antialiasing);
+  painter->setPen(QPen(QColor(100, 100, 100), 2, Qt::DashDotLine));
+
+  QPainterPath path;
+  path.moveTo(pathPoints_[0]);
+  for (int i = 1; i < pathPoints_.size(); ++i) {
+    path.lineTo(pathPoints_[i]);
+  }
+  painter->drawPath(path);
+
+  // Draw arrows at midpoints if enabled
+  if (showArrows_) {
+    painter->setBrush(QColor(100, 100, 100));
+    for (int i = 0; i < pathPoints_.size() - 1; ++i) {
+      QPointF p1 = pathPoints_[i];
+      QPointF p2 = pathPoints_[i + 1];
+      QPointF mid = (p1 + p2) / 2.0;
+
+      double angle = std::atan2(p2.y() - p1.y(), p2.x() - p1.x());
+      double arrowSize = 8.0;
+
+      QPointF arrowP1 = mid - QPointF(arrowSize * std::cos(angle - M_PI / 6),
+                                       arrowSize * std::sin(angle - M_PI / 6));
+      QPointF arrowP2 = mid - QPointF(arrowSize * std::cos(angle + M_PI / 6),
+                                       arrowSize * std::sin(angle + M_PI / 6));
+
+      QPolygonF arrow;
+      arrow << mid << arrowP1 << arrowP2;
+      painter->drawPolygon(arrow);
+    }
+  }
+}
+
+}  // namespace ros_weaver

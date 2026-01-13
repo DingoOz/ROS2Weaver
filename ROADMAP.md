@@ -73,13 +73,19 @@ These are community and AI-suggested features to enhance ROS2Weaver, prioritized
 |---------|--------|-------|
 | DDS Network Topology View | Done | Graph and table views, host clustering, discovery type detection, bidirectional canvas integration |
 
+### Completed Features (v1.7.0)
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Visual Behavior Tree Editor | Done | Load and visualize BehaviorTree.CPP XML files, node-based tree display |
+| ROS Mission Planner | Done | Visual waypoint planning with map import, Nav2 export, scale calibration, behavior triggers |
+
 ### Remaining Features
 
 | Feature | Priority | Complexity |
 |---------|----------|------------|
 | Enhanced Architecture Documentation | High | Medium |
 | Message Schema Diff Tool | Medium | Low |
-| Visual Behavior Tree Editor | Low | High |
 | Plugin/Extension System | Low | High |
 | CI/CD Pipeline Generator | Low | Medium |
 | Embedded mini-RViz / 3D view | Low | High |
@@ -1819,6 +1825,735 @@ struct FieldDiff {
   QString newValue;
 };
 ```
+
+---
+
+### ROS Mission Planner
+
+**Branch:** `feature/mission-planner`
+
+**Overview:** A standalone dockable panel for visual mission planning that allows users to import maps, plot waypoints, set scale, configure robot start poses, and generate Nav2-compatible mission data. Integrates with the Behavior Tree Editor for waypoint-triggered behaviors.
+
+#### New Files to Create
+
+```
+src/ros_weaver/include/ros_weaver/widgets/mission_planner_panel.hpp
+src/ros_weaver/src/widgets/mission_planner_panel.cpp
+src/ros_weaver/include/ros_weaver/widgets/mission_map_view.hpp
+src/ros_weaver/src/widgets/mission_map_view.cpp
+src/ros_weaver/include/ros_weaver/core/mission_data.hpp
+src/ros_weaver/src/core/mission_data.cpp
+src/ros_weaver/include/ros_weaver/core/map_scale_tool.hpp
+src/ros_weaver/src/core/map_scale_tool.cpp
+src/ros_weaver/include/ros_weaver/widgets/waypoint_editor_widget.hpp
+src/ros_weaver/src/widgets/waypoint_editor_widget.cpp
+src/ros_weaver/include/ros_weaver/core/nav2_exporter.hpp
+src/ros_weaver/src/core/nav2_exporter.cpp
+```
+
+#### Data Model
+
+```cpp
+// Waypoint with position, orientation, and behavior triggers
+struct Waypoint {
+  int id;
+  QString name;
+  double x;           // Position in meters (map frame)
+  double y;
+  double theta;       // Orientation in radians
+  double tolerance;   // Arrival tolerance in meters
+
+  // Behavior triggers
+  struct BehaviorTrigger {
+    enum TriggerType {
+      OnArrival,           // Trigger when waypoint is reached
+      OnApproach,          // Trigger when within approach distance
+      OnDeparture,         // Trigger after leaving waypoint
+      WhileNavigating      // Continuous during navigation to this waypoint
+    };
+    TriggerType type;
+    double approachDistance;  // For OnApproach trigger (meters)
+    QString behaviorTreeId;   // Reference to behavior tree
+    QString behaviorNodeId;   // Specific node to trigger (optional)
+    QJsonObject parameters;   // Custom parameters for the behavior
+  };
+  QList<BehaviorTrigger> triggers;
+
+  // Visual properties
+  QColor color;
+  QString icon;
+};
+
+// Robot start configuration
+struct RobotStartPose {
+  double x;
+  double y;
+  double theta;
+  QString frameId;  // Usually "map"
+};
+
+// Map scale calibration
+struct MapScale {
+  // Two reference points in pixel coordinates
+  QPointF pixelPoint1;
+  QPointF pixelPoint2;
+  // Known real-world distance between points
+  double realWorldDistance;  // meters
+  // Computed scale factor
+  double metersPerPixel;
+
+  void computeScale() {
+    double pixelDistance = QLineF(pixelPoint1, pixelPoint2).length();
+    metersPerPixel = realWorldDistance / pixelDistance;
+  }
+};
+
+// Complete mission definition
+struct Mission {
+  QString name;
+  QString description;
+  QString mapImagePath;
+  QString mapYamlPath;      // Optional: Nav2 map.yaml for georeferencing
+  MapScale scale;
+  RobotStartPose startPose;
+  QList<Waypoint> waypoints;
+  bool loopMission;         // Return to start after completion
+  int loopCount;            // -1 for infinite
+
+  // Mission-level settings
+  double defaultSpeed;      // m/s
+  double defaultTolerance;  // meters
+  QString navProfile;       // Nav2 planner profile name
+};
+```
+
+#### Implementation Steps
+
+**Step 1: Create MissionMapView widget (QGraphicsView-based)**
+
+File: `src/ros_weaver/include/ros_weaver/widgets/mission_map_view.hpp`
+
+```cpp
+class MissionMapView : public QGraphicsView {
+  Q_OBJECT
+public:
+  explicit MissionMapView(QWidget* parent = nullptr);
+
+  // Map management
+  void loadMapImage(const QString& imagePath);
+  void loadNav2Map(const QString& yamlPath);  // Load map.yaml with resolution/origin
+  void clearMap();
+
+  // Scale calibration
+  void enterScaleCalibrationMode();
+  void exitScaleCalibrationMode();
+  void setScale(const MapScale& scale);
+  MapScale getScale() const;
+
+  // Waypoint management
+  void addWaypoint(const QPointF& position);
+  void removeWaypoint(int waypointId);
+  void updateWaypoint(const Waypoint& waypoint);
+  void selectWaypoint(int waypointId);
+  void clearWaypoints();
+
+  // Robot start pose
+  void setStartPose(const RobotStartPose& pose);
+  void enterStartPoseMode();
+
+  // Coordinate conversion
+  QPointF pixelToMeters(const QPointF& pixel) const;
+  QPointF metersToPixel(const QPointF& meters) const;
+
+  // View controls
+  void zoomToFit();
+  void setShowGrid(bool show);
+  void setShowCoordinates(bool show);
+
+signals:
+  void waypointAdded(const Waypoint& waypoint);
+  void waypointSelected(int waypointId);
+  void waypointMoved(int waypointId, const QPointF& newPosition);
+  void waypointOrientationChanged(int waypointId, double theta);
+  void startPoseChanged(const RobotStartPose& pose);
+  void scaleCalibrated(const MapScale& scale);
+  void coordinateHovered(const QPointF& meters);
+
+protected:
+  void mousePressEvent(QMouseEvent* event) override;
+  void mouseMoveEvent(QMouseEvent* event) override;
+  void mouseReleaseEvent(QMouseEvent* event) override;
+  void wheelEvent(QWheelEvent* event) override;
+  void contextMenuEvent(QContextMenuEvent* event) override;
+
+private:
+  enum Mode {
+    Normal,
+    AddWaypoint,
+    ScaleCalibration,
+    SetStartPose,
+    SetOrientation
+  };
+  Mode currentMode_ = Normal;
+
+  QGraphicsScene* scene_;
+  QGraphicsPixmapItem* mapItem_;
+  QList<WaypointGraphicsItem*> waypointItems_;
+  RobotStartPoseItem* startPoseItem_;
+  ScaleCalibrationOverlay* scaleOverlay_;
+
+  MapScale scale_;
+  int nextWaypointId_ = 1;
+  int selectedWaypointId_ = -1;
+
+  void drawWaypointPath();
+  void updateWaypointNumbers();
+};
+```
+
+**Step 2: Create WaypointGraphicsItem for visual waypoint representation**
+
+```cpp
+class WaypointGraphicsItem : public QGraphicsItem {
+public:
+  explicit WaypointGraphicsItem(const Waypoint& waypoint);
+
+  void setWaypoint(const Waypoint& waypoint);
+  Waypoint waypoint() const;
+
+  void setSelected(bool selected);
+  void setSequenceNumber(int number);
+  void setShowOrientation(bool show);
+
+  // Orientation handle for dragging
+  void setOrientationHandleVisible(bool visible);
+
+  QRectF boundingRect() const override;
+  void paint(QPainter* painter, const QStyleOptionGraphicsItem* option,
+             QWidget* widget) override;
+
+protected:
+  void mousePressEvent(QGraphicsSceneMouseEvent* event) override;
+  void mouseMoveEvent(QGraphicsSceneMouseEvent* event) override;
+  void mouseReleaseEvent(QGraphicsSceneMouseEvent* event) override;
+  void hoverEnterEvent(QGraphicsSceneHoverEvent* event) override;
+  void hoverLeaveEvent(QGraphicsSceneHoverEvent* event) override;
+
+private:
+  Waypoint waypoint_;
+  int sequenceNumber_ = 0;
+  bool isSelected_ = false;
+  bool isHovered_ = false;
+  bool isDraggingOrientation_ = false;
+
+  // Visual constants
+  static constexpr double WAYPOINT_RADIUS = 12.0;
+  static constexpr double ORIENTATION_ARROW_LENGTH = 25.0;
+  static constexpr double ORIENTATION_HANDLE_RADIUS = 6.0;
+
+  void drawOrientationArrow(QPainter* painter);
+  void drawToleranceCircle(QPainter* painter);
+  void drawBehaviorIndicator(QPainter* painter);
+  bool isPointOnOrientationHandle(const QPointF& point) const;
+};
+```
+
+**Step 3: Create Scale Calibration Tool**
+
+File: `src/ros_weaver/include/ros_weaver/core/map_scale_tool.hpp`
+
+```cpp
+class ScaleCalibrationOverlay : public QGraphicsItem {
+public:
+  explicit ScaleCalibrationOverlay();
+
+  void setFirstPoint(const QPointF& point);
+  void setSecondPoint(const QPointF& point);
+  void reset();
+
+  bool hasFirstPoint() const;
+  bool hasSecondPoint() const;
+  QPointF firstPoint() const;
+  QPointF secondPoint() const;
+  double pixelDistance() const;
+
+  QRectF boundingRect() const override;
+  void paint(QPainter* painter, const QStyleOptionGraphicsItem* option,
+             QWidget* widget) override;
+
+private:
+  QPointF point1_;
+  QPointF point2_;
+  bool hasPoint1_ = false;
+  bool hasPoint2_ = false;
+};
+
+class ScaleCalibrationDialog : public QDialog {
+  Q_OBJECT
+public:
+  explicit ScaleCalibrationDialog(double pixelDistance, QWidget* parent = nullptr);
+
+  double getRealWorldDistance() const;
+  QString getUnit() const;
+
+private:
+  QDoubleSpinBox* distanceSpinBox_;
+  QComboBox* unitComboBox_;  // meters, feet, etc.
+  QLabel* pixelDistanceLabel_;
+  QLabel* resultLabel_;      // Shows computed scale
+
+  void updateResultLabel();
+};
+```
+
+**Step 4: Create Waypoint Editor Widget**
+
+File: `src/ros_weaver/include/ros_weaver/widgets/waypoint_editor_widget.hpp`
+
+```cpp
+class WaypointEditorWidget : public QWidget {
+  Q_OBJECT
+public:
+  explicit WaypointEditorWidget(QWidget* parent = nullptr);
+
+  void setWaypoint(const Waypoint& waypoint);
+  Waypoint getWaypoint() const;
+  void clear();
+
+signals:
+  void waypointChanged(const Waypoint& waypoint);
+  void deleteRequested(int waypointId);
+  void behaviorEditRequested(int waypointId, int triggerIndex);
+
+private:
+  void setupUi();
+  void updateFromWaypoint();
+  void updateWaypoint();
+
+  // Basic properties
+  QLineEdit* nameEdit_;
+  QDoubleSpinBox* xSpinBox_;
+  QDoubleSpinBox* ySpinBox_;
+  QDoubleSpinBox* thetaSpinBox_;
+  QDial* orientationDial_;       // Visual orientation input
+  QDoubleSpinBox* toleranceSpinBox_;
+
+  // Behavior triggers section
+  QGroupBox* triggersGroup_;
+  QListWidget* triggersList_;
+  QPushButton* addTriggerButton_;
+  QPushButton* editTriggerButton_;
+  QPushButton* removeTriggerButton_;
+
+  // Actions
+  QPushButton* deleteWaypointButton_;
+
+  Waypoint currentWaypoint_;
+
+private slots:
+  void onAddTrigger();
+  void onEditTrigger();
+  void onRemoveTrigger();
+  void onOrientationDialChanged(int value);
+};
+
+// Dialog for editing behavior triggers
+class BehaviorTriggerDialog : public QDialog {
+  Q_OBJECT
+public:
+  explicit BehaviorTriggerDialog(const Waypoint::BehaviorTrigger& trigger,
+                                  QWidget* parent = nullptr);
+
+  Waypoint::BehaviorTrigger getTrigger() const;
+
+private:
+  QComboBox* triggerTypeCombo_;
+  QDoubleSpinBox* approachDistanceSpinBox_;
+  QComboBox* behaviorTreeCombo_;   // List available behavior trees
+  QComboBox* behaviorNodeCombo_;   // Optional: specific node
+  QTextEdit* parametersEdit_;      // JSON parameters
+
+  void loadBehaviorTrees();
+  void updateUiForTriggerType();
+};
+```
+
+**Step 5: Create Main Mission Planner Panel**
+
+File: `src/ros_weaver/include/ros_weaver/widgets/mission_planner_panel.hpp`
+
+```cpp
+class MissionPlannerPanel : public QWidget {
+  Q_OBJECT
+public:
+  explicit MissionPlannerPanel(QWidget* parent = nullptr);
+
+  void setMission(const Mission& mission);
+  Mission getMission() const;
+
+  // Integration with behavior tree editor
+  void setBehaviorTreeEditor(BehaviorTreeEditorPanel* editor);
+
+signals:
+  void missionChanged(const Mission& mission);
+  void exportRequested(const Mission& mission);
+
+private:
+  void setupUi();
+  void setupToolbar();
+  void setupConnections();
+
+  // Toolbar actions
+  QAction* loadMapAction_;
+  QAction* loadNav2MapAction_;
+  QAction* calibrateScaleAction_;
+  QAction* addWaypointAction_;
+  QAction* setStartPoseAction_;
+  QAction* clearWaypointsAction_;
+  QAction* zoomFitAction_;
+  QAction* exportNav2Action_;
+  QAction* saveMissionAction_;
+  QAction* loadMissionAction_;
+
+  // Main layout
+  QSplitter* mainSplitter_;
+
+  // Left side: Map view
+  MissionMapView* mapView_;
+  QLabel* coordinateLabel_;      // Shows cursor position in meters
+  QLabel* scaleLabel_;           // Shows current scale
+
+  // Right side: Properties
+  QTabWidget* propertiesTabs_;
+
+  // Mission tab
+  QLineEdit* missionNameEdit_;
+  QTextEdit* missionDescriptionEdit_;
+  QCheckBox* loopMissionCheckbox_;
+  QSpinBox* loopCountSpinBox_;
+  QDoubleSpinBox* defaultSpeedSpinBox_;
+  QDoubleSpinBox* defaultToleranceSpinBox_;
+
+  // Waypoints tab
+  QListWidget* waypointsList_;
+  QPushButton* moveUpButton_;
+  QPushButton* moveDownButton_;
+  WaypointEditorWidget* waypointEditor_;
+
+  // Start pose tab
+  QDoubleSpinBox* startXSpinBox_;
+  QDoubleSpinBox* startYSpinBox_;
+  QDoubleSpinBox* startThetaSpinBox_;
+  QDial* startOrientationDial_;
+
+  Mission currentMission_;
+  BehaviorTreeEditorPanel* behaviorTreeEditor_ = nullptr;
+
+private slots:
+  void onLoadMap();
+  void onLoadNav2Map();
+  void onCalibrateScale();
+  void onAddWaypoint();
+  void onSetStartPose();
+  void onWaypointSelected(int waypointId);
+  void onWaypointListItemSelected();
+  void onMoveWaypointUp();
+  void onMoveWaypointDown();
+  void onExportNav2();
+  void onSaveMission();
+  void onLoadMission();
+  void updateWaypointsList();
+  void updateCoordinateDisplay(const QPointF& meters);
+};
+```
+
+**Step 6: Create Nav2 Exporter**
+
+File: `src/ros_weaver/include/ros_weaver/core/nav2_exporter.hpp`
+
+```cpp
+class Nav2Exporter {
+public:
+  // Export formats
+  enum Format {
+    Nav2WaypointFollower,    // nav2_waypoint_follower YAML
+    Nav2BtNavigator,         // Behavior tree XML with waypoints
+    PoseArray,               // geometry_msgs/PoseArray for simple cases
+    CustomYAML               // Full mission YAML with behaviors
+  };
+
+  // Export mission to Nav2-compatible format
+  static QString exportMission(const Mission& mission, Format format);
+
+  // Generate waypoint follower YAML
+  static QString generateWaypointFollowerYAML(const Mission& mission);
+
+  // Generate behavior tree XML with waypoint navigation
+  static QString generateNavigationBT(const Mission& mission);
+
+  // Generate ROS2 launch file for the mission
+  static QString generateLaunchFile(const Mission& mission);
+
+  // Generate Python script for programmatic waypoint following
+  static QString generatePythonScript(const Mission& mission);
+
+private:
+  // Helper to convert waypoint to geometry_msgs/Pose
+  static QString waypointToPoseYAML(const Waypoint& wp, int indent = 0);
+
+  // Helper to generate behavior trigger BT nodes
+  static QString generateBehaviorTriggerBT(const Waypoint::BehaviorTrigger& trigger,
+                                            const QString& waypointName);
+};
+```
+
+**Step 7: Nav2 Waypoint Follower YAML Generation**
+
+```cpp
+QString Nav2Exporter::generateWaypointFollowerYAML(const Mission& mission) {
+  QString output;
+  QTextStream stream(&output);
+
+  stream << "# Generated by ROS2Weaver Mission Planner\n";
+  stream << "# Mission: " << mission.name << "\n\n";
+
+  stream << "waypoint_follower:\n";
+  stream << "  ros__parameters:\n";
+  stream << "    loop_rate: 20\n";
+  stream << "    stop_on_failure: false\n";
+  stream << "    waypoint_task_executor_plugin: \"wait_at_waypoint\"\n\n";
+
+  stream << "    waypoints:\n";
+  for (int i = 0; i < mission.waypoints.size(); ++i) {
+    const Waypoint& wp = mission.waypoints[i];
+    stream << "      - name: \"" << wp.name << "\"\n";
+    stream << "        pose:\n";
+    stream << "          position:\n";
+    stream << "            x: " << QString::number(wp.x, 'f', 3) << "\n";
+    stream << "            y: " << QString::number(wp.y, 'f', 3) << "\n";
+    stream << "            z: 0.0\n";
+    stream << "          orientation:\n";
+    // Convert theta to quaternion
+    double qz = std::sin(wp.theta / 2.0);
+    double qw = std::cos(wp.theta / 2.0);
+    stream << "            x: 0.0\n";
+    stream << "            y: 0.0\n";
+    stream << "            z: " << QString::number(qz, 'f', 6) << "\n";
+    stream << "            w: " << QString::number(qw, 'f', 6) << "\n";
+    stream << "        tolerance: " << QString::number(wp.tolerance, 'f', 2) << "\n";
+
+    // Add behavior triggers as task executor parameters
+    if (!wp.triggers.isEmpty()) {
+      stream << "        tasks:\n";
+      for (const auto& trigger : wp.triggers) {
+        stream << "          - type: \"" << triggerTypeToString(trigger.type) << "\"\n";
+        if (trigger.type == Waypoint::BehaviorTrigger::OnApproach) {
+          stream << "            approach_distance: "
+                 << QString::number(trigger.approachDistance, 'f', 2) << "\n";
+        }
+        stream << "            behavior_tree: \"" << trigger.behaviorTreeId << "\"\n";
+      }
+    }
+    stream << "\n";
+  }
+
+  // Initial pose
+  stream << "    initial_pose:\n";
+  stream << "      position:\n";
+  stream << "        x: " << QString::number(mission.startPose.x, 'f', 3) << "\n";
+  stream << "        y: " << QString::number(mission.startPose.y, 'f', 3) << "\n";
+  stream << "        z: 0.0\n";
+  stream << "      orientation:\n";
+  double startQz = std::sin(mission.startPose.theta / 2.0);
+  double startQw = std::cos(mission.startPose.theta / 2.0);
+  stream << "        x: 0.0\n";
+  stream << "        y: 0.0\n";
+  stream << "        z: " << QString::number(startQz, 'f', 6) << "\n";
+  stream << "        w: " << QString::number(startQw, 'f', 6) << "\n";
+
+  return output;
+}
+```
+
+**Step 8: Alternative Scale Methods**
+
+```cpp
+// Support for standard map scale methods
+class MapScaleManager {
+public:
+  enum ScaleMethod {
+    TwoPointCalibration,    // User draws line, enters distance
+    Nav2MapYAML,            // Load from map.yaml resolution field
+    KnownResolution,        // User enters meters/pixel directly
+    GeoTIFF                 // Extract from GeoTIFF metadata (future)
+  };
+
+  // Load scale from Nav2 map.yaml
+  static MapScale fromNav2MapYAML(const QString& yamlPath) {
+    // Parse map.yaml
+    // resolution: 0.05  # meters per pixel
+    // origin: [-10.0, -10.0, 0.0]
+
+    MapScale scale;
+    QFile file(yamlPath);
+    if (file.open(QIODevice::ReadOnly)) {
+      // YAML parsing...
+      // scale.metersPerPixel = resolution;
+    }
+    return scale;
+  }
+
+  // Load scale from image metadata (PNG tEXt chunks, EXIF, etc.)
+  static MapScale fromImageMetadata(const QString& imagePath);
+};
+```
+
+**Step 9: Integration with MainWindow**
+
+```cpp
+void MainWindow::createMissionPlannerPanel() {
+  missionPlannerPanel_ = new MissionPlannerPanel(this);
+  missionPlannerDock_ = new QDockWidget(tr("Mission Planner"), this);
+  missionPlannerDock_->setWidget(missionPlannerPanel_);
+  missionPlannerDock_->setObjectName("MissionPlannerDock");
+  addDockWidget(Qt::RightDockWidgetArea, missionPlannerDock_);
+
+  // Connect to behavior tree editor if available
+  if (behaviorTreeEditorPanel_) {
+    missionPlannerPanel_->setBehaviorTreeEditor(behaviorTreeEditorPanel_);
+  }
+
+  // Add menu entry
+  QAction* showMissionPlannerAction = viewMenu_->addAction(tr("Mission Planner"));
+  showMissionPlannerAction->setCheckable(true);
+  showMissionPlannerAction->setChecked(true);
+  connect(showMissionPlannerAction, &QAction::toggled,
+          missionPlannerDock_, &QDockWidget::setVisible);
+  connect(missionPlannerDock_, &QDockWidget::visibilityChanged,
+          showMissionPlannerAction, &QAction::setChecked);
+}
+```
+
+#### UI Mockup
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Mission Planner                                                          [X]│
+├─────────────────────────────────────────────────────────────────────────────┤
+│ [📁 Load Map] [📐 Calibrate Scale] [📍 Add Waypoint] [🤖 Set Start] [💾 Save]│
+├───────────────────────────────────────────┬─────────────────────────────────┤
+│                                           │ ┌─ Mission ─────────────────────┤
+│                                           │ │ Name: [Warehouse Patrol     ] │
+│     ┌─────────────────────────────┐       │ │ Description:                  │
+│     │                             │       │ │ [Routine inspection route   ] │
+│     │    🤖──────▶ 1              │       │ │ ☑ Loop mission  Count: [3  ] │
+│     │  Start      ↓               │       │ │ Default speed: [0.5] m/s     │
+│     │             │               │       │ └─────────────────────────────── │
+│     │             ▼               │       │ ┌─ Waypoints ───────────────────┤
+│     │         ┌── 2 ──┐           │       │ │ 1. Entrance        [▲]       │
+│     │         │       │           │       │ │ 2. Aisle A         [▼]       │
+│     │         ▼       ▼           │       │ │ 3. Storage Area              │
+│     │         3       4           │       │ │ 4. Exit                       │
+│     │         │       │           │       │ ├─────────────────────────────── │
+│     │         └───┬───┘           │       │ │ Selected: Waypoint 2          │
+│     │             │               │       │ │ X: [12.5  ] Y: [8.3   ] m     │
+│     │             ▼               │       │ │ Orientation: [90°   ] ◐       │
+│     │             5               │       │ │ Tolerance: [0.3] m            │
+│     │                             │       │ ├─ Behavior Triggers ───────────│
+│     └─────────────────────────────┘       │ │ ⚡ OnArrival: scan_shelf.bt   │
+│                                           │ │ [+ Add Trigger] [Edit] [Del]  │
+│  Scale: 0.05 m/px │ Cursor: (12.5, 8.3)m │ └─────────────────────────────────│
+├───────────────────────────────────────────┴─────────────────────────────────┤
+│ [Export to Nav2 ▼]  [Generate Launch File]  [Preview Path]                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Testing
+
+Create `test/test_mission_planner.cpp`:
+
+```cpp
+TEST(MissionPlannerTest, ScaleCalibration) {
+  MapScale scale;
+  scale.pixelPoint1 = QPointF(0, 0);
+  scale.pixelPoint2 = QPointF(100, 0);
+  scale.realWorldDistance = 5.0;  // 5 meters
+  scale.computeScale();
+
+  EXPECT_DOUBLE_EQ(scale.metersPerPixel, 0.05);
+}
+
+TEST(MissionPlannerTest, CoordinateConversion) {
+  MissionMapView view;
+  MapScale scale;
+  scale.metersPerPixel = 0.05;
+  view.setScale(scale);
+
+  QPointF pixelPos(200, 100);
+  QPointF meterPos = view.pixelToMeters(pixelPos);
+
+  EXPECT_DOUBLE_EQ(meterPos.x(), 10.0);
+  EXPECT_DOUBLE_EQ(meterPos.y(), 5.0);
+}
+
+TEST(MissionPlannerTest, WaypointOrdering) {
+  Mission mission;
+  mission.waypoints.append({1, "A", 0, 0, 0, 0.3, {}, Qt::blue, ""});
+  mission.waypoints.append({2, "B", 1, 0, 0, 0.3, {}, Qt::blue, ""});
+  mission.waypoints.append({3, "C", 2, 0, 0, 0.3, {}, Qt::blue, ""});
+
+  // Move waypoint B up
+  // Verify order becomes B, A, C
+}
+
+TEST(MissionPlannerTest, Nav2YAMLExport) {
+  Mission mission;
+  mission.name = "Test Mission";
+  mission.startPose = {0, 0, 0, "map"};
+  mission.waypoints.append({1, "WP1", 1.0, 2.0, 1.57, 0.3, {}, Qt::blue, ""});
+
+  QString yaml = Nav2Exporter::generateWaypointFollowerYAML(mission);
+
+  EXPECT_TRUE(yaml.contains("waypoints:"));
+  EXPECT_TRUE(yaml.contains("x: 1.000"));
+  EXPECT_TRUE(yaml.contains("y: 2.000"));
+}
+
+TEST(MissionPlannerTest, BehaviorTriggerIntegration) {
+  Waypoint wp;
+  wp.id = 1;
+  wp.name = "Inspection Point";
+
+  Waypoint::BehaviorTrigger trigger;
+  trigger.type = Waypoint::BehaviorTrigger::OnApproach;
+  trigger.approachDistance = 2.0;
+  trigger.behaviorTreeId = "scan_area.bt";
+
+  wp.triggers.append(trigger);
+
+  // Verify trigger is correctly exported
+  QString bt = Nav2Exporter::generateNavigationBT(createMissionWithWaypoint(wp));
+  EXPECT_TRUE(bt.contains("scan_area.bt"));
+  EXPECT_TRUE(bt.contains("approach_distance"));
+}
+```
+
+#### Dependencies
+
+- Qt Graphics View Framework (existing)
+- BehaviorTree.CPP integration (from Behavior Tree Editor feature)
+- YAML-cpp for Nav2 configuration parsing/generation
+- Optional: GeoTIFF library for georeferenced maps
+
+#### Future Enhancements
+
+1. **Live Robot Tracking**: Show robot position on map during mission execution
+2. **Path Preview**: Visualize planned path using Nav2 planner
+3. **Obstacle Overlay**: Import costmap and show obstacles on map
+4. **Multi-Robot Support**: Plan missions for multiple robots
+5. **Time Estimation**: Estimate mission completion time based on distances and speeds
+6. **Geofencing**: Define keep-out zones on the map
+7. **Dynamic Waypoints**: Waypoints that adjust based on sensor input
 
 ---
 
