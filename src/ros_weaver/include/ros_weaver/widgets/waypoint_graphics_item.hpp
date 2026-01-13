@@ -165,6 +165,7 @@ public:
 
   void setPath(const QList<QPointF>& points);
   void setShowArrows(bool show);
+  void setLooping(bool looping);
 
   QRectF boundingRect() const override;
   void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget) override;
@@ -172,6 +173,7 @@ public:
 private:
   QList<QPointF> pathPoints_;
   bool showArrows_ = true;
+  bool isLooping_ = false;
 };
 
 }  // namespace ros_weaver

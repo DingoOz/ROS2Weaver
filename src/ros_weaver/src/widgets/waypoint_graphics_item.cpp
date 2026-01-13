@@ -474,6 +474,11 @@ void WaypointPathItem::setShowArrows(bool show) {
   update();
 }
 
+void WaypointPathItem::setLooping(bool looping) {
+  isLooping_ = looping;
+  update();
+}
+
 QRectF WaypointPathItem::boundingRect() const {
   if (pathPoints_.isEmpty()) {
     return QRectF();
@@ -498,18 +503,30 @@ void WaypointPathItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*,
   }
 
   painter->setRenderHint(QPainter::Antialiasing);
-  painter->setPen(QPen(QColor(100, 100, 100), 2, Qt::DashDotLine));
 
+  // Determine how many segments are "normal" path vs "return" path
+  int normalSegments = pathPoints_.size() - 1;
+  if (isLooping_ && pathPoints_.size() >= 3) {
+    normalSegments = pathPoints_.size() - 2;  // Last segment is return to start
+  }
+
+  // Draw normal path segments
+  painter->setPen(QPen(QColor(100, 100, 100), 2, Qt::DashDotLine));
   QPainterPath path;
   path.moveTo(pathPoints_[0]);
-  for (int i = 1; i < pathPoints_.size(); ++i) {
+  for (int i = 1; i <= normalSegments; ++i) {
     path.lineTo(pathPoints_[i]);
   }
   painter->drawPath(path);
 
+  // Draw return path segment with different style (green, dotted)
+  if (isLooping_ && pathPoints_.size() >= 3) {
+    painter->setPen(QPen(QColor(0, 150, 0), 2, Qt::DotLine));
+    painter->drawLine(pathPoints_[normalSegments], pathPoints_.last());
+  }
+
   // Draw arrows at midpoints if enabled
   if (showArrows_) {
-    painter->setBrush(QColor(100, 100, 100));
     for (int i = 0; i < pathPoints_.size() - 1; ++i) {
       QPointF p1 = pathPoints_[i];
       QPointF p2 = pathPoints_[i + 1];
@@ -522,6 +539,12 @@ void WaypointPathItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*,
                                        arrowSize * std::sin(angle - M_PI / 6));
       QPointF arrowP2 = mid - QPointF(arrowSize * std::cos(angle + M_PI / 6),
                                        arrowSize * std::sin(angle + M_PI / 6));
+
+      // Use green for return arrow
+      bool isReturnSegment = isLooping_ && (i == pathPoints_.size() - 2);
+      QColor arrowColor = isReturnSegment ? QColor(0, 150, 0) : QColor(100, 100, 100);
+      painter->setPen(arrowColor);
+      painter->setBrush(arrowColor);
 
       QPolygonF arrow;
       arrow << mid << arrowP1 << arrowP2;

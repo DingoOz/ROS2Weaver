@@ -74,6 +74,7 @@ public:
   void setShowGrid(bool show);
   void setShowCoordinates(bool show);
   void setShowPath(bool show);
+  void setLoopMission(bool loop);
 
   // Coordinate conversion using current scale
   QPointF pixelToMeters(const QPointF& pixel) const;
@@ -138,6 +139,7 @@ private:
   bool showGrid_ = false;
   bool showCoordinates_ = true;
   bool showPath_ = true;
+  bool loopMission_ = false;
 
   // Scale calibration state
   bool scaleCalibrationFirstPointSet_ = false;

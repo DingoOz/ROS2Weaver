@@ -13,6 +13,12 @@ enum class CommandId {
   ModifyGroupColor,    // Merge consecutive color changes
   ModifyGroupSize,     // Merge consecutive resize operations
   ModifyBlockParam,    // Merge consecutive parameter changes
+
+  // Mission planner commands
+  MoveWaypoint = 100,            // Merge consecutive waypoint moves
+  ChangeWaypointOrientation,     // Merge consecutive orientation changes
+  MoveStartPose,                 // Merge consecutive start pose moves
+  ChangeStartPoseOrientation,    // Merge consecutive start pose orientation changes
 };
 
 }  // namespace ros_weaver

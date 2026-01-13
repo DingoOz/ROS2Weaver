@@ -537,6 +537,11 @@ void MissionMapView::updateWaypointPath() {
     pathPoints.append(item->pos());
   }
 
+  // If looping, add path back to start
+  if (loopMission_ && startPoseItem_ && !waypointItems_.isEmpty()) {
+    pathPoints.append(startPoseItem_->pos());
+  }
+
   if (pathPoints.size() < 2) {
     if (pathItem_) {
       pathItem_->setVisible(false);
@@ -550,7 +555,13 @@ void MissionMapView::updateWaypointPath() {
   }
 
   pathItem_->setPath(pathPoints);
+  pathItem_->setLooping(loopMission_);
   pathItem_->setVisible(true);
+}
+
+void MissionMapView::setLoopMission(bool loop) {
+  loopMission_ = loop;
+  updateWaypointPath();
 }
 
 void MissionMapView::updateWaypointNumbers() {

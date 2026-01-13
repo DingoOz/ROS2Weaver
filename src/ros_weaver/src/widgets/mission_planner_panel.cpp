@@ -1,4 +1,5 @@
 #include "ros_weaver/widgets/mission_planner_panel.hpp"
+#include "ros_weaver/core/undo/mission_undo_commands.hpp"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
@@ -7,14 +8,29 @@
 #include <QMessageBox>
 #include <QInputDialog>
 #include <QMenu>
+#include <QShortcut>
+#include <QKeySequence>
 #include <cmath>
 
 namespace ros_weaver {
 
 MissionPlannerPanel::MissionPlannerPanel(QWidget* parent)
     : QWidget(parent) {
+  undoStack_ = new MissionUndoStack(this);
+
   setupUi();
   setupConnections();
+
+  // Setup keyboard shortcuts for undo/redo
+  auto* undoShortcut = new QShortcut(QKeySequence::Undo, this);
+  connect(undoShortcut, &QShortcut::activated, this, &MissionPlannerPanel::undo);
+
+  auto* redoShortcut = new QShortcut(QKeySequence::Redo, this);
+  connect(redoShortcut, &QShortcut::activated, this, &MissionPlannerPanel::redo);
+
+  // Also support Ctrl+Shift+Z for redo (common alternative)
+  auto* redoShortcut2 = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Z), this);
+  connect(redoShortcut2, &QShortcut::activated, this, &MissionPlannerPanel::redo);
 
   // Initialize with default mission
   currentMission_.name = tr("Untitled Mission");
@@ -150,6 +166,9 @@ void MissionPlannerPanel::setupMissionTab() {
 
   loopMissionCheckbox_ = new QCheckBox(tr("Loop mission"));
   connect(loopMissionCheckbox_, &QCheckBox::toggled, this, &MissionPlannerPanel::onMissionSettingsChanged);
+  connect(loopMissionCheckbox_, &QCheckBox::toggled, this, [this](bool checked) {
+    mapView_->setLoopMission(checked);
+  });
   loopLayout->addRow(loopMissionCheckbox_);
 
   loopCountSpinBox_ = new QSpinBox();
@@ -521,11 +540,22 @@ void MissionPlannerPanel::onSetStartPose() {
 }
 
 void MissionPlannerPanel::onClearWaypoints() {
+  if (currentMission_.waypoints.isEmpty()) {
+    return;  // Nothing to clear
+  }
+
   auto result = QMessageBox::question(this, tr("Clear Waypoints"),
       tr("Are you sure you want to clear all waypoints?"),
       QMessageBox::Yes | QMessageBox::No);
 
   if (result == QMessageBox::Yes) {
+    // Save current waypoints for undo
+    QList<Waypoint> savedWaypoints = currentMission_.waypoints;
+
+    // Create undo command before clearing
+    auto* cmd = new ClearWaypointsCommand(this, savedWaypoints);
+    undoStack_->push(cmd);
+
     mapView_->clearWaypoints();
     currentMission_.waypoints.clear();
     updateWaypointsList();
@@ -589,7 +619,13 @@ void MissionPlannerPanel::onExportNav2() {
 }
 
 void MissionPlannerPanel::onWaypointAdded(const Waypoint& waypoint) {
+  // Add to mission data (map view already created the graphics item)
   currentMission_.waypoints.append(waypoint);
+
+  // Create undo command to track this action
+  auto* cmd = new AddWaypointCommand(this, waypoint);
+  undoStack_->push(cmd);
+
   updateWaypointsList();
   markMissionModified();
 }
@@ -601,6 +637,12 @@ void MissionPlannerPanel::onWaypointSelected(int waypointId) {
       waypointsList_->setCurrentRow(i);
       waypointEditor_->setWaypoint(currentMission_.waypoints[i]);
       propertiesTabs_->setCurrentIndex(1);  // Switch to waypoints tab
+
+      // Store initial position and orientation for potential drag operations
+      draggingWaypointId_ = waypointId;
+      waypointDragStartPos_ = QPointF(currentMission_.waypoints[i].x,
+                                       currentMission_.waypoints[i].y);
+      waypointOrientationStart_ = currentMission_.waypoints[i].theta;
       break;
     }
   }
@@ -609,8 +651,15 @@ void MissionPlannerPanel::onWaypointSelected(int waypointId) {
 void MissionPlannerPanel::onWaypointMoved(int waypointId, const QPointF& newPositionMeters) {
   Waypoint* wp = currentMission_.findWaypoint(waypointId);
   if (wp) {
+    QPointF oldPos(wp->x, wp->y);
+
+    // Update mission data
     wp->x = newPositionMeters.x();
     wp->y = newPositionMeters.y();
+
+    // Create undo command (consecutive moves will be merged)
+    auto* cmd = new MoveWaypointCommand(this, waypointId, oldPos, newPositionMeters);
+    undoStack_->push(cmd);
 
     // Update editor if this waypoint is selected
     int row = waypointsList_->currentRow();
@@ -626,7 +675,12 @@ void MissionPlannerPanel::onWaypointMoved(int waypointId, const QPointF& newPosi
 void MissionPlannerPanel::onWaypointOrientationChanged(int waypointId, double theta) {
   Waypoint* wp = currentMission_.findWaypoint(waypointId);
   if (wp) {
+    double oldTheta = wp->theta;
     wp->theta = theta;
+
+    // Create undo command (consecutive orientation changes will be merged)
+    auto* cmd = new ChangeWaypointOrientationCommand(this, waypointId, oldTheta, theta);
+    undoStack_->push(cmd);
 
     int row = waypointsList_->currentRow();
     if (row >= 0 && row < currentMission_.waypoints.size() &&
@@ -643,7 +697,12 @@ void MissionPlannerPanel::onWaypointDoubleClicked(int waypointId) {
 }
 
 void MissionPlannerPanel::onStartPoseChanged(const RobotStartPose& pose) {
+  RobotStartPose oldPose = currentMission_.startPose;
   currentMission_.startPose = pose;
+
+  // Create undo command (consecutive pose changes will be merged)
+  auto* cmd = new SetStartPoseCommand(this, oldPose, pose);
+  undoStack_->push(cmd);
 
   startXSpinBox_->blockSignals(true);
   startYSpinBox_->blockSignals(true);
@@ -711,6 +770,10 @@ void MissionPlannerPanel::onWaypointListItemSelected() {
 void MissionPlannerPanel::onMoveWaypointUp() {
   int row = waypointsList_->currentRow();
   if (row > 0) {
+    // Create undo command
+    auto* cmd = new ReorderWaypointCommand(this, row, row - 1);
+    undoStack_->push(cmd);
+
     currentMission_.reorderWaypoints(row, row - 1);
     updateWaypointsList();
     waypointsList_->setCurrentRow(row - 1);
@@ -722,6 +785,10 @@ void MissionPlannerPanel::onMoveWaypointUp() {
 void MissionPlannerPanel::onMoveWaypointDown() {
   int row = waypointsList_->currentRow();
   if (row >= 0 && row < currentMission_.waypoints.size() - 1) {
+    // Create undo command
+    auto* cmd = new ReorderWaypointCommand(this, row, row + 1);
+    undoStack_->push(cmd);
+
     currentMission_.reorderWaypoints(row, row + 1);
     updateWaypointsList();
     waypointsList_->setCurrentRow(row + 1);
@@ -744,6 +811,13 @@ void MissionPlannerPanel::onWaypointEditorChanged(const Waypoint& waypoint) {
 void MissionPlannerPanel::onWaypointDeleteRequested(int waypointId) {
   for (int i = 0; i < currentMission_.waypoints.size(); ++i) {
     if (currentMission_.waypoints[i].id == waypointId) {
+      // Save waypoint and index for undo
+      Waypoint savedWaypoint = currentMission_.waypoints[i];
+
+      // Create undo command before removing
+      auto* cmd = new RemoveWaypointCommand(this, savedWaypoint, i);
+      undoStack_->push(cmd);
+
       currentMission_.waypoints.removeAt(i);
       mapView_->removeWaypoint(waypointId);
       updateWaypointsList();
@@ -804,6 +878,128 @@ void MissionPlannerPanel::updateUiFromMission() {
 void MissionPlannerPanel::markMissionModified() {
   missionModified_ = true;
   emit missionChanged(currentMission_);
+}
+
+// --- Undo/Redo Support ---
+
+void MissionPlannerPanel::undo() {
+  if (undoStack_->canUndo()) {
+    undoStack_->undo();
+    markMissionModified();
+  }
+}
+
+void MissionPlannerPanel::redo() {
+  if (undoStack_->canRedo()) {
+    undoStack_->redo();
+    markMissionModified();
+  }
+}
+
+void MissionPlannerPanel::addWaypointFromUndo(const Waypoint& waypoint) {
+  // Add waypoint to mission data
+  currentMission_.waypoints.append(waypoint);
+
+  // Add to map view
+  mapView_->setWaypoints(currentMission_.waypoints);
+  updateWaypointsList();
+}
+
+void MissionPlannerPanel::insertWaypointFromUndo(const Waypoint& waypoint, int index) {
+  if (index < 0) index = 0;
+  if (index > currentMission_.waypoints.size()) {
+    index = currentMission_.waypoints.size();
+  }
+
+  currentMission_.waypoints.insert(index, waypoint);
+  mapView_->setWaypoints(currentMission_.waypoints);
+  updateWaypointsList();
+}
+
+void MissionPlannerPanel::removeWaypointById(int waypointId) {
+  for (int i = 0; i < currentMission_.waypoints.size(); ++i) {
+    if (currentMission_.waypoints[i].id == waypointId) {
+      currentMission_.waypoints.removeAt(i);
+      mapView_->removeWaypoint(waypointId);
+      updateWaypointsList();
+      waypointEditor_->clear();
+      break;
+    }
+  }
+}
+
+void MissionPlannerPanel::moveWaypointFromUndo(int waypointId, const QPointF& position) {
+  Waypoint* wp = currentMission_.findWaypoint(waypointId);
+  if (wp) {
+    wp->x = position.x();
+    wp->y = position.y();
+    mapView_->updateWaypoint(*wp);
+
+    // Update editor if this waypoint is selected
+    int row = waypointsList_->currentRow();
+    if (row >= 0 && row < currentMission_.waypoints.size() &&
+        currentMission_.waypoints[row].id == waypointId) {
+      waypointEditor_->setWaypoint(*wp);
+    }
+    updateWaypointsList();
+  }
+}
+
+void MissionPlannerPanel::setWaypointOrientationFromUndo(int waypointId, double theta) {
+  Waypoint* wp = currentMission_.findWaypoint(waypointId);
+  if (wp) {
+    wp->theta = theta;
+    mapView_->updateWaypoint(*wp);
+
+    int row = waypointsList_->currentRow();
+    if (row >= 0 && row < currentMission_.waypoints.size() &&
+        currentMission_.waypoints[row].id == waypointId) {
+      waypointEditor_->setWaypoint(*wp);
+    }
+  }
+}
+
+void MissionPlannerPanel::setStartPoseFromUndo(const RobotStartPose& pose) {
+  currentMission_.startPose = pose;
+  mapView_->setStartPose(pose);
+
+  // Update UI
+  startXSpinBox_->blockSignals(true);
+  startYSpinBox_->blockSignals(true);
+  startThetaSpinBox_->blockSignals(true);
+  startOrientationDial_->blockSignals(true);
+
+  startXSpinBox_->setValue(pose.x);
+  startYSpinBox_->setValue(pose.y);
+  startThetaSpinBox_->setValue(pose.thetaDegrees());
+  startOrientationDial_->setValue(static_cast<int>(pose.thetaDegrees()));
+
+  startXSpinBox_->blockSignals(false);
+  startYSpinBox_->blockSignals(false);
+  startThetaSpinBox_->blockSignals(false);
+  startOrientationDial_->blockSignals(false);
+}
+
+void MissionPlannerPanel::setWaypointsFromUndo(const QList<Waypoint>& waypoints) {
+  currentMission_.waypoints = waypoints;
+  mapView_->setWaypoints(waypoints);
+  updateWaypointsList();
+}
+
+void MissionPlannerPanel::clearWaypointsFromUndo() {
+  currentMission_.waypoints.clear();
+  mapView_->clearWaypoints();
+  updateWaypointsList();
+  waypointEditor_->clear();
+}
+
+void MissionPlannerPanel::reorderWaypointFromUndo(int fromIndex, int toIndex) {
+  if (fromIndex < 0 || fromIndex >= currentMission_.waypoints.size()) return;
+  if (toIndex < 0 || toIndex >= currentMission_.waypoints.size()) return;
+
+  currentMission_.reorderWaypoints(fromIndex, toIndex);
+  mapView_->setWaypoints(currentMission_.waypoints);
+  updateWaypointsList();
 }
 
 }  // namespace ros_weaver
