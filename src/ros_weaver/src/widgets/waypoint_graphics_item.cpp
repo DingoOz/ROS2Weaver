@@ -61,18 +61,28 @@ void WaypointGraphicsItem::paint(QPainter* painter, const QStyleOptionGraphicsIt
     drawOrientationArrow(painter);
   }
 
-  // Draw waypoint circle
+  // Draw waypoint circle with visual feedback for different states
   QColor baseColor = waypoint_.color;
-  if (isHovered_) {
-    baseColor = baseColor.lighter(120);
-  }
-  if (isSelected_) {
+
+  // Visual feedback: dragging state takes priority
+  if (isDragging_) {
+    // Bright orange/yellow color when dragging
+    baseColor = QColor(255, 165, 0);  // Orange
+    painter->setPen(QPen(QColor(255, 100, 0), 4));  // Thick orange-red border
+  } else if (isSelected_) {
     painter->setPen(QPen(Qt::yellow, 3));
+  } else if (isHovered_) {
+    baseColor = baseColor.lighter(120);
+    painter->setPen(QPen(baseColor.darker(120), 2));
   } else {
     painter->setPen(QPen(baseColor.darker(120), 2));
   }
+
   painter->setBrush(baseColor);
-  painter->drawEllipse(QPointF(0, 0), WAYPOINT_RADIUS, WAYPOINT_RADIUS);
+
+  // Draw slightly larger circle when dragging for emphasis
+  double radius = isDragging_ ? WAYPOINT_RADIUS * 1.15 : WAYPOINT_RADIUS;
+  painter->drawEllipse(QPointF(0, 0), radius, radius);
 
   // Draw sequence number
   painter->setPen(Qt::white);
@@ -166,6 +176,8 @@ void WaypointGraphicsItem::mousePressEvent(QGraphicsSceneMouseEvent* event) {
     }
     isDragging_ = true;
     dragStartPos_ = pos();
+    setCursor(Qt::ClosedHandCursor);  // Change cursor to show grabbing
+    update();  // Update visual to show drag state
   }
   emit waypointClicked(waypoint_.id);
   QGraphicsObject::mousePressEvent(event);
@@ -192,6 +204,8 @@ void WaypointGraphicsItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event) {
 
   if (isDragging_) {
     isDragging_ = false;
+    setCursor(Qt::PointingHandCursor);  // Restore cursor
+    update();  // Update visual to clear drag state
     if (pos() != dragStartPos_) {
       emit waypointMoved(waypoint_.id, pos());
     }
@@ -273,17 +287,27 @@ void RobotStartPoseItem::paint(QPainter* painter, const QStyleOptionGraphicsItem
   arrowHead << QPointF(endX, endY) << arrowP1 << arrowP2;
   painter->drawPolygon(arrowHead);
 
-  // Draw robot shape (simplified as a house/arrow shape)
-  QColor robotColor = isHovered_ ? QColor(0, 200, 0) : QColor(0, 150, 0);
-  if (isSelected_) {
+  // Draw robot shape with visual feedback for drag state
+  QColor robotColor;
+  if (isDragging_) {
+    // Bright orange when dragging
+    robotColor = QColor(255, 165, 0);
+    painter->setPen(QPen(QColor(255, 100, 0), 4));
+  } else if (isSelected_) {
+    robotColor = QColor(0, 150, 0);
     painter->setPen(QPen(Qt::yellow, 3));
+  } else if (isHovered_) {
+    robotColor = QColor(0, 200, 0);
+    painter->setPen(QPen(robotColor.darker(120), 2));
   } else {
+    robotColor = QColor(0, 150, 0);
     painter->setPen(QPen(robotColor.darker(120), 2));
   }
   painter->setBrush(robotColor);
 
-  // Draw as a circle with robot icon
-  painter->drawEllipse(QPointF(0, 0), ROBOT_SIZE, ROBOT_SIZE);
+  // Draw as a circle with robot icon (slightly larger when dragging)
+  double size = isDragging_ ? ROBOT_SIZE * 1.15 : ROBOT_SIZE;
+  painter->drawEllipse(QPointF(0, 0), size, size);
 
   // Draw "R" for robot
   painter->setPen(Qt::white);
@@ -323,6 +347,8 @@ void RobotStartPoseItem::mousePressEvent(QGraphicsSceneMouseEvent* event) {
     }
     isDragging_ = true;
     dragStartPos_ = pos();
+    setCursor(Qt::ClosedHandCursor);  // Change cursor to show grabbing
+    update();  // Update visual to show drag state
   }
   emit poseClicked();
   QGraphicsObject::mousePressEvent(event);
@@ -349,6 +375,8 @@ void RobotStartPoseItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event) {
 
   if (isDragging_) {
     isDragging_ = false;
+    setCursor(Qt::PointingHandCursor);  // Restore cursor
+    update();  // Update visual to clear drag state
     if (pos() != dragStartPos_) {
       emit poseMoved(pos());
     }
