@@ -84,6 +84,7 @@ These are community and AI-suggested features to enhance ROS2Weaver, prioritized
 
 | Feature | Priority | Complexity |
 |---------|----------|------------|
+| Google Maps Integration for Mission Planner | High | Medium |
 | Enhanced Architecture Documentation | High | Medium |
 | Message Schema Diff Tool | Medium | Low |
 | Plugin/Extension System | Low | High |
@@ -2554,6 +2555,107 @@ TEST(MissionPlannerTest, BehaviorTriggerIntegration) {
 5. **Time Estimation**: Estimate mission completion time based on distances and speeds
 6. **Geofencing**: Define keep-out zones on the map
 7. **Dynamic Waypoints**: Waypoints that adjust based on sensor input
+
+---
+
+### Google Maps Integration for Mission Planner
+
+**Branch:** `feature/google-maps-integration`
+
+**Overview:** Integrate Google Maps as a background layer in the Mission Planner panel, allowing users to plan outdoor robot missions using satellite imagery and street maps. This enables GPS-based waypoint planning for outdoor autonomous vehicles.
+
+#### Key Features
+
+1. **Map Layer Types**
+   - Satellite imagery view
+   - Street map view
+   - Hybrid view (satellite + labels)
+   - Terrain view
+
+2. **GPS Coordinate Support**
+   - Click-to-place waypoints with automatic GPS coordinates (latitude/longitude)
+   - Manual GPS coordinate entry for precise waypoint placement
+   - Coordinate display toggle (GPS vs local meters)
+   - Datum/projection configuration (WGS84, UTM zones)
+
+3. **Map Navigation**
+   - Search by address or coordinates
+   - Zoom to current robot location (if GPS available)
+   - Save favorite locations/regions
+   - Offline map tile caching for field use
+
+4. **Waypoint Export Formats**
+   - Nav2 with GPS waypoints (robot_localization compatible)
+   - KML/KMZ for Google Earth
+   - GPX for standard GPS devices
+   - GeoJSON for GIS applications
+
+5. **Integration with Existing Features**
+   - Overlay local costmap/occupancy grid on Google Maps
+   - Show robot's GPS position in real-time
+   - Import waypoints from GPX/KML files
+
+#### Implementation Notes
+
+```cpp
+// New classes to create
+class GoogleMapsLayer : public QGraphicsObject {
+  Q_OBJECT
+public:
+  enum MapType { Satellite, Roadmap, Hybrid, Terrain };
+
+  void setCenter(double latitude, double longitude);
+  void setZoom(int level);  // Google Maps zoom levels 0-21
+  void setMapType(MapType type);
+
+  // Coordinate conversion
+  QPointF gpsToPixel(double lat, double lon) const;
+  QPair<double, double> pixelToGps(const QPointF& pixel) const;
+
+signals:
+  void tilesLoaded();
+  void loadError(const QString& error);
+
+private:
+  QNetworkAccessManager* networkManager_;
+  QCache<QString, QPixmap> tileCache_;
+  QString apiKey_;
+};
+
+// GPS waypoint extension
+struct GpsWaypoint : public Waypoint {
+  double latitude;
+  double longitude;
+  double altitude;  // meters above sea level
+  QString coordinateSystem;  // "WGS84", "UTM", etc.
+};
+```
+
+#### Configuration
+
+```yaml
+# Settings for Google Maps integration
+google_maps:
+  api_key: "${GOOGLE_MAPS_API_KEY}"  # Environment variable or encrypted storage
+  default_map_type: "hybrid"
+  cache_tiles: true
+  cache_directory: "~/.ros2weaver/map_cache"
+  max_cache_size_mb: 500
+  offline_mode: false
+```
+
+#### API Key Management
+
+- Store API key securely (Qt keychain or encrypted config)
+- Support for environment variable `GOOGLE_MAPS_API_KEY`
+- Settings dialog for API key configuration
+- Usage quota monitoring and warnings
+
+#### Privacy & Terms of Service
+
+- Comply with Google Maps Platform Terms of Service
+- Display required Google attribution
+- Option to use alternative providers (OpenStreetMap, Mapbox) for users without Google API access
 
 ---
 

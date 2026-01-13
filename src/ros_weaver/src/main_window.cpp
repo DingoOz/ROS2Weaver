@@ -3080,7 +3080,13 @@ void MainWindow::onAbout() {
        "<p>Inspired by visual programming tools like Unreal Engine's "
        "Blueprint and Houdini's node-based workflow.</p>"
        "<hr>"
-       "<p><b>Developed by:</b> Nigel Hungerford-Symes</p>")
+       "<p><b>Developed by:</b> Nigel Hungerford-Symes</p>"
+       "<hr>"
+       "<p><small><b>Disclaimer:</b> This software is provided \"as is\" without "
+       "warranty of any kind. Use at your own risk. The developers are not "
+       "responsible for any damage to hardware, software, or robotic systems "
+       "that may result from using this application. Always test robot missions "
+       "in a safe environment before deployment.</small></p>")
   );
 }
 
