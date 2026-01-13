@@ -473,7 +473,8 @@ void MissionMapView::onStartPoseOrientationChanged(double theta) {
 void MissionMapView::onScaleCalibrationComplete(const QPointF& p1, const QPointF& p2) {
   scale_.pixelPoint1 = p1;
   scale_.pixelPoint2 = p2;
-  // Don't compute scale yet - wait for user to enter real-world distance
+  // Emit signal to prompt user for real-world distance
+  emit scaleCalibrated(scale_);
 }
 
 WaypointGraphicsItem* MissionMapView::findWaypointItem(int waypointId) {
