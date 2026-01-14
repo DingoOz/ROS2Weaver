@@ -1,3 +1,14 @@
+ros-weaver (1.5.0-1) unstable; urgency=medium
+
+  * Waypoint gradient color feature
+  * Middle mouse button panning in mission planner
+  * Multi-waypoint delete with Delete key
+  * Fixed tolerance circle visualization scale
+  * Fixed UI freezing when ros2_control unavailable
+  * Fixed startup hang issues
+
+ -- ROS Weaver Team <user@example.com>  Tue, 14 Jan 2025 22:30:00 +0000
+
 ros-weaver (1.4.0-1) unstable; urgency=medium
 
   * Visual Mission Waypoint Planner with Nav2 export
