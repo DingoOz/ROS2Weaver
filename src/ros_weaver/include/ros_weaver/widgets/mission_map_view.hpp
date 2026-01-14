@@ -167,6 +167,10 @@ private:
   // Scale calibration state
   bool scaleCalibrationFirstPointSet_ = false;
 
+  // Middle mouse panning
+  bool isMiddleMousePanning_ = false;
+  QPoint lastPanPoint_;
+
   // Map metadata (from Nav2 map.yaml)
   double mapResolution_ = 0.05;  // meters per pixel
   QPointF mapOrigin_;            // origin in meters

@@ -392,6 +392,15 @@ void MissionMapView::wheelEvent(QWheelEvent* event) {
 }
 
 void MissionMapView::mousePressEvent(QMouseEvent* event) {
+  // Middle mouse button panning
+  if (event->button() == Qt::MiddleButton) {
+    isMiddleMousePanning_ = true;
+    lastPanPoint_ = event->pos();
+    setCursor(Qt::ClosedHandCursor);
+    event->accept();
+    return;
+  }
+
   if (event->button() == Qt::LeftButton) {
     QPointF scenePos = mapToScene(event->pos());
 
@@ -466,6 +475,16 @@ void MissionMapView::mouseMoveEvent(QMouseEvent* event) {
     emit coordinateHovered(meters);
   }
 
+  // Handle middle mouse panning
+  if (isMiddleMousePanning_) {
+    QPoint delta = event->pos() - lastPanPoint_;
+    lastPanPoint_ = event->pos();
+    horizontalScrollBar()->setValue(horizontalScrollBar()->value() - delta.x());
+    verticalScrollBar()->setValue(verticalScrollBar()->value() - delta.y());
+    event->accept();
+    return;
+  }
+
   // Handle rubber band selection
   if (isRubberBandSelecting_ && rubberBand_) {
     rubberBand_->setGeometry(QRect(rubberBandOrigin_, event->pos()).normalized());
@@ -476,6 +495,14 @@ void MissionMapView::mouseMoveEvent(QMouseEvent* event) {
 }
 
 void MissionMapView::mouseReleaseEvent(QMouseEvent* event) {
+  // Handle middle mouse panning release
+  if (event->button() == Qt::MiddleButton && isMiddleMousePanning_) {
+    isMiddleMousePanning_ = false;
+    setCursor(Qt::ArrowCursor);
+    event->accept();
+    return;
+  }
+
   // Handle rubber band selection completion
   if (isRubberBandSelecting_ && rubberBand_) {
     isRubberBandSelecting_ = false;
@@ -526,9 +553,14 @@ void MissionMapView::keyPressEvent(QKeyEvent* event) {
       return;
     }
   } else if (event->key() == Qt::Key_Delete || event->key() == Qt::Key_Backspace) {
-    if (selectedWaypointId_ >= 0) {
-      removeWaypoint(selectedWaypointId_);
+    if (!selectedWaypointIds_.isEmpty()) {
+      // Copy the set since removeWaypoint modifies it
+      QList<int> idsToRemove = selectedWaypointIds_.values();
+      for (int id : idsToRemove) {
+        removeWaypoint(id);
+      }
       selectedWaypointId_ = -1;
+      selectedWaypointIds_.clear();
       return;
     }
   }
