@@ -48,10 +48,19 @@ BUILD_DIR="$PROJECT_DIR/build-deb"
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 
-# Copy source to build directory
+# Copy only necessary source files (exclude build artifacts)
 echo "Preparing source..."
-cp -r "$PROJECT_DIR"/* "$BUILD_DIR/" 2>/dev/null || true
-cp -r "$PROJECT_DIR"/.git "$BUILD_DIR/" 2>/dev/null || true
+cd "$PROJECT_DIR"
+# Use git archive to get clean source, or copy manually excluding build dirs
+if [ -d ".git" ]; then
+    git archive HEAD | tar -x -C "$BUILD_DIR"
+else
+    # Manual copy excluding build directories
+    rsync -a --exclude='build' --exclude='build-deb' --exclude='install' \
+          --exclude='log' --exclude='dist' --exclude='.git' \
+          --exclude='__pycache__' --exclude='*.pyc' \
+          "$PROJECT_DIR/" "$BUILD_DIR/"
+fi
 
 # Copy debian directory to root
 cp -r "$BUILD_DIR/packaging/debian" "$BUILD_DIR/"
