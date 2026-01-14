@@ -219,6 +219,7 @@ void MissionPlannerPanel::setupWaypointsTab() {
 
   waypointsList_ = new QListWidget();
   waypointsList_->setMaximumHeight(120);
+  waypointsList_->setSelectionMode(QAbstractItemView::ExtendedSelection);
   connect(waypointsList_, &QListWidget::currentRowChanged,
           this, &MissionPlannerPanel::onWaypointListItemSelected);
   listLayout->addWidget(waypointsList_);
@@ -339,6 +340,7 @@ void MissionPlannerPanel::setupConnections() {
   // Map view signals
   connect(mapView_, &MissionMapView::waypointAdded, this, &MissionPlannerPanel::onWaypointAdded);
   connect(mapView_, &MissionMapView::waypointSelected, this, &MissionPlannerPanel::onWaypointSelected);
+  connect(mapView_, &MissionMapView::selectionChanged, this, &MissionPlannerPanel::onSelectionChanged);
   connect(mapView_, &MissionMapView::waypointMoved, this, &MissionPlannerPanel::onWaypointMoved);
   connect(mapView_, &MissionMapView::waypointOrientationChanged, this, &MissionPlannerPanel::onWaypointOrientationChanged);
   connect(mapView_, &MissionMapView::waypointDoubleClicked, this, &MissionPlannerPanel::onWaypointDoubleClicked);
@@ -634,7 +636,13 @@ void MissionPlannerPanel::onWaypointSelected(int waypointId) {
   // Find and select in list
   for (int i = 0; i < currentMission_.waypoints.size(); ++i) {
     if (currentMission_.waypoints[i].id == waypointId) {
+      // Block signals to prevent feedback loop:
+      // setCurrentRow would trigger onWaypointListItemSelected which would
+      // call mapView_->selectWaypoint() and clear multi-selection
+      waypointsList_->blockSignals(true);
       waypointsList_->setCurrentRow(i);
+      waypointsList_->blockSignals(false);
+
       waypointEditor_->setWaypoint(currentMission_.waypoints[i]);
       propertiesTabs_->setCurrentIndex(1);  // Switch to waypoints tab
 
@@ -765,6 +773,27 @@ void MissionPlannerPanel::onWaypointListItemSelected() {
     waypointEditor_->setWaypoint(currentMission_.waypoints[row]);
     mapView_->selectWaypoint(currentMission_.waypoints[row].id);
   }
+}
+
+void MissionPlannerPanel::onSelectionChanged(const QList<int>& waypointIds) {
+  // Update the list widget to reflect the map selection
+  // Block signals to prevent feedback loop
+  waypointsList_->blockSignals(true);
+  waypointsList_->clearSelection();
+
+  for (int id : waypointIds) {
+    // Find the row for this waypoint ID
+    for (int i = 0; i < currentMission_.waypoints.size(); ++i) {
+      if (currentMission_.waypoints[i].id == id) {
+        if (QListWidgetItem* item = waypointsList_->item(i)) {
+          item->setSelected(true);
+        }
+        break;
+      }
+    }
+  }
+
+  waypointsList_->blockSignals(false);
 }
 
 void MissionPlannerPanel::onMoveWaypointUp() {
