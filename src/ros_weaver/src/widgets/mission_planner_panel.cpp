@@ -7,6 +7,7 @@
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QInputDialog>
+#include <QColorDialog>
 #include <QMenu>
 #include <QShortcut>
 #include <QKeySequence>
@@ -235,6 +236,40 @@ void MissionPlannerPanel::setupWaypointsTab() {
   listLayout->addLayout(listButtonsLayout);
 
   layout->addWidget(listGroup);
+
+  // Gradient color controls
+  auto* gradientGroup = new QGroupBox(tr("Waypoint Colors"));
+  auto* gradientLayout = new QHBoxLayout(gradientGroup);
+
+  gradientStartColorButton_ = new QPushButton();
+  gradientStartColorButton_->setFixedSize(32, 24);
+  gradientStartColorButton_->setToolTip(tr("Start color (first waypoint)"));
+  gradientStartColorButton_->setStyleSheet(
+      QString("background-color: %1; border: 1px solid #888;").arg(gradientStartColor_.name()));
+  connect(gradientStartColorButton_, &QPushButton::clicked,
+          this, &MissionPlannerPanel::onGradientStartColorClicked);
+
+  gradientEndColorButton_ = new QPushButton();
+  gradientEndColorButton_->setFixedSize(32, 24);
+  gradientEndColorButton_->setToolTip(tr("End color (last waypoint)"));
+  gradientEndColorButton_->setStyleSheet(
+      QString("background-color: %1; border: 1px solid #888;").arg(gradientEndColor_.name()));
+  connect(gradientEndColorButton_, &QPushButton::clicked,
+          this, &MissionPlannerPanel::onGradientEndColorClicked);
+
+  applyGradientButton_ = new QPushButton(tr("Apply Gradient"));
+  applyGradientButton_->setToolTip(tr("Apply color gradient to all waypoints based on sequence"));
+  connect(applyGradientButton_, &QPushButton::clicked,
+          this, &MissionPlannerPanel::onApplyGradientColors);
+
+  gradientLayout->addWidget(new QLabel(tr("Start:")));
+  gradientLayout->addWidget(gradientStartColorButton_);
+  gradientLayout->addWidget(new QLabel(tr("End:")));
+  gradientLayout->addWidget(gradientEndColorButton_);
+  gradientLayout->addStretch();
+  gradientLayout->addWidget(applyGradientButton_);
+
+  layout->addWidget(gradientGroup);
 
   // Waypoint editor
   waypointEditor_ = new WaypointEditorWidget();
@@ -1029,6 +1064,59 @@ void MissionPlannerPanel::reorderWaypointFromUndo(int fromIndex, int toIndex) {
   currentMission_.reorderWaypoints(fromIndex, toIndex);
   mapView_->setWaypoints(currentMission_.waypoints);
   updateWaypointsList();
+}
+
+void MissionPlannerPanel::onGradientStartColorClicked() {
+  QColor color = QColorDialog::getColor(gradientStartColor_, this,
+      tr("Select Start Color"));
+  if (color.isValid()) {
+    gradientStartColor_ = color;
+    gradientStartColorButton_->setStyleSheet(
+        QString("background-color: %1; border: 1px solid #888;").arg(color.name()));
+  }
+}
+
+void MissionPlannerPanel::onGradientEndColorClicked() {
+  QColor color = QColorDialog::getColor(gradientEndColor_, this,
+      tr("Select End Color"));
+  if (color.isValid()) {
+    gradientEndColor_ = color;
+    gradientEndColorButton_->setStyleSheet(
+        QString("background-color: %1; border: 1px solid #888;").arg(color.name()));
+  }
+}
+
+void MissionPlannerPanel::onApplyGradientColors() {
+  int count = currentMission_.waypoints.size();
+  if (count == 0) {
+    return;
+  }
+
+  // Apply gradient colors based on waypoint sequence
+  for (int i = 0; i < count; ++i) {
+    double t = (count == 1) ? 0.0 : static_cast<double>(i) / (count - 1);
+
+    // Interpolate between start and end colors
+    int r = static_cast<int>(gradientStartColor_.red() +
+        t * (gradientEndColor_.red() - gradientStartColor_.red()));
+    int g = static_cast<int>(gradientStartColor_.green() +
+        t * (gradientEndColor_.green() - gradientStartColor_.green()));
+    int b = static_cast<int>(gradientStartColor_.blue() +
+        t * (gradientEndColor_.blue() - gradientStartColor_.blue()));
+
+    currentMission_.waypoints[i].color = QColor(r, g, b);
+  }
+
+  // Update the map view with new colors
+  mapView_->setWaypoints(currentMission_.waypoints);
+
+  // Update the editor if a waypoint is selected
+  int row = waypointsList_->currentRow();
+  if (row >= 0 && row < currentMission_.waypoints.size()) {
+    waypointEditor_->setWaypoint(currentMission_.waypoints[row]);
+  }
+
+  markMissionModified();
 }
 
 }  // namespace ros_weaver

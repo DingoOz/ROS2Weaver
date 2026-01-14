@@ -116,6 +116,11 @@ private slots:
   // Mission settings changes
   void onMissionSettingsChanged();
 
+  // Gradient colors
+  void onGradientStartColorClicked();
+  void onGradientEndColorClicked();
+  void onApplyGradientColors();
+
 private:
   void setupUi();
   void setupToolbar();
@@ -169,6 +174,13 @@ private:
   QPushButton* moveUpButton_;
   QPushButton* moveDownButton_;
   WaypointEditorWidget* waypointEditor_;
+
+  // Gradient color controls
+  QPushButton* gradientStartColorButton_;
+  QPushButton* gradientEndColorButton_;
+  QPushButton* applyGradientButton_;
+  QColor gradientStartColor_ = QColor(0, 100, 255);   // Blue
+  QColor gradientEndColor_ = QColor(255, 100, 0);     // Orange
 
   // Start pose tab
   QDoubleSpinBox* startXSpinBox_;
