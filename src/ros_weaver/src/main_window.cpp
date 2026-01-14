@@ -1951,7 +1951,8 @@ void MainWindow::setupDockWidgets() {
           this, &MainWindow::onRemoteConnectionLost);
 
   // Install event filters on all dock widgets to support Ctrl+drag to dock
-  installDockEventFilters();
+  // Defer to after event loop starts to ensure all widgets are initialized
+  QTimer::singleShot(0, this, &MainWindow::installDockEventFilters);
 }
 
 void MainWindow::installDockEventFilters() {
