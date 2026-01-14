@@ -11,9 +11,8 @@ namespace ros_weaver {
 
 WaypointGraphicsItem::WaypointGraphicsItem(const Waypoint& waypoint, QGraphicsItem* parent)
     : QGraphicsObject(parent), waypoint_(waypoint) {
-  // Don't use Qt's built-in movement - we handle dragging ourselves for proper
-  // zoom handling and multi-waypoint support
-  setFlag(QGraphicsItem::ItemIsMovable, false);
+  setFlag(QGraphicsItem::ItemIsMovable, true);
+  // Don't use Qt's built-in selection - we manage selection ourselves
   setFlag(QGraphicsItem::ItemIsSelectable, false);
   setFlag(QGraphicsItem::ItemSendsGeometryChanges, true);
   setAcceptHoverEvents(true);
@@ -178,13 +177,12 @@ void WaypointGraphicsItem::mousePressEvent(QGraphicsSceneMouseEvent* event) {
     }
     isDragging_ = true;
     dragStartPos_ = pos();
-    dragStartScenePos_ = event->scenePos();  // Store scene position for delta calculation
-    setCursor(Qt::ClosedHandCursor);
-    update();
+    setCursor(Qt::ClosedHandCursor);  // Change cursor to show grabbing
+    update();  // Update visual to show drag state
     emit waypointDragStarted(waypoint_.id, pos());
-    event->accept();
   }
   emit waypointClicked(waypoint_.id, event->modifiers());
+  QGraphicsObject::mousePressEvent(event);
 }
 
 void WaypointGraphicsItem::mouseMoveEvent(QGraphicsSceneMouseEvent* event) {
@@ -194,29 +192,15 @@ void WaypointGraphicsItem::mouseMoveEvent(QGraphicsSceneMouseEvent* event) {
     waypoint_.theta = newTheta;
     update();
     emit waypointOrientationChanged(waypoint_.id, newTheta);
-    event->accept();
     return;
   }
 
+  // Let Qt handle the item movement first (updates pos())
+  QGraphicsObject::mouseMoveEvent(event);
+
   if (isDragging_) {
-    // Calculate movement delta in scene coordinates (zoom-independent)
-    QPointF scenePos = event->scenePos();
-    QPointF delta = scenePos - dragStartScenePos_;
-
-    // Minimum drag threshold to avoid spurious movements from click jitter
-    // or coordinate rounding issues at different zoom levels
-    if (delta.manhattanLength() < 2.0) {
-      event->accept();
-      return;  // Don't move for tiny movements
-    }
-
-    // Move to new position
-    QPointF newPos = dragStartPos_ + delta;
-    setPos(newPos);
-
-    // Emit dragging signal for multi-waypoint support
-    emit waypointDragging(waypoint_.id, newPos);
-    event->accept();
+    // Emit dragging signal AFTER position is updated for accurate multi-waypoint drag
+    emit waypointDragging(waypoint_.id, pos());
   }
 }
 
@@ -224,19 +208,18 @@ void WaypointGraphicsItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event) {
   if (isDraggingOrientation_) {
     isDraggingOrientation_ = false;
     update();
-    event->accept();
     return;
   }
 
   if (isDragging_) {
     isDragging_ = false;
-    setCursor(Qt::PointingHandCursor);
-    update();
+    setCursor(Qt::PointingHandCursor);  // Restore cursor
+    update();  // Update visual to clear drag state
     if (pos() != dragStartPos_) {
       emit waypointMoved(waypoint_.id, pos());
     }
-    event->accept();
   }
+  QGraphicsObject::mouseReleaseEvent(event);
 }
 
 void WaypointGraphicsItem::mouseDoubleClickEvent(QGraphicsSceneMouseEvent* event) {
@@ -266,8 +249,7 @@ void WaypointGraphicsItem::hoverMoveEvent(QGraphicsSceneHoverEvent* event) {
 
 RobotStartPoseItem::RobotStartPoseItem(QGraphicsItem* parent)
     : QGraphicsObject(parent) {
-  // Don't use Qt's built-in movement - we handle dragging ourselves for proper zoom handling
-  setFlag(QGraphicsItem::ItemIsMovable, false);
+  setFlag(QGraphicsItem::ItemIsMovable, true);
   // Don't use Qt's built-in selection - we manage selection ourselves
   setFlag(QGraphicsItem::ItemIsSelectable, false);
   setFlag(QGraphicsItem::ItemSendsGeometryChanges, true);
@@ -375,12 +357,11 @@ void RobotStartPoseItem::mousePressEvent(QGraphicsSceneMouseEvent* event) {
     }
     isDragging_ = true;
     dragStartPos_ = pos();
-    dragStartScenePos_ = event->scenePos();  // Store scene position for zoom-independent movement
     setCursor(Qt::ClosedHandCursor);  // Change cursor to show grabbing
     update();  // Update visual to show drag state
-    event->accept();
   }
   emit poseClicked();
+  QGraphicsObject::mousePressEvent(event);
 }
 
 void RobotStartPoseItem::mouseMoveEvent(QGraphicsSceneMouseEvent* event) {
@@ -390,32 +371,15 @@ void RobotStartPoseItem::mouseMoveEvent(QGraphicsSceneMouseEvent* event) {
     pose_.theta = newTheta;
     update();
     emit poseOrientationChanged(newTheta);
-    event->accept();
     return;
   }
-
-  if (isDragging_) {
-    // Calculate movement delta in scene coordinates (zoom-independent)
-    QPointF scenePos = event->scenePos();
-    QPointF delta = scenePos - dragStartScenePos_;
-
-    // Minimum drag threshold to avoid spurious movements
-    if (delta.manhattanLength() < 2.0) {
-      event->accept();
-      return;
-    }
-
-    QPointF newPos = dragStartPos_ + delta;
-    setPos(newPos);
-    event->accept();
-  }
+  QGraphicsObject::mouseMoveEvent(event);
 }
 
 void RobotStartPoseItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event) {
   if (isDraggingOrientation_) {
     isDraggingOrientation_ = false;
     update();
-    event->accept();
     return;
   }
 
@@ -426,8 +390,8 @@ void RobotStartPoseItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event) {
     if (pos() != dragStartPos_) {
       emit poseMoved(pos());
     }
-    event->accept();
   }
+  QGraphicsObject::mouseReleaseEvent(event);
 }
 
 void RobotStartPoseItem::hoverEnterEvent(QGraphicsSceneHoverEvent*) {

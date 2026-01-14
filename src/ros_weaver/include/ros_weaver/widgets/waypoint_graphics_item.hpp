@@ -70,7 +70,6 @@ private:
   bool showTolerance_ = true;
 
   QPointF dragStartPos_;
-  QPointF dragStartScenePos_;  // Scene position at drag start for zoom-independent movement
   double dragStartTheta_ = 0.0;
 
   // Visual constants
@@ -120,7 +119,6 @@ private:
   bool isDragging_ = false;
   bool isDraggingOrientation_ = false;
   QPointF dragStartPos_;
-  QPointF dragStartScenePos_;  // Scene position at drag start for zoom-independent movement
   double dragStartTheta_ = 0.0;
 
   static constexpr double ROBOT_SIZE = 20.0;

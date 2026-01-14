@@ -105,7 +105,6 @@ private slots:
 
   // Waypoint list events
   void onWaypointListItemSelected();
-  void onSelectionChanged(const QList<int>& waypointIds);
   void onMoveWaypointUp();
   void onMoveWaypointDown();
 
