@@ -45,6 +45,11 @@ void WaypointGraphicsItem::setShowTolerance(bool show) {
   update();
 }
 
+void WaypointGraphicsItem::setMetersPerPixel(double metersPerPixel) {
+  metersPerPixel_ = metersPerPixel;
+  update();
+}
+
 QRectF WaypointGraphicsItem::boundingRect() const {
   double extent = WAYPOINT_RADIUS + ORIENTATION_ARROW_LENGTH + 5.0;
   return QRectF(-extent, -extent, extent * 2, extent * 2);
@@ -143,9 +148,8 @@ void WaypointGraphicsItem::drawOrientationArrow(QPainter* painter) {
 }
 
 void WaypointGraphicsItem::drawToleranceCircle(QPainter* painter) {
-  // Scale tolerance to pixel coordinates (assuming 1 pixel = metersPerPixel in scene)
-  // For now, use a fixed visual radius; actual scaling happens in MissionMapView
-  double visualRadius = waypoint_.tolerance * 100;  // Placeholder scaling
+  // Convert tolerance from meters to pixels using the map scale
+  double visualRadius = metersPerPixel_ > 0 ? waypoint_.tolerance / metersPerPixel_ : WAYPOINT_RADIUS + 10;
   if (visualRadius < WAYPOINT_RADIUS + 5) {
     visualRadius = WAYPOINT_RADIUS + 5;
   }

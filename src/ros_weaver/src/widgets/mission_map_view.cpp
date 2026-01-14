@@ -123,6 +123,10 @@ void MissionMapView::exitScaleCalibrationMode() {
 
 void MissionMapView::setScale(const MapScale& scale) {
   scale_ = scale;
+  // Update scale on all waypoint items for proper tolerance visualization
+  for (auto* item : waypointItems_) {
+    item->setMetersPerPixel(scale_.metersPerPixel);
+  }
   updateWaypointPath();
 }
 
@@ -153,6 +157,7 @@ void MissionMapView::addWaypointItem(const Waypoint& waypoint) {
   QPointF pixelPos = metersToPixel(QPointF(waypoint.x, waypoint.y));
   item->setPos(pixelPos);
   item->setSequenceNumber(waypointItems_.size() + 1);
+  item->setMetersPerPixel(scale_.metersPerPixel);
 
   connect(item, &WaypointGraphicsItem::waypointMoved,
           this, &MissionMapView::onWaypointMoved);

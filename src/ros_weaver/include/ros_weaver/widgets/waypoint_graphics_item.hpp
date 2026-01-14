@@ -32,6 +32,7 @@ public:
   void setSequenceNumber(int number);
   void setShowOrientation(bool show);
   void setShowTolerance(bool show);
+  void setMetersPerPixel(double metersPerPixel);
 
   // QGraphicsItem interface
   QRectF boundingRect() const override;
@@ -68,6 +69,7 @@ private:
   bool isDraggingOrientation_ = false;
   bool showOrientation_ = true;
   bool showTolerance_ = true;
+  double metersPerPixel_ = 0.05;  // Map scale for tolerance visualization
 
   QPointF dragStartPos_;
   QPointF dragStartScenePos_;  // Scene position at drag start for zoom-independent movement
