@@ -90,3 +90,5 @@ tests/__pycache__/
 tests/**/__pycache__/
 *.pyc
 .pytest_cache/
+build-deb/
+dist/
