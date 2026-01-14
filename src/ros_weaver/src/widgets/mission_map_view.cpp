@@ -401,18 +401,17 @@ void MissionMapView::mousePressEvent(QMouseEvent* event) {
         handleSetStartPoseClick(scenePos);
         return;
       case Normal: {
-        // Check if clicking on empty space (not on a waypoint)
-        QGraphicsItem* itemUnderMouse = scene_->itemAt(scenePos, transform());
-
-        // Check if it's a waypoint or the start pose
+        // Check if clicking on a waypoint by checking scene bounding rects
+        // This is more reliable than itemAt() at different zoom levels
         bool clickedOnWaypoint = false;
         for (auto* wpItem : waypointItems_) {
-          if (itemUnderMouse == wpItem) {
+          if (wpItem->sceneBoundingRect().contains(scenePos)) {
             clickedOnWaypoint = true;
             break;
           }
         }
-        bool clickedOnStartPose = (itemUnderMouse == startPoseItem_ && startPoseItem_ != nullptr);
+        bool clickedOnStartPose = (startPoseItem_ != nullptr &&
+                                    startPoseItem_->sceneBoundingRect().contains(scenePos));
 
         if (clickedOnWaypoint || clickedOnStartPose) {
           // Clicking on a draggable item - temporarily disable ScrollHandDrag
