@@ -226,7 +226,7 @@ void RosControlPanel::setupConnections() {
   connect(searchEdit_, &QLineEdit::textChanged,
           this, &RosControlPanel::onFilterChanged);
   connect(refreshButton_, &QPushButton::clicked,
-          this, &RosControlPanel::refreshAll);
+          this, &RosControlPanel::refreshAllAsync);
   connect(liveButton_, &QToolButton::toggled, this, [this](bool checked) {
     if (checked) startMonitoring();
     else stopMonitoring();
@@ -948,7 +948,8 @@ void RosControlPanel::onInterfaceSelected(QTreeWidgetItem* item, int column) {
 }
 
 void RosControlPanel::onAutoRefreshTimer() {
-  refreshAll();
+  // Use async version to prevent blocking UI when ros2_control isn't available
+  refreshAllAsync();
 }
 
 void RosControlPanel::onControllerContextMenu(const QPoint& pos) {
