@@ -670,7 +670,7 @@ void MissionMapView::onWaypointDragStarted(int waypointId, const QPointF& startP
 
 void MissionMapView::onWaypointDragging(int waypointId, const QPointF& currentPos) {
   if (!isMultiDragging_ || selectedWaypointIds_.size() <= 1) {
-    return;  // Single waypoint drag is handled by Qt's ItemIsMovable
+    return;  // Single waypoint drag is handled by WaypointGraphicsItem itself
   }
 
   // Calculate the delta from the dragged waypoint's start position
