@@ -79,8 +79,6 @@
 
 #include <QApplication>
 #include <QCloseEvent>
-#include <QMouseEvent>
-#include <QKeyEvent>
 #include <QSettings>
 #include <QDesktopServices>
 #include <QMessageBox>
@@ -1949,54 +1947,6 @@ void MainWindow::setupDockWidgets() {
           this, &MainWindow::onRemoteConnectionFailed);
   connect(remoteConnectionManager_, &RemoteConnectionManager::connectionLost,
           this, &MainWindow::onRemoteConnectionLost);
-
-  // Install event filters on all dock widgets to support Ctrl+drag to dock
-  // Defer to after event loop starts to ensure all widgets are initialized
-  QTimer::singleShot(0, this, &MainWindow::installDockEventFilters);
-}
-
-void MainWindow::installDockEventFilters() {
-  // Install event filter on all dock widgets to detect Ctrl+release for docking
-  QList<QDockWidget*> dockWidgets = findChildren<QDockWidget*>();
-  for (QDockWidget* dock : dockWidgets) {
-    dock->installEventFilter(this);
-  }
-}
-
-bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
-  // Check for mouse release on floating dock widgets while Ctrl is held
-  if (event->type() == QEvent::MouseButtonRelease) {
-    QDockWidget* dock = qobject_cast<QDockWidget*>(watched);
-    if (dock && dock->isFloating()) {
-      QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
-      if (mouseEvent->modifiers() & Qt::ControlModifier) {
-        // Ctrl is held while releasing mouse on floating panel - dock it
-        dock->setFloating(false);
-        statusBar()->showMessage(tr("Panel docked (Ctrl+release)"), 2000);
-        return false;  // Let the event continue propagating
-      }
-    }
-  }
-
-  // Also check for key press/release to provide visual feedback
-  if (event->type() == QEvent::KeyPress) {
-    QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
-    if (keyEvent->key() == Qt::Key_Control) {
-      QDockWidget* dock = qobject_cast<QDockWidget*>(watched);
-      if (dock && dock->isFloating()) {
-        // Show hint in status bar when Ctrl is pressed on floating panel
-        statusBar()->showMessage(tr("Release mouse to dock panel"), 0);
-      }
-    }
-  } else if (event->type() == QEvent::KeyRelease) {
-    QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
-    if (keyEvent->key() == Qt::Key_Control) {
-      // Clear the hint when Ctrl is released
-      statusBar()->clearMessage();
-    }
-  }
-
-  return QMainWindow::eventFilter(watched, event);
 }
 
 void MainWindow::setupCentralWidget() {

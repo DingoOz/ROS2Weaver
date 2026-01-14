@@ -213,10 +213,8 @@ private slots:
 
 protected:
   void closeEvent(QCloseEvent* event) override;
-  bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
-  void installDockEventFilters();
   void setupMenuBar();
   void setupToolBar();
   void setupDockWidgets();
