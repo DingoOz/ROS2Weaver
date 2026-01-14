@@ -1,0 +1,227 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 1.4.0)'
+        required: true
+        type: string
+
+env:
+  CCACHE_DIR: ${{ github.workspace }}/.ccache
+  CCACHE_MAXSIZE: 500M
+
+jobs:
+  build-deb:
+    runs-on: ${{ matrix.os-version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ros-distro: humble
+            os-version: ubuntu-22.04
+          - ros-distro: jazzy
+            os-version: ubuntu-24.04
+
+    name: "Build .deb (${{ matrix.ros-distro }})"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Cache APT packages
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: >-
+            libqt5charts5-dev qtbase5-dev qtbase5-dev-tools libqt5widgets5
+            libqt5svg5-dev libyaml-cpp-dev ccache devscripts build-essential
+            lintian debhelper
+          version: 1.0-${{ matrix.os-version }}-release
+
+      - name: Setup ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ccache-release-${{ matrix.ros-distro }}
+          restore-keys: |
+            ccache-release-${{ matrix.ros-distro }}
+            ccache-${{ matrix.ros-distro }}-
+
+      - name: Setup ROS2 ${{ matrix.ros-distro }}
+        uses: ros-tooling/setup-ros@v0.7
+        with:
+          required-ros-distributions: ${{ matrix.ros-distro }}
+
+      - name: Install ROS2 dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            ros-${{ matrix.ros-distro }}-rclcpp \
+            ros-${{ matrix.ros-distro }}-std-msgs \
+            ros-${{ matrix.ros-distro }}-rcl-interfaces \
+            ros-${{ matrix.ros-distro }}-tf2 \
+            ros-${{ matrix.ros-distro }}-tf2-ros \
+            ros-${{ matrix.ros-distro }}-tf2-msgs \
+            ros-${{ matrix.ros-distro }}-geometry-msgs \
+            ros-${{ matrix.ros-distro }}-nav-msgs \
+            ros-${{ matrix.ros-distro }}-sensor-msgs \
+            ros-${{ matrix.ros-distro }}-rosbag2-cpp \
+            ros-${{ matrix.ros-distro }}-rosbag2-storage \
+            ros-${{ matrix.ros-distro }}-rosgraph-msgs \
+            ros-${{ matrix.ros-distro }}-lifecycle-msgs \
+            ros-${{ matrix.ros-distro }}-ament-cmake \
+            ros-${{ matrix.ros-distro }}-ament-index-cpp
+
+      - name: Update version in package.xml
+        run: |
+          sed -i "s/<version>.*<\/version>/<version>${{ steps.version.outputs.version }}<\/version>/" \
+            src/ros_weaver/package.xml
+
+      - name: Update changelog
+        run: |
+          sed -i "1s/([^)]*)/(${{ steps.version.outputs.version }}-1)/" \
+            packaging/debian/changelog
+
+      - name: Build .deb package
+        env:
+          ROS_DISTRO: ${{ matrix.ros-distro }}
+        run: |
+          # Prepare build directory
+          mkdir -p build-deb
+          cp -r . build-deb/ 2>/dev/null || true
+          cp -r packaging/debian build-deb/
+
+          # Update control file with ROS distro
+          sed -i "s/\${ROS_DISTRO}/${{ matrix.ros-distro }}/g" build-deb/debian/control
+
+          cd build-deb
+          source /opt/ros/${{ matrix.ros-distro }}/setup.bash
+          dpkg-buildpackage -us -uc -b
+
+          # Move output
+          mkdir -p ../dist
+          mv ../*.deb ../dist/ || true
+          mv ../*.changes ../dist/ || true
+          mv ../*.buildinfo ../dist/ || true
+
+      - name: Rename package with distro suffix
+        run: |
+          cd dist
+          for f in *.deb; do
+            if [ -f "$f" ]; then
+              newname="${f%.deb}-${{ matrix.ros-distro }}.deb"
+              mv "$f" "$newname"
+            fi
+          done
+
+      - name: Upload .deb artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ros-weaver-${{ matrix.ros-distro }}-deb
+          path: dist/*.deb
+          retention-days: 30
+
+  create-release:
+    needs: build-deb
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ros-weaver-*-deb
+          merge-multiple: true
+          path: dist
+
+      - name: Get version
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          cat << 'EOF' > release_notes.md
+          ## ROS Weaver v${{ steps.version.outputs.version }}
+
+          ### Installation
+
+          Download the appropriate .deb file for your ROS2 distribution:
+
+          **ROS2 Jazzy (Ubuntu 24.04):**
+          ```bash
+          sudo dpkg -i ros-weaver_${{ steps.version.outputs.version }}-1_amd64-jazzy.deb
+          sudo apt-get install -f  # Install any missing dependencies
+          ```
+
+          **ROS2 Humble (Ubuntu 22.04):**
+          ```bash
+          sudo dpkg -i ros-weaver_${{ steps.version.outputs.version }}-1_amd64-humble.deb
+          sudo apt-get install -f  # Install any missing dependencies
+          ```
+
+          ### Running
+          ```bash
+          source /opt/ros/${ROS_DISTRO}/setup.bash
+          ros2 run ros_weaver ros_weaver
+          ```
+
+          Or launch from your desktop applications menu.
+
+          ### Checksums
+          EOF
+
+          echo '```' >> release_notes.md
+          cd dist && sha256sum *.deb >> ../release_notes.md
+          echo '```' >> release_notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: ROS Weaver v${{ steps.version.outputs.version }}
+          body_path: release_notes.md
+          files: dist/*.deb
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  notify-build-status:
+    needs: [build-deb, create-release]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Generate summary
+        run: |
+          echo "## Release Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Distribution | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| ROS2 Humble (Ubuntu 22.04) | ${{ needs.build-deb.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ROS2 Jazzy (Ubuntu 24.04) | ${{ needs.build-deb.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ needs.create-release.result }}" == "success" ]; then
+            echo "📦 **Release created successfully!**" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.create-release.result }}" == "skipped" ]; then
+            echo "ℹ️ **Release creation skipped** (no tag push)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Release creation failed**" >> $GITHUB_STEP_SUMMARY
+          fi

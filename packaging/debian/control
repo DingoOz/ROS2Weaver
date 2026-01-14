@@ -1,0 +1,57 @@
+Source: ros-weaver
+Section: devel
+Priority: optional
+Maintainer: ROS Weaver Team <user@example.com>
+Build-Depends: debhelper-compat (= 13),
+               cmake (>= 3.8),
+               qtbase5-dev,
+               libqt5charts5-dev,
+               libqt5svg5-dev,
+               libyaml-cpp-dev,
+               ros-${ROS_DISTRO}-rclcpp,
+               ros-${ROS_DISTRO}-std-msgs,
+               ros-${ROS_DISTRO}-rcl-interfaces,
+               ros-${ROS_DISTRO}-tf2,
+               ros-${ROS_DISTRO}-tf2-ros,
+               ros-${ROS_DISTRO}-tf2-msgs,
+               ros-${ROS_DISTRO}-geometry-msgs,
+               ros-${ROS_DISTRO}-nav-msgs,
+               ros-${ROS_DISTRO}-sensor-msgs,
+               ros-${ROS_DISTRO}-rosbag2-cpp,
+               ros-${ROS_DISTRO}-rosbag2-storage,
+               ros-${ROS_DISTRO}-rosgraph-msgs,
+               ros-${ROS_DISTRO}-lifecycle-msgs,
+               ros-${ROS_DISTRO}-ament-cmake,
+               ros-${ROS_DISTRO}-ament-index-cpp
+Standards-Version: 4.6.0
+Homepage: https://github.com/DingoOz/ROS2Weaver
+
+Package: ros-weaver
+Architecture: any
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+         libqt5widgets5,
+         libqt5gui5,
+         libqt5core5a,
+         libqt5charts5,
+         libqt5svg5,
+         libyaml-cpp0.8 | libyaml-cpp0.7,
+         ros-${ROS_DISTRO}-rclcpp,
+         ros-${ROS_DISTRO}-std-msgs,
+         ros-${ROS_DISTRO}-rcl-interfaces,
+         ros-${ROS_DISTRO}-tf2,
+         ros-${ROS_DISTRO}-tf2-ros,
+         ros-${ROS_DISTRO}-geometry-msgs,
+         ros-${ROS_DISTRO}-nav-msgs,
+         ros-${ROS_DISTRO}-sensor-msgs,
+         ros-${ROS_DISTRO}-rosbag2-cpp,
+         ros-${ROS_DISTRO}-rosbag2-storage
+Description: Visual tool for ROS2 development
+ ROS Weaver is a visual tool for assembling, extending, and iterating
+ on ROS2 packages and nodes. Features include:
+  - Visual node graph editor with drag-and-drop
+  - Live system introspection and monitoring
+  - Code generation for packages and launch files
+  - Rosbag recording and playback
+  - AI-powered architecture assistance
+  - Mission planning with waypoint editor

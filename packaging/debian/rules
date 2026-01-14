@@ -1,0 +1,40 @@
+#!/usr/bin/make -f
+
+export DH_VERBOSE = 1
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+# Source ROS2 environment
+ROS_DISTRO ?= jazzy
+ROS_SETUP := /opt/ros/$(ROS_DISTRO)/setup.bash
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+	. $(ROS_SETUP) && \
+	cmake -B build \
+		-DCMAKE_INSTALL_PREFIX=/opt/ros/$(ROS_DISTRO) \
+		-DCMAKE_BUILD_TYPE=Release \
+		-DBUILD_TESTING=OFF \
+		src/ros_weaver
+
+override_dh_auto_build:
+	. $(ROS_SETUP) && \
+	cmake --build build --parallel $$(nproc)
+
+override_dh_auto_install:
+	. $(ROS_SETUP) && \
+	DESTDIR=$(CURDIR)/debian/ros-weaver cmake --install build
+	# Install desktop file
+	install -Dm644 packaging/debian/ros-weaver.desktop \
+		$(CURDIR)/debian/ros-weaver/usr/share/applications/ros-weaver.desktop
+	# Install icon
+	install -Dm644 src/ros_weaver/resources/icons/ros_weaver.png \
+		$(CURDIR)/debian/ros-weaver/usr/share/icons/hicolor/256x256/apps/ros-weaver.png || true
+
+override_dh_auto_test:
+	# Skip tests during package build
+	true
+
+override_dh_shlibdeps:
+	dh_shlibdeps --dpkg-shlibdeps-params=--ignore-missing-info

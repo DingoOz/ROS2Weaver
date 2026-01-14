@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=ROS Weaver
+Comment=Visual tool for ROS2 development
+Exec=bash -c "source /opt/ros/${ROS_DISTRO:-jazzy}/setup.bash && ros2 run ros_weaver ros_weaver"
+Icon=ros-weaver
+Terminal=false
+Type=Application
+Categories=Development;IDE;RoboticsDE;
+Keywords=ROS;ROS2;robotics;development;nodes;graph;
+StartupWMClass=ros_weaver
