@@ -172,6 +172,36 @@ source install/setup.bash
 ros2 run ros_weaver ros_weaver
 ```
 
+## Building .deb Packages
+
+You can build distributable .deb packages for easy installation.
+
+### Build Dependencies
+
+```bash
+sudo apt install -y devscripts build-essential lintian debhelper
+```
+
+### Build Package
+
+```bash
+# Build for your current ROS2 distro
+./scripts/build-deb.sh
+
+# Or specify a distro
+./scripts/build-deb.sh jazzy
+./scripts/build-deb.sh humble
+```
+
+The .deb file will be created in the `dist/` directory.
+
+### Install Package
+
+```bash
+sudo dpkg -i dist/ros-weaver_*.deb
+sudo apt-get install -f  # Install any missing dependencies
+```
+
 ## Usage
 
 ### Canvas Navigation
