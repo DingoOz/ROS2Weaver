@@ -401,17 +401,27 @@ void MissionMapView::mousePressEvent(QMouseEvent* event) {
         handleSetStartPoseClick(scenePos);
         return;
       case Normal: {
-        // Check if clicking on a waypoint by checking scene bounding rects
-        // This is more reliable than itemAt() at different zoom levels
+        // Check if clicking on a waypoint or start pose
+        // Use items() to get all items at the click position
+        QList<QGraphicsItem*> itemsAtPos = scene_->items(scenePos);
+
         bool clickedOnWaypoint = false;
-        for (auto* wpItem : waypointItems_) {
-          if (wpItem->sceneBoundingRect().contains(scenePos)) {
-            clickedOnWaypoint = true;
-            break;
+        bool clickedOnStartPose = false;
+
+        for (QGraphicsItem* item : itemsAtPos) {
+          // Check if it's one of our waypoint items
+          for (auto* wpItem : waypointItems_) {
+            if (item == wpItem) {
+              clickedOnWaypoint = true;
+              break;
+            }
           }
+          // Check if it's the start pose
+          if (item == startPoseItem_) {
+            clickedOnStartPose = true;
+          }
+          if (clickedOnWaypoint || clickedOnStartPose) break;
         }
-        bool clickedOnStartPose = (startPoseItem_ != nullptr &&
-                                    startPoseItem_->sceneBoundingRect().contains(scenePos));
 
         if (clickedOnWaypoint || clickedOnStartPose) {
           // Clicking on a draggable item - temporarily disable ScrollHandDrag

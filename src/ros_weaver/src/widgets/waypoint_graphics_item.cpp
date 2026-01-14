@@ -195,12 +195,13 @@ void WaypointGraphicsItem::mouseMoveEvent(QGraphicsSceneMouseEvent* event) {
     return;
   }
 
+  // Let Qt handle the item movement first (updates pos())
+  QGraphicsObject::mouseMoveEvent(event);
+
   if (isDragging_) {
-    // Emit dragging signal with current position for multi-waypoint drag support
+    // Emit dragging signal AFTER position is updated for accurate multi-waypoint drag
     emit waypointDragging(waypoint_.id, pos());
   }
-
-  QGraphicsObject::mouseMoveEvent(event);
 }
 
 void WaypointGraphicsItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event) {
