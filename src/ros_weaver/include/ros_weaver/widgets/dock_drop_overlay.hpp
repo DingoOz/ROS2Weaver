@@ -6,8 +6,11 @@
 #include <QDockWidget>
 #include <QMap>
 #include <QRect>
+#include <QTimer>
 
 namespace ros_weaver {
+
+class DockEdgeIndicator;
 
 /**
  * @brief Visual indicator for dock drop zones
@@ -88,10 +91,30 @@ private:
 };
 
 /**
+ * @brief Visual indicator showing which edge a floating dock will snap to
+ */
+class DockEdgeIndicator : public QWidget {
+  Q_OBJECT
+
+public:
+  explicit DockEdgeIndicator(QMainWindow* mainWindow);
+
+  void showEdge(Qt::DockWidgetArea area);
+  void hideIndicator();
+
+protected:
+  void paintEvent(QPaintEvent* event) override;
+
+private:
+  QMainWindow* mainWindow_;
+  Qt::DockWidgetArea currentArea_ = Qt::NoDockWidgetArea;
+};
+
+/**
  * @brief Handles F8 shortcut to dock floating panels
  *
- * When a floating dock widget exists and F8 is pressed,
- * the dock is snapped to the nearest edge of the main window.
+ * When a floating dock widget exists, shows which edge it will
+ * snap to. Press F8 to dock to that edge.
  */
 class DockDragFilter : public QObject {
   Q_OBJECT
@@ -104,9 +127,14 @@ protected:
 
 private slots:
   void toggleDockingMode();
+  void updateEdgeIndicator();
 
 private:
+  Qt::DockWidgetArea findNearestDockArea(QDockWidget* dock);
+
   QMainWindow* mainWindow_;
+  DockEdgeIndicator* edgeIndicator_ = nullptr;
+  QTimer* pollTimer_ = nullptr;
 };
 
 }  // namespace ros_weaver

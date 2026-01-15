@@ -312,17 +312,99 @@ void DockDropOverlay::paintEvent(QPaintEvent* event) {
 }
 
 // ============================================================================
+// DockEdgeIndicator - shows which edge a floating dock will snap to
+// ============================================================================
+
+DockEdgeIndicator::DockEdgeIndicator(QMainWindow* mainWindow)
+    : QWidget(nullptr), mainWindow_(mainWindow) {
+  setWindowFlags(Qt::FramelessWindowHint | Qt::Tool | Qt::WindowStaysOnTopHint | Qt::WindowDoesNotAcceptFocus);
+  setAttribute(Qt::WA_TranslucentBackground);
+  setAttribute(Qt::WA_TransparentForMouseEvents);
+  setAttribute(Qt::WA_ShowWithoutActivating);
+  hide();
+}
+
+void DockEdgeIndicator::showEdge(Qt::DockWidgetArea area) {
+  if (area == currentArea_ && isVisible()) {
+    return;  // No change
+  }
+
+  currentArea_ = area;
+
+  if (area == Qt::NoDockWidgetArea) {
+    hide();
+    return;
+  }
+
+  // Position indicator bar on the appropriate edge
+  QRect mainRect = mainWindow_->geometry();
+  constexpr int INDICATOR_SIZE = 6;
+
+  QRect indicatorRect;
+  switch (area) {
+    case Qt::LeftDockWidgetArea:
+      indicatorRect = QRect(mainRect.left(), mainRect.top(), INDICATOR_SIZE, mainRect.height());
+      break;
+    case Qt::RightDockWidgetArea:
+      indicatorRect = QRect(mainRect.right() - INDICATOR_SIZE, mainRect.top(), INDICATOR_SIZE, mainRect.height());
+      break;
+    case Qt::TopDockWidgetArea:
+      indicatorRect = QRect(mainRect.left(), mainRect.top(), mainRect.width(), INDICATOR_SIZE);
+      break;
+    case Qt::BottomDockWidgetArea:
+      indicatorRect = QRect(mainRect.left(), mainRect.bottom() - INDICATOR_SIZE, mainRect.width(), INDICATOR_SIZE);
+      break;
+    default:
+      hide();
+      return;
+  }
+
+  setGeometry(indicatorRect);
+  show();
+  raise();
+  update();
+}
+
+void DockEdgeIndicator::hideIndicator() {
+  currentArea_ = Qt::NoDockWidgetArea;
+  hide();
+}
+
+void DockEdgeIndicator::paintEvent(QPaintEvent* event) {
+  Q_UNUSED(event);
+
+  QPainter painter(this);
+  painter.setRenderHint(QPainter::Antialiasing);
+
+  // Draw a colored bar indicating the dock target
+  auto& theme = ThemeManager::instance();
+  QColor indicatorColor = theme.primaryColor();
+  indicatorColor.setAlpha(200);
+
+  painter.fillRect(rect(), indicatorColor);
+}
+
+// ============================================================================
 // DockDragFilter
 // ============================================================================
 
 DockDragFilter::DockDragFilter(QMainWindow* mainWindow, QObject* parent)
     : QObject(parent), mainWindow_(mainWindow) {
+  // Create the edge indicator overlay
+  edgeIndicator_ = new DockEdgeIndicator(mainWindow);
+
   // Create keyboard shortcut to snap floating dock to nearest edge (F8)
   QShortcut* dockModeShortcut = new QShortcut(QKeySequence(Qt::Key_F8), mainWindow);
   dockModeShortcut->setContext(Qt::ApplicationShortcut);
   connect(dockModeShortcut, &QShortcut::activated, this, [this]() {
     toggleDockingMode();
   });
+
+  // Poll timer to update edge indicator when a dock is floating
+  pollTimer_ = new QTimer(this);
+  pollTimer_->setInterval(50);  // 20fps is enough for indicator
+  connect(pollTimer_, &QTimer::timeout, this, &DockDragFilter::updateEdgeIndicator);
+  pollTimer_->start();
 }
 
 void DockDragFilter::toggleDockingMode() {
@@ -374,6 +456,43 @@ void DockDragFilter::toggleDockingMode() {
   floatingDock->show();
 
   qDebug() << "DockDragFilter: After dock - isFloating:" << floatingDock->isFloating();
+}
+
+void DockDragFilter::updateEdgeIndicator() {
+  // Find a floating dock
+  QDockWidget* floatingDock = nullptr;
+  for (QDockWidget* dock : mainWindow_->findChildren<QDockWidget*>()) {
+    if (dock->isFloating() && dock->isVisible()) {
+      floatingDock = dock;
+      break;
+    }
+  }
+
+  if (!floatingDock) {
+    edgeIndicator_->hideIndicator();
+    return;
+  }
+
+  // Calculate nearest edge
+  Qt::DockWidgetArea area = findNearestDockArea(floatingDock);
+  edgeIndicator_->showEdge(area);
+}
+
+Qt::DockWidgetArea DockDragFilter::findNearestDockArea(QDockWidget* dock) {
+  QPoint dockCenter = dock->mapToGlobal(dock->rect().center());
+  QRect mainRect = mainWindow_->geometry();
+
+  int distLeft = dockCenter.x() - mainRect.left();
+  int distRight = mainRect.right() - dockCenter.x();
+  int distTop = dockCenter.y() - mainRect.top();
+  int distBottom = mainRect.bottom() - dockCenter.y();
+
+  int minDist = qMin(qMin(distLeft, distRight), qMin(distTop, distBottom));
+
+  if (minDist == distLeft) return Qt::LeftDockWidgetArea;
+  if (minDist == distRight) return Qt::RightDockWidgetArea;
+  if (minDist == distTop) return Qt::TopDockWidgetArea;
+  return Qt::BottomDockWidgetArea;
 }
 
 bool DockDragFilter::eventFilter(QObject* watched, QEvent* event) {
