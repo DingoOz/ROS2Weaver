@@ -122,6 +122,13 @@ QWidget* OllamaSettingsWidget::createConnectionTab() {
   perfHintLabel->setStyleSheet("color: gray; font-size: 11px;");
   perfLayout->addWidget(perfHintLabel);
 
+  // Tool calling toggle
+  toolCallingCheck_ = new QCheckBox(tr("Enable Tool Calling"), tab);
+  toolCallingCheck_->setToolTip(tr("Enable native tool calling for AI to control the canvas. "
+                                   "Disable if using models that don't support tools (e.g., deepseek-r1)."));
+  toolCallingCheck_->setChecked(true);
+  perfLayout->addWidget(toolCallingCheck_);
+
   layout->addWidget(performanceGroup_);
 
   // System Prompt Group (opens dialog)
@@ -374,6 +381,7 @@ void OllamaSettingsWidget::connectSignals() {
   // Performance settings
   connect(cpuThreadsSpin_, QOverload<int>::of(&QSpinBox::valueChanged),
           this, &OllamaSettingsWidget::settingsChanged);
+  connect(toolCallingCheck_, &QCheckBox::toggled, this, &OllamaSettingsWidget::settingsChanged);
 
   // System prompt dialog
   connect(editSystemPromptBtn_, &QPushButton::clicked, this, &OllamaSettingsWidget::onEditSystemPromptClicked);
@@ -670,6 +678,7 @@ void OllamaSettingsWidget::applySettings() {
   mgr.setAutoLoadModel(autoLoadCheck_->isChecked());
   mgr.setSystemPrompt(currentSystemPrompt_);
   mgr.setNumThreads(cpuThreadsSpin_->value());
+  mgr.setToolCallingEnabled(toolCallingCheck_->isChecked());
 
   // Apply status bar display settings
   if (localAIStatusWidget_) {
@@ -715,6 +724,7 @@ void OllamaSettingsWidget::resetToSaved() {
 
   // Load performance settings
   cpuThreadsSpin_->setValue(mgr.numThreads());
+  toolCallingCheck_->setChecked(mgr.isToolCallingEnabled());
 
   // Load status bar display settings
   if (localAIStatusWidget_) {

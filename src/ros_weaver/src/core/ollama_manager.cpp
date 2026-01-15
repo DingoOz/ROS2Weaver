@@ -658,6 +658,7 @@ void OllamaManager::chatWithTools(const QList<ChatMessage>& messages,
   }
 
   qDebug() << "Sending chat request with" << tools.size() << "tools";
+  qDebug() << "Chat request JSON:" << QJsonDocument(json).toJson(QJsonDocument::Compact);
 
   currentChatReply_ = networkManager_->post(request, QJsonDocument(json).toJson());
 
@@ -689,7 +690,16 @@ void OllamaManager::onChatReadyRead() {
 
     // Check for error
     if (obj.contains("error")) {
-      emit chatError(obj["error"].toString());
+      QString errorMsg = obj["error"].toString();
+      // Check for "does not support tools" error and provide helpful message
+      if (errorMsg.contains("does not support tools")) {
+        emit chatError(tr("Model '%1' does not support tool calling. "
+                         "Try llama3.2, mistral:7b, or qwen2.5 instead, "
+                         "or disable 'Use Native Tool Calling' in chat settings.")
+                         .arg(selectedModel_));
+      } else {
+        emit chatError(errorMsg);
+      }
       return;
     }
 
@@ -805,7 +815,27 @@ void OllamaManager::onChatFinished() {
     }
 
   } else if (currentChatReply_->error() != QNetworkReply::OperationCanceledError) {
-    emit chatError(currentChatReply_->errorString());
+    QByteArray errorBody = currentChatReply_->readAll();
+    qDebug() << "Chat error:" << currentChatReply_->errorString();
+    qDebug() << "Error response body:" << errorBody;
+
+    // Try to parse error from response body
+    QString errorMsg = currentChatReply_->errorString();
+    QJsonDocument errorDoc = QJsonDocument::fromJson(errorBody);
+    if (!errorDoc.isNull() && errorDoc.isObject()) {
+      QString ollamaError = errorDoc.object()["error"].toString();
+      if (!ollamaError.isEmpty()) {
+        if (ollamaError.contains("does not support tools")) {
+          errorMsg = tr("Model '%1' does not support tool calling. "
+                       "Try llama3.2, mistral:7b, or qwen2.5 instead, "
+                       "or disable 'Use Native Tool Calling' in chat settings.")
+                       .arg(selectedModel_);
+        } else {
+          errorMsg = ollamaError;
+        }
+      }
+    }
+    emit chatError(errorMsg);
   }
 
   currentChatReply_->deleteLater();

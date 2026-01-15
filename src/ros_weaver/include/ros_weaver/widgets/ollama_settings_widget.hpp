@@ -97,6 +97,7 @@ private:
   // Performance
   QGroupBox* performanceGroup_;
   QSpinBox* cpuThreadsSpin_;
+  QCheckBox* toolCallingCheck_;
 
   // System Prompt (opens dialog)
   QGroupBox* systemPromptGroup_;
