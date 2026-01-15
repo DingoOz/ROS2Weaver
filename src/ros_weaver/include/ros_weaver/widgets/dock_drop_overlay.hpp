@@ -6,8 +6,6 @@
 #include <QDockWidget>
 #include <QMap>
 #include <QRect>
-#include <QTimer>
-#include <QPoint>
 
 namespace ros_weaver {
 
@@ -90,10 +88,10 @@ private:
 };
 
 /**
- * @brief Event filter to enable Ctrl+drag docking
+ * @brief Handles F8 shortcut to dock floating panels
  *
- * When a floating dock widget is being dragged and Ctrl is held,
- * shows a visual overlay indicating where the dock can be dropped.
+ * When a floating dock widget exists and F8 is pressed,
+ * the dock is snapped to the nearest edge of the main window.
  */
 class DockDragFilter : public QObject {
   Q_OBJECT
@@ -105,18 +103,10 @@ protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
 
 private slots:
-  void onPollTimer();
   void toggleDockingMode();
 
 private:
-  void connectToDock(QDockWidget* dock);
-
   QMainWindow* mainWindow_;
-  DockDropOverlay* overlay_;
-  QDockWidget* floatingDock_ = nullptr;
-  QTimer* pollTimer_ = nullptr;
-  QPoint lastDockPos_;
-  bool dockingModeActive_ = false;
 };
 
 }  // namespace ros_weaver

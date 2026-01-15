@@ -317,125 +317,69 @@ void DockDropOverlay::paintEvent(QPaintEvent* event) {
 
 DockDragFilter::DockDragFilter(QMainWindow* mainWindow, QObject* parent)
     : QObject(parent), mainWindow_(mainWindow) {
-  overlay_ = new DockDropOverlay(mainWindow);
-
-  // Create a timer to poll for dock position and update overlay
-  pollTimer_ = new QTimer(this);
-  pollTimer_->setInterval(16);  // ~60fps
-  connect(pollTimer_, &QTimer::timeout, this, &DockDragFilter::onPollTimer);
-
-  // Connect to all existing dock widgets
-  for (QDockWidget* dock : mainWindow->findChildren<QDockWidget*>()) {
-    connectToDock(dock);
-  }
-
-  // Create keyboard shortcut to toggle docking mode (F8)
+  // Create keyboard shortcut to snap floating dock to nearest edge (F8)
   QShortcut* dockModeShortcut = new QShortcut(QKeySequence(Qt::Key_F8), mainWindow);
   dockModeShortcut->setContext(Qt::ApplicationShortcut);
   connect(dockModeShortcut, &QShortcut::activated, this, [this]() {
     toggleDockingMode();
   });
-
-  // Also allow Escape to cancel docking mode
-  QShortcut* escapeShortcut = new QShortcut(QKeySequence(Qt::Key_Escape), mainWindow);
-  escapeShortcut->setContext(Qt::ApplicationShortcut);
-  connect(escapeShortcut, &QShortcut::activated, this, [this]() {
-    if (dockingModeActive_) {
-      dockingModeActive_ = false;
-      overlay_->hideOverlay();
-    }
-  });
-
-  // Start the poll timer
-  pollTimer_->start();
 }
 
 void DockDragFilter::toggleDockingMode() {
-  if (dockingModeActive_) {
-    // Turn off docking mode
-    dockingModeActive_ = false;
-    overlay_->hideOverlay();
-    return;
-  }
-
   // Find a floating dock
-  floatingDock_ = nullptr;
+  QDockWidget* floatingDock = nullptr;
   for (QDockWidget* dock : mainWindow_->findChildren<QDockWidget*>()) {
     if (dock->isFloating() && dock->isVisible()) {
-      floatingDock_ = dock;
+      floatingDock = dock;
       break;
     }
   }
 
-  if (floatingDock_) {
-    dockingModeActive_ = true;
-    overlay_->showOverlay(floatingDock_);
-  }
-}
-
-void DockDragFilter::connectToDock(QDockWidget* dock) {
-  connect(dock, &QDockWidget::topLevelChanged, this, [this, dock](bool floating) {
-    if (floating) {
-      // Dock became floating - track it
-      floatingDock_ = dock;
-      lastDockPos_ = dock->pos();
-    } else {
-      // Dock was re-docked
-      if (floatingDock_ == dock) {
-        floatingDock_ = nullptr;
-        if (dockingModeActive_) {
-          dockingModeActive_ = false;
-          overlay_->hideOverlay();
-        }
-      }
-    }
-  });
-}
-
-void DockDragFilter::onPollTimer() {
-  // Only process when docking mode is active
-  if (!dockingModeActive_) {
+  if (!floatingDock) {
+    qDebug() << "DockDragFilter: No floating dock found";
     return;
   }
 
-  // Check if tracked dock is still valid
-  if (!floatingDock_ || !floatingDock_->isFloating()) {
-    dockingModeActive_ = false;
-    overlay_->hideOverlay();
-    floatingDock_ = nullptr;
-    return;
+  // Get the floating dock's center position
+  QPoint dockCenter = floatingDock->mapToGlobal(floatingDock->rect().center());
+
+  // Determine which dock area is closest based on position relative to main window
+  QRect mainRect = mainWindow_->geometry();
+
+  // Calculate distances to each edge
+  int distLeft = dockCenter.x() - mainRect.left();
+  int distRight = mainRect.right() - dockCenter.x();
+  int distTop = dockCenter.y() - mainRect.top();
+  int distBottom = mainRect.bottom() - dockCenter.y();
+
+  // Find the nearest edge
+  int minDist = qMin(qMin(distLeft, distRight), qMin(distTop, distBottom));
+
+  Qt::DockWidgetArea area;
+  if (minDist == distLeft) {
+    area = Qt::LeftDockWidgetArea;
+  } else if (minDist == distRight) {
+    area = Qt::RightDockWidgetArea;
+  } else if (minDist == distTop) {
+    area = Qt::TopDockWidgetArea;
+  } else {
+    area = Qt::BottomDockWidgetArea;
   }
 
-  // Update drop zone based on the floating dock's center position
-  QPoint dockCenter = floatingDock_->mapToGlobal(floatingDock_->rect().center());
-  DockDropOverlay::DropArea area = overlay_->updateDropZone(dockCenter);
+  qDebug() << "DockDragFilter: Docking" << floatingDock->windowTitle() << "to area:" << area;
 
-  // Check if mouse was released (user stopped dragging)
-  bool mouseHeld = QApplication::mouseButtons() & Qt::LeftButton;
-  QPoint currentPos = floatingDock_->pos();
-  bool isMoving = (currentPos != lastDockPos_);
-  lastDockPos_ = currentPos;
+  // Perform the dock
+  mainWindow_->addDockWidget(area, floatingDock);
+  floatingDock->setFloating(false);
+  floatingDock->show();
 
-  // Debug every ~1 second
-  static int debugCount = 0;
-  if (++debugCount % 60 == 0) {
-    qDebug() << "DockDragFilter: area=" << static_cast<int>(area) << "moving=" << isMoving << "mouseHeld=" << mouseHeld;
-  }
-
-  // If not moving and mouse not held, and we're over a valid zone, perform dock
-  if (!isMoving && !mouseHeld && area != DockDropOverlay::DropArea::None) {
-    qDebug() << "DockDragFilter: performing dock to area" << static_cast<int>(area);
-    overlay_->performDock(floatingDock_);
-    dockingModeActive_ = false;
-    overlay_->hideOverlay();
-    floatingDock_ = nullptr;
-  }
+  qDebug() << "DockDragFilter: After dock - isFloating:" << floatingDock->isFloating();
 }
 
 bool DockDragFilter::eventFilter(QObject* watched, QEvent* event) {
   Q_UNUSED(watched);
   Q_UNUSED(event);
-  return false;  // Don't block any events
+  return false;
 }
 
 }  // namespace ros_weaver
