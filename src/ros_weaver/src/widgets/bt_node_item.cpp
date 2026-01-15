@@ -1,4 +1,5 @@
 #include "ros_weaver/widgets/bt_node_item.hpp"
+#include "ros_weaver/core/theme_manager.hpp"
 #include <QPainter>
 #include <QGraphicsSceneHoverEvent>
 #include <QToolTip>
@@ -85,6 +86,8 @@ void BTNodeItem::drawNodeShape(QPainter* painter) {
 }
 
 void BTNodeItem::drawNodeContent(QPainter* painter) {
+  auto& theme = ThemeManager::instance();
+
   // Draw symbol
   QString symbol = BehaviorTreeParser::getNodeSymbol(node_->type);
   if (!symbol.isEmpty()) {
@@ -94,7 +97,7 @@ void BTNodeItem::drawNodeContent(QPainter* painter) {
   }
 
   // Draw node name
-  painter->setPen(Qt::black);
+  painter->setPen(theme.textPrimaryColor());
   painter->setFont(QFont("Sans", 10, QFont::Bold));
 
   QString displayText = node_->displayName;
@@ -107,7 +110,7 @@ void BTNodeItem::drawNodeContent(QPainter* painter) {
 
   // Draw node type (smaller, below name)
   painter->setFont(QFont("Sans", 8));
-  painter->setPen(QColor(80, 80, 80));
+  painter->setPen(theme.textSecondaryColor());
   QString typeName = BehaviorTreeParser::getNodeTypeName(node_->type);
   if (node_->name != typeName && node_->name != node_->displayName) {
     typeName = node_->name;
@@ -147,20 +150,22 @@ void BTNodeItem::drawExecutionIndicator(QPainter* painter) {
 }
 
 QColor BTNodeItem::getBackgroundColor() const {
+  auto& theme = ThemeManager::instance();
   if (isHovered_) {
-    return QColor(255, 255, 255);
+    return theme.surfaceHoverColor();
   }
-  return QColor(250, 250, 250);
+  return theme.surfaceColor();
 }
 
 QColor BTNodeItem::getBorderColor() const {
+  auto& theme = ThemeManager::instance();
   if (isSelected()) {
-    return QColor(33, 150, 243);  // Blue selection
+    return theme.primaryColor();
   }
   if (isHovered_) {
-    return QColor(100, 100, 100);
+    return theme.borderHoverColor();
   }
-  return QColor(180, 180, 180);
+  return theme.borderColor();
 }
 
 void BTNodeItem::setExecutionState(BTExecutionState state) {
@@ -211,14 +216,17 @@ void BTEdgeItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* option
   Q_UNUSED(option);
   Q_UNUSED(widget);
 
+  auto& theme = ThemeManager::instance();
+  QColor edgeColor = theme.isDarkTheme() ? QColor(120, 120, 120) : QColor(150, 150, 150);
+
   painter->setRenderHint(QPainter::Antialiasing);
-  painter->setPen(QPen(QColor(150, 150, 150), 2));
+  painter->setPen(QPen(edgeColor, 2));
   painter->setBrush(Qt::NoBrush);
   painter->drawPath(path_);
 
   // Draw arrow at end
   QPointF endPoint = childNode_->topConnectionPoint();
-  painter->setBrush(QColor(150, 150, 150));
+  painter->setBrush(edgeColor);
 
   QPolygonF arrow;
   arrow << endPoint
@@ -233,14 +241,10 @@ void BTEdgeItem::updatePositions() {
   QPointF start = parentNode_->bottomConnectionPoint();
   QPointF end = childNode_->topConnectionPoint();
 
-  // Create a smooth curve
+  // Create a straight line
   path_ = QPainterPath();
   path_.moveTo(start);
-
-  qreal midY = (start.y() + end.y()) / 2;
-  path_.cubicTo(QPointF(start.x(), midY),
-                QPointF(end.x(), midY),
-                QPointF(end.x(), end.y() - 10));  // Stop before arrow
+  path_.lineTo(QPointF(end.x(), end.y() - 10));  // Stop before arrow
 
   update();
 }

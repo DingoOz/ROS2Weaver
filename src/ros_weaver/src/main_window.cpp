@@ -389,6 +389,10 @@ void MainWindow::setupMenuBar() {
   turtlesimAction->setToolTip(tr("Load the turtlesim teleop example - control a turtle with keyboard"));
   connect(turtlesimAction, &QAction::triggered, this, &MainWindow::onLoadTurtlesimExample);
 
+  QAction* behaviorTreeAction = examplesMenu->addAction(tr("&Behavior Tree Patrol"));
+  behaviorTreeAction->setToolTip(tr("Load the behavior tree patrol example - demonstrates Nav2 BT-driven navigation"));
+  connect(behaviorTreeAction, &QAction::triggered, this, &MainWindow::onLoadBehaviorTreeExample);
+
   examplesMenu->addSeparator();
 
   QAction* launchTurtlesimAction = examplesMenu->addAction(tr("&Launch Turtlesim Nodes"));
@@ -2435,6 +2439,112 @@ void MainWindow::onLoadTurtlesimExample() {
   outputPanel_->appendBuildOutput(tr("     ros2 run turtlesim turtle_teleop_key\n\n"));
   outputPanel_->appendBuildOutput(tr("Control the turtle with arrow keys in the teleop terminal.\n"));
   outputPanel_->appendBuildOutput(tr("Use the Topic Viewer (Ctrl+Shift+T) to see live data flow!"));
+}
+
+void MainWindow::onLoadBehaviorTreeExample() {
+  // Try to load from installed package share directory first
+  QString examplePath;
+  QString btXmlPath;
+
+  try {
+    std::string packageShare = ament_index_cpp::get_package_share_directory("ros_weaver");
+    examplePath = QString::fromStdString(packageShare) +
+                  "/examples/behavior_tree_patrol/behavior_tree_patrol.rwp";
+    btXmlPath = QString::fromStdString(packageShare) +
+                "/examples/behavior_tree_patrol/patrol_behavior.xml";
+  } catch (const std::exception&) {
+    // Fallback to source directory (for development)
+    examplePath = QDir::currentPath() +
+                  "/src/ros_weaver/examples/behavior_tree_patrol/behavior_tree_patrol.rwp";
+    btXmlPath = QDir::currentPath() +
+                "/src/ros_weaver/examples/behavior_tree_patrol/patrol_behavior.xml";
+  }
+
+  // Check if file exists, try multiple fallback paths for development
+  if (!QFile::exists(examplePath)) {
+    QStringList searchPaths;
+    QDir currentDir(QDir::currentPath());
+
+    // Try current directory
+    searchPaths << currentDir.absoluteFilePath("examples/behavior_tree_patrol/behavior_tree_patrol.rwp");
+
+    // Try going up from build directory (handles running from build/ros_weaver)
+    QDir parentDir = currentDir;
+    for (int i = 0; i < 3; ++i) {
+      if (parentDir.cdUp()) {
+        searchPaths << parentDir.absoluteFilePath("src/ros_weaver/examples/behavior_tree_patrol/behavior_tree_patrol.rwp");
+      }
+    }
+
+    bool found = false;
+    for (const QString& path : searchPaths) {
+      if (QFile::exists(path)) {
+        examplePath = path;
+        btXmlPath = QFileInfo(path).absolutePath() + "/patrol_behavior.xml";
+        found = true;
+        break;
+      }
+    }
+
+    if (!found) {
+      QMessageBox::warning(this, tr("Example Not Found"),
+        tr("Could not find the Behavior Tree Patrol example.\n"
+           "Please ensure the package is properly installed.\n\n"
+           "Looked in:\n%1").arg(examplePath));
+      return;
+    }
+  }
+
+  // Load the project file
+  QString errorMsg;
+  Project project = Project::loadFromFile(examplePath, &errorMsg);
+
+  if (!errorMsg.isEmpty()) {
+    QMessageBox::warning(this, tr("Load Error"),
+      tr("Failed to load Behavior Tree Patrol example:\n%1").arg(errorMsg));
+    return;
+  }
+
+  // Clear param dashboard before import (which clears the canvas)
+  paramDashboard_->setCurrentBlock(nullptr);
+  paramDashboard_->clearYamlFiles();
+
+  // Import the project
+  canvas_->importFromProject(project);
+  currentProjectPath_.clear();
+  baseWindowTitle_ = "ROS Weaver - Behavior Tree Patrol (Example)";
+  setWindowTitle(baseWindowTitle_ + rosStatusWidget_->titleBarSuffix());
+
+  statusBar()->showMessage(tr("Loaded Behavior Tree Patrol example"));
+
+  // Show the Behavior Tree panel and load the example behavior tree
+  if (behaviorTreeDock_) {
+    behaviorTreeDock_->show();
+    behaviorTreeDock_->raise();  // Bring to front
+  }
+
+  // Load the behavior tree XML into the panel
+  if (behaviorTreePanel_ && QFile::exists(btXmlPath)) {
+    behaviorTreePanel_->loadFromFile(btXmlPath);
+  }
+
+  // Append to output with example information
+  outputPanel_->clearBuildOutput();
+  outputPanel_->appendBuildOutput(tr("Loaded Behavior Tree Patrol example project.\n\n"));
+  outputPanel_->appendBuildOutput(tr("This example demonstrates:\n"));
+  outputPanel_->appendBuildOutput(tr("  - Nav2 Behavior Tree Navigator for autonomous patrol\n"));
+  outputPanel_->appendBuildOutput(tr("  - Waypoint-based patrol route with 4 locations\n"));
+  outputPanel_->appendBuildOutput(tr("  - Battery monitoring with dock return behavior\n"));
+  outputPanel_->appendBuildOutput(tr("  - Recovery behaviors for navigation failures\n"));
+  outputPanel_->appendBuildOutput(tr("  - Parallel status monitoring during patrol\n\n"));
+  outputPanel_->appendBuildOutput(tr("Behavior Tree Structure:\n"));
+  outputPanel_->appendBuildOutput(tr("  - System health checks (battery, localization, map)\n"));
+  outputPanel_->appendBuildOutput(tr("  - ReactiveFallback for priority-based behaviors\n"));
+  outputPanel_->appendBuildOutput(tr("  - Waypoint sequence: Kitchen -> Living Room -> Entrance -> Office\n"));
+  outputPanel_->appendBuildOutput(tr("  - Docking sub-tree for charging when battery is low\n\n"));
+  outputPanel_->appendBuildOutput(tr("The Behavior Tree panel is now open on the right.\n"));
+  outputPanel_->appendBuildOutput(tr("Explore the patrol_behavior.xml tree structure visually!\n\n"));
+  outputPanel_->appendBuildOutput(tr("BT XML location: %1\n").arg(btXmlPath));
 }
 
 void MainWindow::onLaunchTurtlesim() {

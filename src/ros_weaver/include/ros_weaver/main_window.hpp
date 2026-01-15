@@ -107,6 +107,7 @@ private slots:
   // Example projects
   void onLoadTurtleBotExample();
   void onLoadTurtlesimExample();
+  void onLoadBehaviorTreeExample();
   void onLaunchTurtlesim();
   void onLaunchTurtleBot3Gazebo();
 

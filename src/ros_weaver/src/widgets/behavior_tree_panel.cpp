@@ -1,13 +1,22 @@
 #include "ros_weaver/widgets/behavior_tree_panel.hpp"
 #include <QMessageBox>
 #include <QWheelEvent>
+#include <QMouseEvent>
 #include <QDebug>
+#include <QScrollBar>
 
 namespace ros_weaver {
 
 BehaviorTreePanel::BehaviorTreePanel(QWidget* parent)
     : QWidget(parent) {
   setupUi();
+
+  // Connect to theme changes
+  connect(&ThemeManager::instance(), &ThemeManager::themeChanged,
+          this, &BehaviorTreePanel::onThemeChanged);
+
+  // Apply initial theme
+  applyTheme();
 }
 
 BehaviorTreePanel::~BehaviorTreePanel() = default;
@@ -65,10 +74,11 @@ void BehaviorTreePanel::setupUi() {
 
   view_ = new QGraphicsView(scene_);
   view_->setRenderHint(QPainter::Antialiasing);
-  view_->setDragMode(QGraphicsView::ScrollHandDrag);
+  view_->setDragMode(QGraphicsView::NoDrag);  // We handle panning manually
   view_->setTransformationAnchor(QGraphicsView::AnchorUnderMouse);
   view_->setResizeAnchor(QGraphicsView::AnchorViewCenter);
   view_->setMinimumHeight(200);
+  view_->viewport()->installEventFilter(this);  // For middle mouse button panning
 
   mainLayout_->addWidget(view_, 1);
 
@@ -226,6 +236,97 @@ void BehaviorTreePanel::updateStatusLabel() {
   }
 
   statusLabel_->setText(status);
+}
+
+bool BehaviorTreePanel::eventFilter(QObject* watched, QEvent* event) {
+  if (watched == view_->viewport()) {
+    if (event->type() == QEvent::MouseButtonPress) {
+      QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
+      if (mouseEvent->button() == Qt::MiddleButton) {
+        isPanning_ = true;
+        lastPanPoint_ = mouseEvent->pos();
+        view_->setCursor(Qt::ClosedHandCursor);
+        return true;
+      }
+    } else if (event->type() == QEvent::MouseButtonRelease) {
+      QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
+      if (mouseEvent->button() == Qt::MiddleButton) {
+        isPanning_ = false;
+        view_->setCursor(Qt::ArrowCursor);
+        return true;
+      }
+    } else if (event->type() == QEvent::MouseMove) {
+      if (isPanning_) {
+        QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
+        QPoint delta = mouseEvent->pos() - lastPanPoint_;
+        lastPanPoint_ = mouseEvent->pos();
+
+        // Scroll the view
+        view_->horizontalScrollBar()->setValue(
+            view_->horizontalScrollBar()->value() - delta.x());
+        view_->verticalScrollBar()->setValue(
+            view_->verticalScrollBar()->value() - delta.y());
+        return true;
+      }
+    } else if (event->type() == QEvent::Wheel) {
+      QWheelEvent* wheelEvent = static_cast<QWheelEvent*>(event);
+
+      // Zoom with scroll wheel
+      const double zoomFactor = 1.15;
+      if (wheelEvent->angleDelta().y() > 0) {
+        // Zoom in
+        view_->scale(zoomFactor, zoomFactor);
+      } else if (wheelEvent->angleDelta().y() < 0) {
+        // Zoom out
+        view_->scale(1.0 / zoomFactor, 1.0 / zoomFactor);
+      }
+      return true;
+    }
+  }
+  return QWidget::eventFilter(watched, event);
+}
+
+void BehaviorTreePanel::onThemeChanged() {
+  applyTheme();
+
+  // Rebuild tree visualization to update node colors
+  if (currentTree_.isValid) {
+    buildTreeVisualization();
+  }
+}
+
+void BehaviorTreePanel::applyTheme() {
+  auto& theme = ThemeManager::instance();
+
+  // Update scene background
+  if (theme.isDarkTheme()) {
+    scene_->setBackgroundBrush(QColor(30, 30, 30));
+  } else {
+    scene_->setBackgroundBrush(QColor(245, 245, 245));
+  }
+
+  // Update tree name label
+  treeNameLabel_->setStyleSheet(QString(
+      "font-weight: bold; padding: 4px; color: %1;")
+      .arg(theme.textPrimaryColor().name()));
+
+  // Update status label
+  statusLabel_->setStyleSheet(QString(
+      "color: %1; font-size: 11px;")
+      .arg(theme.textSecondaryColor().name()));
+
+  // Update buttons
+  QString buttonStyle = theme.secondaryButtonStyle();
+  loadButton_->setStyleSheet(buttonStyle);
+  refreshButton_->setStyleSheet(buttonStyle);
+  zoomInButton_->setStyleSheet(buttonStyle);
+  zoomOutButton_->setStyleSheet(buttonStyle);
+  zoomFitButton_->setStyleSheet(buttonStyle);
+
+  // Update view border
+  view_->setStyleSheet(QString(
+      "QGraphicsView { border: 1px solid %1; border-radius: 4px; }")
+      .arg(theme.borderColor().name()));
 }
 
 }  // namespace ros_weaver

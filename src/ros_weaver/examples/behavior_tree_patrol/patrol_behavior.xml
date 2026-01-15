@@ -1,0 +1,159 @@
+<?xml version="1.0"?>
+<!--
+  Robot Patrol Behavior Tree Example
+
+  This behavior tree demonstrates a patrol robot that:
+  1. Checks system health before starting
+  2. Patrols through a sequence of waypoints
+  3. Handles low battery by returning to dock
+  4. Monitors for obstacles and stops if detected
+  5. Publishes status updates while patrolling
+
+  Compatible with BehaviorTree.CPP v4 and Nav2 BT nodes
+-->
+<root BTCPP_format="4" main_tree_to_execute="PatrolTree">
+
+  <!-- Main Patrol Behavior Tree -->
+  <BehaviorTree ID="PatrolTree">
+    <Sequence name="main_sequence">
+
+      <!-- Pre-flight checks before patrol starts -->
+      <Fallback name="system_check">
+        <Sequence name="all_systems_ok">
+          <Condition ID="IsBatteryOK" name="battery_check" threshold="20"/>
+          <Condition ID="IsLocalized" name="localization_check"/>
+          <Condition ID="IsMapLoaded" name="map_check"/>
+        </Sequence>
+        <!-- If checks fail, try to recover -->
+        <Sequence name="recovery_sequence">
+          <Action ID="AnnounceError" name="announce_error" message="System check failed"/>
+          <Action ID="RequestAssistance" name="request_help"/>
+        </Sequence>
+      </Fallback>
+
+      <!-- Main patrol loop with safety monitoring -->
+      <ReactiveFallback name="safe_patrol">
+
+        <!-- Priority 1: Emergency stop if critical -->
+        <Condition ID="IsEmergencyStop" name="emergency_check"/>
+
+        <!-- Priority 2: Return to dock if battery low -->
+        <Sequence name="low_battery_return">
+          <Inverter name="battery_low_check">
+            <Condition ID="IsBatteryOK" name="patrol_battery_check" threshold="30"/>
+          </Inverter>
+          <Action ID="AnnounceStatus" name="announce_low_battery" message="Low battery - returning to dock"/>
+          <SubTree ID="DockingSequence" name="dock_for_charging"/>
+        </Sequence>
+
+        <!-- Priority 3: Normal patrol operations -->
+        <Parallel success_count="1" failure_count="1" name="patrol_with_monitoring">
+
+          <!-- Patrol waypoint sequence -->
+          <Sequence name="waypoint_patrol">
+            <Action ID="AnnounceStatus" name="start_patrol" message="Starting patrol route"/>
+
+            <!-- Waypoint 1: Kitchen -->
+            <Fallback name="goto_kitchen">
+              <Sequence name="navigate_kitchen">
+                <Action ID="SetWaypoint" name="set_kitchen" x="2.0" y="3.5" theta="1.57"/>
+                <Action ID="NavigateToPose" name="nav_kitchen" goal="{current_goal}"/>
+                <Action ID="Wait" name="observe_kitchen" duration="5.0"/>
+              </Sequence>
+              <Action ID="RecoveryNode" name="kitchen_recovery"/>
+            </Fallback>
+
+            <!-- Waypoint 2: Living Room -->
+            <Fallback name="goto_living_room">
+              <Sequence name="navigate_living">
+                <Action ID="SetWaypoint" name="set_living" x="-1.5" y="2.0" theta="0.0"/>
+                <Action ID="NavigateToPose" name="nav_living" goal="{current_goal}"/>
+                <Action ID="Wait" name="observe_living" duration="5.0"/>
+              </Sequence>
+              <Action ID="RecoveryNode" name="living_recovery"/>
+            </Fallback>
+
+            <!-- Waypoint 3: Entrance -->
+            <Fallback name="goto_entrance">
+              <Sequence name="navigate_entrance">
+                <Action ID="SetWaypoint" name="set_entrance" x="0.0" y="-2.0" theta="-1.57"/>
+                <Action ID="NavigateToPose" name="nav_entrance" goal="{current_goal}"/>
+                <Action ID="Wait" name="observe_entrance" duration="5.0"/>
+              </Sequence>
+              <Action ID="RecoveryNode" name="entrance_recovery"/>
+            </Fallback>
+
+            <!-- Waypoint 4: Office -->
+            <Fallback name="goto_office">
+              <Sequence name="navigate_office">
+                <Action ID="SetWaypoint" name="set_office" x="4.0" y="-1.0" theta="3.14"/>
+                <Action ID="NavigateToPose" name="nav_office" goal="{current_goal}"/>
+                <Action ID="Wait" name="observe_office" duration="5.0"/>
+              </Sequence>
+              <Action ID="RecoveryNode" name="office_recovery"/>
+            </Fallback>
+
+            <Action ID="AnnounceStatus" name="patrol_complete" message="Patrol complete"/>
+          </Sequence>
+
+          <!-- Concurrent status monitoring -->
+          <Sequence name="status_monitoring">
+            <Action ID="PublishPatrolStatus" name="status_publisher"/>
+          </Sequence>
+
+        </Parallel>
+
+      </ReactiveFallback>
+
+    </Sequence>
+  </BehaviorTree>
+
+  <!-- Docking Sub-Tree -->
+  <BehaviorTree ID="DockingSequence">
+    <Sequence name="docking_sequence">
+      <Action ID="SetWaypoint" name="set_dock" x="0.0" y="0.0" theta="0.0"/>
+      <Action ID="NavigateToPose" name="nav_to_dock" goal="{current_goal}"/>
+      <Action ID="AlignToDock" name="align_dock"/>
+      <Action ID="Dock" name="dock_robot"/>
+      <Action ID="StartCharging" name="charge"/>
+    </Sequence>
+  </BehaviorTree>
+
+  <!-- Node definitions (for documentation) -->
+  <TreeNodesModel>
+    <!-- Conditions -->
+    <Condition ID="IsBatteryOK">
+      <input_port name="threshold" default="20">Minimum battery percentage</input_port>
+    </Condition>
+    <Condition ID="IsLocalized"/>
+    <Condition ID="IsMapLoaded"/>
+    <Condition ID="IsEmergencyStop"/>
+
+    <!-- Actions -->
+    <Action ID="NavigateToPose">
+      <input_port name="goal">Target pose for navigation</input_port>
+    </Action>
+    <Action ID="SetWaypoint">
+      <input_port name="x">X coordinate</input_port>
+      <input_port name="y">Y coordinate</input_port>
+      <input_port name="theta">Orientation (radians)</input_port>
+      <output_port name="current_goal">The computed goal pose</output_port>
+    </Action>
+    <Action ID="Wait">
+      <input_port name="duration">Wait duration in seconds</input_port>
+    </Action>
+    <Action ID="AnnounceStatus">
+      <input_port name="message">Status message to announce</input_port>
+    </Action>
+    <Action ID="AnnounceError">
+      <input_port name="message">Error message to announce</input_port>
+    </Action>
+    <Action ID="RequestAssistance"/>
+    <Action ID="RecoveryNode"/>
+    <Action ID="PublishPatrolStatus"/>
+    <Action ID="AlignToDock"/>
+    <Action ID="Dock"/>
+    <Action ID="StartCharging"/>
+  </TreeNodesModel>
+
+</root>

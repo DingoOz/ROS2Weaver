@@ -15,6 +15,7 @@
 #include <rclcpp/rclcpp.hpp>
 
 #include "ros_weaver/core/behavior_tree_parser.hpp"
+#include "ros_weaver/core/theme_manager.hpp"
 #include "ros_weaver/widgets/bt_node_item.hpp"
 
 namespace ros_weaver {
@@ -64,16 +65,25 @@ public slots:
   void onZoomOutClicked();
   void onZoomFitClicked();
   void onRefreshClicked();
+  void onThemeChanged();
 
 signals:
   void treeLoaded(const QString& treeName);
   void loadError(const QString& error);
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
   void setupUi();
   void buildTreeVisualization();
   void addNodeToScene(std::shared_ptr<BTNode> node, BTNodeItem* parentItem = nullptr);
   void updateStatusLabel();
+  void applyTheme();
+
+  // Middle mouse button panning state
+  bool isPanning_ = false;
+  QPoint lastPanPoint_;
 
   // UI components
   QVBoxLayout* mainLayout_;

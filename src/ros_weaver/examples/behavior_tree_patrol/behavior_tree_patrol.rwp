@@ -1,0 +1,251 @@
+{
+  "formatVersion": "1.0",
+  "application": "ROS Weaver",
+  "metadata": {
+    "name": "Behavior Tree Patrol",
+    "description": "Example patrol robot using Nav2 behavior trees. Demonstrates a BT-driven navigation system with waypoint patrol, battery monitoring, and recovery behaviors.",
+    "author": "ROS Weaver",
+    "version": "1.0",
+    "rosDistro": "jazzy",
+    "createdDate": "2025-01-15T00:00:00",
+    "modifiedDate": "2025-01-15T00:00:00"
+  },
+  "blocks": [
+    {
+      "id": "{bt000001-0001-0001-0001-000000000001}",
+      "name": "bt_navigator",
+      "position": { "x": 0, "y": 0 },
+      "inputPins": [
+        { "name": "goal_pose", "type": "input", "dataType": "action", "messageType": "nav2_msgs/action/NavigateToPose" },
+        { "name": "map", "type": "input", "dataType": "topic", "messageType": "nav_msgs/msg/OccupancyGrid" }
+      ],
+      "outputPins": [
+        { "name": "bt_status", "type": "output", "dataType": "topic", "messageType": "nav2_msgs/msg/BehaviorTreeStatusChange" },
+        { "name": "cmd_vel", "type": "output", "dataType": "topic", "messageType": "geometry_msgs/msg/Twist" }
+      ],
+      "parameters": [
+        { "name": "default_nav_to_pose_bt_xml", "type": "string", "defaultValue": "patrol_behavior.xml", "currentValue": "patrol_behavior.xml", "description": "Path to the behavior tree XML file for patrol", "group": "behavior_tree" },
+        { "name": "plugin_lib_names", "type": "string", "defaultValue": "nav2_compute_path_to_pose_action_bt_node;nav2_follow_path_action_bt_node;nav2_wait_action_bt_node", "currentValue": "nav2_compute_path_to_pose_action_bt_node;nav2_follow_path_action_bt_node;nav2_wait_action_bt_node", "description": "BT plugin libraries to load", "group": "behavior_tree" },
+        { "name": "bt_loop_duration", "type": "int", "defaultValue": 10, "currentValue": 10, "description": "Duration of each BT tick loop (ms)", "minValue": 1, "maxValue": 1000, "group": "behavior_tree" },
+        { "name": "default_server_timeout", "type": "int", "defaultValue": 20, "currentValue": 20, "description": "Action server timeout (ms)", "minValue": 1, "maxValue": 60000, "group": "behavior_tree" },
+        { "name": "use_sim_time", "type": "bool", "defaultValue": true, "currentValue": true, "description": "Use simulation time", "group": "timing" }
+      ],
+      "launchCommand": "ros2 run nav2_bt_navigator bt_navigator",
+      "packageName": "nav2_bt_navigator"
+    },
+    {
+      "id": "{bt000002-0002-0002-0002-000000000002}",
+      "name": "waypoint_follower",
+      "position": { "x": -300, "y": -100 },
+      "inputPins": [],
+      "outputPins": [
+        { "name": "goal_pose", "type": "output", "dataType": "action", "messageType": "nav2_msgs/action/NavigateToPose" }
+      ],
+      "parameters": [
+        { "name": "waypoints", "type": "string", "defaultValue": "[[2.0, 3.5], [-1.5, 2.0], [0.0, -2.0], [4.0, -1.0]]", "currentValue": "[[2.0, 3.5], [-1.5, 2.0], [0.0, -2.0], [4.0, -1.0]]", "description": "List of patrol waypoints [x, y]", "group": "patrol" },
+        { "name": "loop", "type": "bool", "defaultValue": true, "currentValue": true, "description": "Loop through waypoints continuously", "group": "patrol" },
+        { "name": "stop_on_failure", "type": "bool", "defaultValue": false, "currentValue": false, "description": "Stop patrol on navigation failure", "group": "patrol" },
+        { "name": "wait_duration", "type": "double", "defaultValue": 5.0, "currentValue": 5.0, "description": "Wait time at each waypoint (seconds)", "minValue": 0.0, "maxValue": 120.0, "group": "patrol" }
+      ],
+      "launchCommand": "ros2 run nav2_waypoint_follower waypoint_follower",
+      "packageName": "nav2_waypoint_follower"
+    },
+    {
+      "id": "{bt000003-0003-0003-0003-000000000003}",
+      "name": "controller_server",
+      "position": { "x": 300, "y": 100 },
+      "inputPins": [
+        { "name": "path", "type": "input", "dataType": "topic", "messageType": "nav_msgs/msg/Path" },
+        { "name": "odom", "type": "input", "dataType": "topic", "messageType": "nav_msgs/msg/Odometry" }
+      ],
+      "outputPins": [
+        { "name": "cmd_vel", "type": "output", "dataType": "topic", "messageType": "geometry_msgs/msg/Twist" }
+      ],
+      "parameters": [
+        { "name": "controller_plugins", "type": "string", "defaultValue": "FollowPath", "currentValue": "FollowPath", "description": "Controller plugins to use", "group": "controller" },
+        { "name": "controller_frequency", "type": "double", "defaultValue": 20.0, "currentValue": 20.0, "description": "Controller update frequency (Hz)", "minValue": 1.0, "maxValue": 100.0, "group": "controller" },
+        { "name": "min_x_velocity_threshold", "type": "double", "defaultValue": 0.001, "currentValue": 0.001, "description": "Minimum x velocity threshold", "minValue": 0.0, "maxValue": 1.0, "group": "velocity" },
+        { "name": "min_theta_velocity_threshold", "type": "double", "defaultValue": 0.001, "currentValue": 0.001, "description": "Minimum angular velocity threshold", "minValue": 0.0, "maxValue": 1.0, "group": "velocity" },
+        { "name": "use_sim_time", "type": "bool", "defaultValue": true, "currentValue": true, "description": "Use simulation time", "group": "timing" }
+      ],
+      "launchCommand": "ros2 run nav2_controller controller_server",
+      "packageName": "nav2_controller"
+    },
+    {
+      "id": "{bt000004-0004-0004-0004-000000000004}",
+      "name": "planner_server",
+      "position": { "x": 300, "y": -100 },
+      "inputPins": [
+        { "name": "map", "type": "input", "dataType": "topic", "messageType": "nav_msgs/msg/OccupancyGrid" },
+        { "name": "goal_pose", "type": "input", "dataType": "topic", "messageType": "geometry_msgs/msg/PoseStamped" }
+      ],
+      "outputPins": [
+        { "name": "path", "type": "output", "dataType": "topic", "messageType": "nav_msgs/msg/Path" }
+      ],
+      "parameters": [
+        { "name": "planner_plugins", "type": "string", "defaultValue": "GridBased", "currentValue": "GridBased", "description": "Planner plugins to use", "enumValues": ["GridBased", "SmacPlanner2D", "ThetaStarPlanner"], "group": "planner" },
+        { "name": "expected_planner_frequency", "type": "double", "defaultValue": 1.0, "currentValue": 1.0, "description": "Expected planning frequency (Hz)", "minValue": 0.1, "maxValue": 20.0, "group": "planner" },
+        { "name": "use_sim_time", "type": "bool", "defaultValue": true, "currentValue": true, "description": "Use simulation time", "group": "timing" }
+      ],
+      "launchCommand": "ros2 run nav2_planner planner_server",
+      "packageName": "nav2_planner"
+    },
+    {
+      "id": "{bt000005-0005-0005-0005-000000000005}",
+      "name": "battery_monitor",
+      "position": { "x": -300, "y": 100 },
+      "inputPins": [],
+      "outputPins": [
+        { "name": "battery_state", "type": "output", "dataType": "topic", "messageType": "sensor_msgs/msg/BatteryState" }
+      ],
+      "parameters": [
+        { "name": "publish_rate", "type": "double", "defaultValue": 1.0, "currentValue": 1.0, "description": "Battery state publish rate (Hz)", "minValue": 0.1, "maxValue": 10.0, "group": "monitoring" },
+        { "name": "low_battery_threshold", "type": "double", "defaultValue": 20.0, "currentValue": 20.0, "description": "Low battery warning threshold (%)", "minValue": 5.0, "maxValue": 50.0, "group": "monitoring" },
+        { "name": "critical_battery_threshold", "type": "double", "defaultValue": 10.0, "currentValue": 10.0, "description": "Critical battery threshold (%)", "minValue": 1.0, "maxValue": 20.0, "group": "monitoring" }
+      ],
+      "packageName": "robot_battery_monitor"
+    },
+    {
+      "id": "{bt000006-0006-0006-0006-000000000006}",
+      "name": "map_server",
+      "position": { "x": -500, "y": 0 },
+      "inputPins": [],
+      "outputPins": [
+        { "name": "map", "type": "output", "dataType": "topic", "messageType": "nav_msgs/msg/OccupancyGrid" }
+      ],
+      "parameters": [
+        { "name": "yaml_filename", "type": "string", "defaultValue": "patrol_map.yaml", "currentValue": "patrol_map.yaml", "description": "Path to the map YAML file", "group": "map" },
+        { "name": "topic_name", "type": "string", "defaultValue": "map", "currentValue": "map", "description": "Topic name to publish map on", "group": "map" },
+        { "name": "frame_id", "type": "string", "defaultValue": "map", "currentValue": "map", "description": "Map frame ID", "group": "frames" },
+        { "name": "use_sim_time", "type": "bool", "defaultValue": true, "currentValue": true, "description": "Use simulation time", "group": "timing" }
+      ],
+      "launchCommand": "ros2 run nav2_map_server map_server",
+      "packageName": "nav2_map_server"
+    },
+    {
+      "id": "{bt000007-0007-0007-0007-000000000007}",
+      "name": "robot_base",
+      "position": { "x": 500, "y": 100 },
+      "inputPins": [
+        { "name": "cmd_vel", "type": "input", "dataType": "topic", "messageType": "geometry_msgs/msg/Twist" }
+      ],
+      "outputPins": [
+        { "name": "odom", "type": "output", "dataType": "topic", "messageType": "nav_msgs/msg/Odometry" },
+        { "name": "scan", "type": "output", "dataType": "topic", "messageType": "sensor_msgs/msg/LaserScan" }
+      ],
+      "parameters": [
+        { "name": "base_frame", "type": "string", "defaultValue": "base_link", "currentValue": "base_link", "description": "Robot base frame", "group": "frames" },
+        { "name": "odom_frame", "type": "string", "defaultValue": "odom", "currentValue": "odom", "description": "Odometry frame", "group": "frames" },
+        { "name": "max_linear_vel", "type": "double", "defaultValue": 0.5, "currentValue": 0.5, "description": "Maximum linear velocity (m/s)", "minValue": 0.0, "maxValue": 2.0, "group": "velocity" },
+        { "name": "max_angular_vel", "type": "double", "defaultValue": 1.5, "currentValue": 1.5, "description": "Maximum angular velocity (rad/s)", "minValue": 0.0, "maxValue": 5.0, "group": "velocity" }
+      ],
+      "packageName": "robot_hardware"
+    },
+    {
+      "id": "{bt000008-0008-0008-0008-000000000008}",
+      "name": "patrol_status",
+      "position": { "x": 0, "y": 200 },
+      "inputPins": [
+        { "name": "bt_status", "type": "input", "dataType": "topic", "messageType": "nav2_msgs/msg/BehaviorTreeStatusChange" },
+        { "name": "battery_state", "type": "input", "dataType": "topic", "messageType": "sensor_msgs/msg/BatteryState" }
+      ],
+      "outputPins": [
+        { "name": "patrol_state", "type": "output", "dataType": "topic", "messageType": "std_msgs/msg/String" }
+      ],
+      "parameters": [
+        { "name": "publish_rate", "type": "double", "defaultValue": 2.0, "currentValue": 2.0, "description": "Status publish rate (Hz)", "minValue": 0.1, "maxValue": 10.0, "group": "monitoring" },
+        { "name": "log_level", "type": "string", "defaultValue": "info", "currentValue": "info", "description": "Logging verbosity level", "enumValues": ["debug", "info", "warn", "error"], "group": "logging" }
+      ],
+      "packageName": "patrol_monitor"
+    }
+  ],
+  "connections": [
+    {
+      "id": "{btconn01-0001-0001-0001-000000000001}",
+      "sourceBlockId": "{bt000002-0002-0002-0002-000000000002}",
+      "sourcePin": "goal_pose",
+      "targetBlockId": "{bt000001-0001-0001-0001-000000000001}",
+      "targetPin": "goal_pose",
+      "topicName": "/navigate_to_pose"
+    },
+    {
+      "id": "{btconn02-0002-0002-0002-000000000002}",
+      "sourceBlockId": "{bt000006-0006-0006-0006-000000000006}",
+      "sourcePin": "map",
+      "targetBlockId": "{bt000001-0001-0001-0001-000000000001}",
+      "targetPin": "map",
+      "topicName": "/map"
+    },
+    {
+      "id": "{btconn03-0003-0003-0003-000000000003}",
+      "sourceBlockId": "{bt000006-0006-0006-0006-000000000006}",
+      "sourcePin": "map",
+      "targetBlockId": "{bt000004-0004-0004-0004-000000000004}",
+      "targetPin": "map",
+      "topicName": "/map"
+    },
+    {
+      "id": "{btconn04-0004-0004-0004-000000000004}",
+      "sourceBlockId": "{bt000004-0004-0004-0004-000000000004}",
+      "sourcePin": "path",
+      "targetBlockId": "{bt000003-0003-0003-0003-000000000003}",
+      "targetPin": "path",
+      "topicName": "/plan"
+    },
+    {
+      "id": "{btconn05-0005-0005-0005-000000000005}",
+      "sourceBlockId": "{bt000007-0007-0007-0007-000000000007}",
+      "sourcePin": "odom",
+      "targetBlockId": "{bt000003-0003-0003-0003-000000000003}",
+      "targetPin": "odom",
+      "topicName": "/odom"
+    },
+    {
+      "id": "{btconn06-0006-0006-0006-000000000006}",
+      "sourceBlockId": "{bt000003-0003-0003-0003-000000000003}",
+      "sourcePin": "cmd_vel",
+      "targetBlockId": "{bt000007-0007-0007-0007-000000000007}",
+      "targetPin": "cmd_vel",
+      "topicName": "/cmd_vel"
+    },
+    {
+      "id": "{btconn07-0007-0007-0007-000000000007}",
+      "sourceBlockId": "{bt000001-0001-0001-0001-000000000001}",
+      "sourcePin": "bt_status",
+      "targetBlockId": "{bt000008-0008-0008-0008-000000000008}",
+      "targetPin": "bt_status",
+      "topicName": "/bt_status"
+    },
+    {
+      "id": "{btconn08-0008-0008-0008-000000000008}",
+      "sourceBlockId": "{bt000005-0005-0005-0005-000000000005}",
+      "sourcePin": "battery_state",
+      "targetBlockId": "{bt000008-0008-0008-0008-000000000008}",
+      "targetPin": "battery_state",
+      "topicName": "/battery_state"
+    }
+  ],
+  "groups": [
+    {
+      "id": "{btgrp001-0001-0001-0001-000000000001}",
+      "title": "Behavior Tree Navigator",
+      "position": { "x": -380, "y": -180 },
+      "size": { "width": 480, "height": 250 },
+      "color": "#8B5CF6"
+    },
+    {
+      "id": "{btgrp002-0002-0002-0002-000000000002}",
+      "title": "Navigation Stack",
+      "position": { "x": 220, "y": -180 },
+      "size": { "width": 400, "height": 380 },
+      "color": "#3B82F6"
+    },
+    {
+      "id": "{btgrp003-0003-0003-0003-000000000003}",
+      "title": "Monitoring",
+      "position": { "x": -380, "y": 50 },
+      "size": { "width": 480, "height": 200 },
+      "color": "#10B981"
+    }
+  ]
+}
