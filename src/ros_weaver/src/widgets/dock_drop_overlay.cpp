@@ -6,6 +6,7 @@
 #include <QMouseEvent>
 #include <QKeyEvent>
 #include <QTimer>
+#include <QDebug>
 
 namespace ros_weaver {
 
@@ -28,7 +29,7 @@ void DockDropOverlay::showOverlay(QDockWidget* draggedDock) {
   currentDropArea_ = DropArea::None;
   targetDock_ = nullptr;
 
-  // Position overlay over the main window's central area
+  // Position overlay over the main window
   QRect mainRect = mainWindow_->geometry();
   setGeometry(mainRect);
   calculateDropZones();
@@ -51,9 +52,6 @@ void DockDropOverlay::calculateDropZones() {
   QRect centralRect = mainWindow_->centralWidget()
                           ? mainWindow_->centralWidget()->geometry()
                           : mainWindow_->rect();
-
-  // Adjust for main window position
-  QPoint offset = mainWindow_->mapFromGlobal(mainWindow_->mapToGlobal(QPoint(0, 0)));
 
   // Outer zones (edges of the main window)
   QRect mainRect = mainWindow_->rect();
@@ -298,87 +296,125 @@ void DockDropOverlay::paintEvent(QPaintEvent* event) {
 DockDragFilter::DockDragFilter(QMainWindow* mainWindow, QObject* parent)
     : QObject(parent), mainWindow_(mainWindow) {
   overlay_ = new DockDropOverlay(mainWindow);
+
+  // Create a timer to poll for floating dock positions and Ctrl key state
+  pollTimer_ = new QTimer(this);
+  pollTimer_->setInterval(16);  // ~60fps
+  connect(pollTimer_, &QTimer::timeout, this, &DockDragFilter::onPollTimer);
+
+  // Install as application-wide event filter to catch key events
+  qApp->installEventFilter(this);
+}
+
+void DockDragFilter::onPollTimer() {
+  if (!draggingDock_) {
+    pollTimer_->stop();
+    return;
+  }
+
+  // Check if Ctrl is still held
+  bool ctrlNowHeld = QApplication::keyboardModifiers() & Qt::ControlModifier;
+
+  if (ctrlNowHeld && !ctrlHeld_) {
+    // Ctrl was just pressed
+    ctrlHeld_ = true;
+    overlay_->showOverlay(draggingDock_);
+  } else if (!ctrlNowHeld && ctrlHeld_) {
+    // Ctrl was just released - perform dock if over a valid zone
+    if (overlay_->currentDropArea() != DockDropOverlay::DropArea::None) {
+      overlay_->performDock(draggingDock_);
+    }
+    ctrlHeld_ = false;
+    overlay_->hideOverlay();
+  }
+
+  if (ctrlHeld_) {
+    overlay_->updateDropZone(QCursor::pos());
+  }
+
+  // Check if dock is still floating and being dragged
+  if (!draggingDock_->isFloating()) {
+    // Dock was re-docked through normal means
+    stopTracking();
+  }
+}
+
+void DockDragFilter::stopTracking() {
+  pollTimer_->stop();
+  overlay_->hideOverlay();
+  draggingDock_ = nullptr;
+  ctrlHeld_ = false;
 }
 
 bool DockDragFilter::eventFilter(QObject* watched, QEvent* event) {
-  // Handle key events for Ctrl detection
+  // Handle key events globally
   if (event->type() == QEvent::KeyPress) {
     QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
-    if (keyEvent->key() == Qt::Key_Control && isDragging_ && draggingDock_) {
+    if (keyEvent->key() == Qt::Key_Control && draggingDock_ && draggingDock_->isFloating()) {
       ctrlHeld_ = true;
       overlay_->showOverlay(draggingDock_);
-      return false;
     }
   } else if (event->type() == QEvent::KeyRelease) {
     QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
-    if (keyEvent->key() == Qt::Key_Control) {
-      if (ctrlHeld_ && isDragging_) {
-        // Perform dock if we have a valid drop zone
-        if (overlay_->currentDropArea() != DockDropOverlay::DropArea::None) {
-          overlay_->performDock(draggingDock_);
-        }
+    if (keyEvent->key() == Qt::Key_Control && ctrlHeld_) {
+      // Perform dock if we have a valid drop zone
+      if (draggingDock_ && overlay_->currentDropArea() != DockDropOverlay::DropArea::None) {
+        overlay_->performDock(draggingDock_);
       }
       ctrlHeld_ = false;
       overlay_->hideOverlay();
-      return false;
     }
   }
 
-  // Check if this is a dock widget
+  // Check if this is a dock widget becoming floating
   QDockWidget* dockWidget = qobject_cast<QDockWidget*>(watched);
-  if (!dockWidget) {
-    // Check if parent is a dock widget (for title bar events)
-    QWidget* widget = qobject_cast<QWidget*>(watched);
-    if (widget) {
-      dockWidget = qobject_cast<QDockWidget*>(widget->parentWidget());
-    }
-  }
-
-  if (!dockWidget) {
-    return false;
-  }
-
-  if (event->type() == QEvent::Move && dockWidget->isFloating()) {
-    // Dock widget is being moved while floating
-    isDragging_ = true;
-    draggingDock_ = dockWidget;
-
-    if (ctrlHeld_ || QApplication::keyboardModifiers() & Qt::ControlModifier) {
-      if (!ctrlHeld_) {
-        ctrlHeld_ = true;
-        overlay_->showOverlay(draggingDock_);
+  if (dockWidget) {
+    if (event->type() == QEvent::MouseButtonPress) {
+      QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
+      if (mouseEvent->button() == Qt::LeftButton) {
+        // Start tracking this dock widget
+        draggingDock_ = dockWidget;
+        pollTimer_->start();
       }
-      overlay_->updateDropZone(QCursor::pos());
-    }
-  } else if (event->type() == QEvent::NonClientAreaMouseButtonRelease ||
-             event->type() == QEvent::MouseButtonRelease) {
-    if (isDragging_ && ctrlHeld_ && draggingDock_) {
-      // Perform dock if we have a valid drop zone
-      if (overlay_->currentDropArea() != DockDropOverlay::DropArea::None) {
-        // Use a timer to perform the dock after the current event is processed
-        QTimer::singleShot(0, [this]() {
+    } else if (event->type() == QEvent::MouseButtonRelease) {
+      QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
+      if (mouseEvent->button() == Qt::LeftButton && draggingDock_ == dockWidget) {
+        if (ctrlHeld_ && overlay_->currentDropArea() != DockDropOverlay::DropArea::None) {
           overlay_->performDock(draggingDock_);
-          overlay_->hideOverlay();
-          draggingDock_ = nullptr;
-          isDragging_ = false;
-          ctrlHeld_ = false;
-        });
-        return true;  // Consume the event
+        }
+        stopTracking();
+      }
+    } else if (event->type() == QEvent::Close || event->type() == QEvent::Hide) {
+      if (draggingDock_ == dockWidget) {
+        stopTracking();
       }
     }
-    isDragging_ = false;
-    if (!ctrlHeld_) {
-      draggingDock_ = nullptr;
-    }
-  } else if (event->type() == QEvent::Hide && dockWidget == draggingDock_) {
-    // Dock was hidden (possibly re-docked)
-    isDragging_ = false;
-    ctrlHeld_ = false;
-    overlay_->hideOverlay();
-    draggingDock_ = nullptr;
   }
 
-  return false;
+  // Also check for title bar widget events (dock widgets use internal widgets for title bar)
+  QWidget* widget = qobject_cast<QWidget*>(watched);
+  if (widget && !dockWidget) {
+    QDockWidget* parentDock = qobject_cast<QDockWidget*>(widget->parentWidget());
+    if (parentDock) {
+      if (event->type() == QEvent::MouseButtonPress) {
+        QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
+        if (mouseEvent->button() == Qt::LeftButton) {
+          draggingDock_ = parentDock;
+          pollTimer_->start();
+        }
+      } else if (event->type() == QEvent::MouseButtonRelease) {
+        QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
+        if (mouseEvent->button() == Qt::LeftButton && draggingDock_ == parentDock) {
+          if (ctrlHeld_ && overlay_->currentDropArea() != DockDropOverlay::DropArea::None) {
+            overlay_->performDock(draggingDock_);
+          }
+          stopTracking();
+        }
+      }
+    }
+  }
+
+  return false;  // Don't consume events
 }
 
 }  // namespace ros_weaver

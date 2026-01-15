@@ -6,6 +6,7 @@
 #include <QDockWidget>
 #include <QMap>
 #include <QRect>
+#include <QTimer>
 
 namespace ros_weaver {
 
@@ -89,6 +90,9 @@ private:
 
 /**
  * @brief Event filter to enable Ctrl+drag docking
+ *
+ * When a floating dock widget is being dragged and Ctrl is held,
+ * shows a visual overlay indicating where the dock can be dropped.
  */
 class DockDragFilter : public QObject {
   Q_OBJECT
@@ -99,12 +103,17 @@ public:
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
 
+private slots:
+  void onPollTimer();
+
 private:
+  void stopTracking();
+
   QMainWindow* mainWindow_;
   DockDropOverlay* overlay_;
   QDockWidget* draggingDock_ = nullptr;
+  QTimer* pollTimer_ = nullptr;
   bool ctrlHeld_ = false;
-  bool isDragging_ = false;
 };
 
 }  // namespace ros_weaver
