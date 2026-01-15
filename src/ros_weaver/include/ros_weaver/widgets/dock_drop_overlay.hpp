@@ -7,6 +7,7 @@
 #include <QMap>
 #include <QRect>
 #include <QTimer>
+#include <QPoint>
 
 namespace ros_weaver {
 
@@ -105,15 +106,17 @@ protected:
 
 private slots:
   void onPollTimer();
+  void toggleDockingMode();
 
 private:
-  void stopTracking();
+  void connectToDock(QDockWidget* dock);
 
   QMainWindow* mainWindow_;
   DockDropOverlay* overlay_;
-  QDockWidget* draggingDock_ = nullptr;
+  QDockWidget* floatingDock_ = nullptr;
   QTimer* pollTimer_ = nullptr;
-  bool ctrlHeld_ = false;
+  QPoint lastDockPos_;
+  bool dockingModeActive_ = false;
 };
 
 }  // namespace ros_weaver
