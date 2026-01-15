@@ -78,6 +78,7 @@ qrc_*.cpp
 !Architecture.md
 !ROS Weaver Development Plan.md
 !tests/README.md
+!.claude/commands/*.md
 
 # OS generated files
 .DS_Store
