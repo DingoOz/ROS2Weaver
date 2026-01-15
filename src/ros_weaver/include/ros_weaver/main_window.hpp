@@ -71,6 +71,7 @@ class NetworkTopologyManager;
 class NetworkTopologyPanel;
 class BehaviorTreePanel;
 class MissionPlannerPanel;
+class DockDragFilter;
 
 class MainWindow : public QMainWindow {
   Q_OBJECT
@@ -419,6 +420,9 @@ private:
   // Behavior tree panel
   BehaviorTreePanel* behaviorTreePanel_;
   QDockWidget* behaviorTreeDock_;
+
+  // Dock drag filter for Ctrl+drag docking
+  DockDragFilter* dockDragFilter_;
 
   // Mission planner panel
   MissionPlannerPanel* missionPlannerPanel_;

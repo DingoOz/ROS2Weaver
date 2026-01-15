@@ -188,6 +188,7 @@ set(SOURCES
   src/core/behavior_tree_parser.cpp
   src/widgets/bt_node_item.cpp
   src/widgets/behavior_tree_panel.cpp
+  src/widgets/dock_drop_overlay.cpp
   src/core/mission_data.cpp
   src/core/nav2_exporter.cpp
   src/widgets/waypoint_graphics_item.cpp
@@ -323,6 +324,7 @@ set(HEADERS
   include/ros_weaver/core/behavior_tree_parser.hpp
   include/ros_weaver/widgets/bt_node_item.hpp
   include/ros_weaver/widgets/behavior_tree_panel.hpp
+  include/ros_weaver/widgets/dock_drop_overlay.hpp
   include/ros_weaver/core/mission_data.hpp
   include/ros_weaver/core/nav2_exporter.hpp
   include/ros_weaver/widgets/waypoint_graphics_item.hpp

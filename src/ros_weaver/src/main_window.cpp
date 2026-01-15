@@ -75,6 +75,7 @@
 #include "ros_weaver/core/network_topology_manager.hpp"
 #include "ros_weaver/widgets/network_topology_panel.hpp"
 #include "ros_weaver/widgets/behavior_tree_panel.hpp"
+#include "ros_weaver/widgets/dock_drop_overlay.hpp"
 #include "ros_weaver/widgets/mission_planner_panel.hpp"
 
 #include <QApplication>
@@ -1942,6 +1943,14 @@ void MainWindow::setupDockWidgets() {
   if (showMissionPlannerAction) {
     connect(showMissionPlannerAction, &QAction::toggled, missionPlannerDock_, &QDockWidget::setVisible);
     connect(missionPlannerDock_, &QDockWidget::visibilityChanged, showMissionPlannerAction, &QAction::setChecked);
+  }
+
+  // Initialize dock drag filter for Ctrl+drag docking
+  dockDragFilter_ = new DockDragFilter(this, this);
+
+  // Install dock drag filter on all dock widgets
+  for (QDockWidget* dock : findChildren<QDockWidget*>()) {
+    dock->installEventFilter(dockDragFilter_);
   }
 
   // Initialize Remote Connection Manager
