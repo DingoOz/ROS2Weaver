@@ -1013,7 +1013,9 @@ void MissionPlannerPanel::setWaypointOrientationFromUndo(int waypointId, double 
   Waypoint* wp = currentMission_.findWaypoint(waypointId);
   if (wp) {
     wp->theta = theta;
-    mapView_->updateWaypoint(*wp);
+    // Use orientation-only update to prevent position jumps during drag
+    // This avoids floating-point precision issues in pixel<->meter conversion
+    mapView_->updateWaypointOrientation(waypointId, theta);
 
     int row = waypointsList_->currentRow();
     if (row >= 0 && row < currentMission_.waypoints.size() &&
@@ -1024,8 +1026,21 @@ void MissionPlannerPanel::setWaypointOrientationFromUndo(int waypointId, double 
 }
 
 void MissionPlannerPanel::setStartPoseFromUndo(const RobotStartPose& pose) {
+  // Check if only orientation changed by comparing positions
+  // Use tolerance to handle floating-point precision differences
+  const double tolerance = 1e-6;
+  bool positionChanged = std::abs(currentMission_.startPose.x - pose.x) > tolerance ||
+                         std::abs(currentMission_.startPose.y - pose.y) > tolerance;
+
   currentMission_.startPose = pose;
-  mapView_->setStartPose(pose);
+
+  if (positionChanged) {
+    // Full pose update including position
+    mapView_->setStartPose(pose);
+  } else {
+    // Orientation-only update to prevent position jumps during drag
+    mapView_->updateStartPoseOrientation(pose.theta);
+  }
 
   // Update UI
   startXSpinBox_->blockSignals(true);

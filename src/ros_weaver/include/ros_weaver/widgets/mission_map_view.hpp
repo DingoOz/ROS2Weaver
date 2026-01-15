@@ -49,6 +49,7 @@ public:
   void addWaypointAtPixel(const QPointF& pixelPos);
   void removeWaypoint(int waypointId);
   void updateWaypoint(const Waypoint& waypoint);
+  void updateWaypointOrientation(int waypointId, double theta);
   void selectWaypoint(int waypointId);
   void selectWaypoints(const QList<int>& waypointIds);
   void addToSelection(int waypointId);
@@ -61,6 +62,7 @@ public:
 
   // Robot start pose
   void setStartPose(const RobotStartPose& pose);
+  void updateStartPoseOrientation(double theta);
   RobotStartPose getStartPose() const { return startPose_; }
   void enterStartPoseMode();
 

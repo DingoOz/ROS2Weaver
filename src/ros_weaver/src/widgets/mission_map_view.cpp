@@ -203,6 +203,18 @@ void MissionMapView::updateWaypoint(const Waypoint& waypoint) {
   updateWaypointPath();
 }
 
+void MissionMapView::updateWaypointOrientation(int waypointId, double theta) {
+  WaypointGraphicsItem* item = findWaypointItem(waypointId);
+  if (!item) return;
+
+  // Only update the orientation, preserving the item's current position
+  // This prevents position jumps during orientation drag due to floating-point
+  // precision differences in pixel<->meter coordinate conversions
+  Waypoint wp = item->waypoint();
+  wp.theta = theta;
+  item->setWaypoint(wp);
+}
+
 void MissionMapView::selectWaypoint(int waypointId) {
   clearSelection();
   selectedWaypointId_ = waypointId;
@@ -329,6 +341,18 @@ void MissionMapView::setStartPose(const RobotStartPose& pose) {
   startPoseItem_->setPose(pose);
 
   updateWaypointPath();
+}
+
+void MissionMapView::updateStartPoseOrientation(double theta) {
+  if (!startPoseItem_) return;
+
+  // Only update the orientation, preserving the item's current position
+  // This prevents position jumps during orientation drag due to floating-point
+  // precision differences in pixel<->meter coordinate conversions
+  startPose_.theta = theta;
+  RobotStartPose pose = startPoseItem_->pose();
+  pose.theta = theta;
+  startPoseItem_->setPose(pose);
 }
 
 void MissionMapView::enterStartPoseMode() {
