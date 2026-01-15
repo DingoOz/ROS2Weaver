@@ -329,8 +329,8 @@ DockDragFilter::DockDragFilter(QMainWindow* mainWindow, QObject* parent)
     connectToDock(dock);
   }
 
-  // Create keyboard shortcut to toggle docking mode (Ctrl+Shift+D)
-  QShortcut* dockModeShortcut = new QShortcut(QKeySequence("Ctrl+Shift+D"), mainWindow);
+  // Create keyboard shortcut to toggle docking mode (F8)
+  QShortcut* dockModeShortcut = new QShortcut(QKeySequence(Qt::Key_F8), mainWindow);
   dockModeShortcut->setContext(Qt::ApplicationShortcut);
   connect(dockModeShortcut, &QShortcut::activated, this, [this]() {
     toggleDockingMode();
