@@ -86,8 +86,11 @@ set(SOURCES
   src/core/undo/commands/remove_group_command.cpp
   src/core/undo/commands/modify_group_command.cpp
   src/core/undo/commands/macro_command.cpp
+  src/core/undo/commands/modify_block_param_command.cpp
   src/core/undo/mission_undo_commands.cpp
   src/core/undo/mission_undo_stack.cpp
+  src/core/undo/scenario_undo_commands.cpp
+  src/core/undo/scenario_undo_stack.cpp
   src/widgets/param_dashboard.cpp
   src/widgets/ai_permission_dialog.cpp
   src/widgets/lineage_dialog.cpp
@@ -218,6 +221,9 @@ set(HEADERS
   include/ros_weaver/core/undo/undo_stack.hpp
   include/ros_weaver/core/undo/mission_undo_commands.hpp
   include/ros_weaver/core/undo/mission_undo_stack.hpp
+  include/ros_weaver/core/undo/scenario_undo_commands.hpp
+  include/ros_weaver/core/undo/scenario_undo_stack.hpp
+  include/ros_weaver/core/undo/commands/modify_block_param_command.hpp
   include/ros_weaver/widgets/param_dashboard.hpp
   include/ros_weaver/widgets/ai_permission_dialog.hpp
   include/ros_weaver/widgets/lineage_dialog.hpp

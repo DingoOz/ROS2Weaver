@@ -810,4 +810,52 @@ void ScenarioEditorWidget::populateEditorFromStep(const ScenarioStep& step) {
   stepEnabledCheck_->blockSignals(false);
 }
 
+// Undo helper methods
+
+void ScenarioEditorWidget::insertStepAt(int index, const ScenarioStep& step) {
+  if (index < 0) index = 0;
+  if (index > currentScenario_.steps.size()) index = currentScenario_.steps.size();
+
+  currentScenario_.steps.insert(index, step);
+  updateStepList();
+  stepList_->setCurrentRow(index);
+  isModified_ = true;
+  player_->loadScenario(currentScenario_);
+}
+
+void ScenarioEditorWidget::removeStepAt(int index) {
+  if (index < 0 || index >= currentScenario_.steps.size()) return;
+
+  currentScenario_.steps.removeAt(index);
+  updateStepList();
+  if (currentScenario_.steps.size() > 0) {
+    stepList_->setCurrentRow(qMin(index, currentScenario_.steps.size() - 1));
+  }
+  isModified_ = true;
+  player_->loadScenario(currentScenario_);
+}
+
+void ScenarioEditorWidget::setStepAt(int index, const ScenarioStep& step) {
+  if (index < 0 || index >= currentScenario_.steps.size()) return;
+
+  currentScenario_.steps[index] = step;
+  updateStepList();
+  stepList_->setCurrentRow(index);
+  isModified_ = true;
+  player_->loadScenario(currentScenario_);
+}
+
+void ScenarioEditorWidget::moveStep(int fromIndex, int toIndex) {
+  if (fromIndex < 0 || fromIndex >= currentScenario_.steps.size()) return;
+  if (toIndex < 0 || toIndex >= currentScenario_.steps.size()) return;
+  if (fromIndex == toIndex) return;
+
+  ScenarioStep step = currentScenario_.steps.takeAt(fromIndex);
+  currentScenario_.steps.insert(toIndex, step);
+  updateStepList();
+  stepList_->setCurrentRow(toIndex);
+  isModified_ = true;
+  player_->loadScenario(currentScenario_);
+}
+
 }  // namespace ros_weaver

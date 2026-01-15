@@ -1257,6 +1257,8 @@ void MainWindow::setupDockWidgets() {
 
   // Parameters tab with ParamDashboard
   paramDashboard_ = new ParamDashboard();
+  paramDashboard_->setUndoStack(undoStack_);
+  paramDashboard_->setCanvas(canvas_);  // canvas_ is set from setupCentralWidget()
   propertiesTab_->addTab(paramDashboard_, tr("Parameters"));
 
   // Topics tab with TopicViewerPanel
@@ -4662,6 +4664,8 @@ void MainWindow::onEditRemappings(PackageBlock* block) {
   QVBoxLayout* layout = new QVBoxLayout(&dialog);
 
   RemappingEditor* editor = new RemappingEditor(&dialog);
+  editor->setUndoStack(undoStack_);
+  editor->setCanvas(canvas_);
   editor->setBlock(block);
   layout->addWidget(editor);
 
@@ -4734,8 +4738,9 @@ void MainWindow::onRenameCanvas() {
 void MainWindow::onCurrentCanvasChanged(WeaverCanvas* canvas) {
   canvas_ = canvas;
 
-  // Update param dashboard - clear selection when switching canvases
+  // Update param dashboard - clear selection and update canvas reference when switching canvases
   if (paramDashboard_) {
+    paramDashboard_->setCanvas(canvas);
     paramDashboard_->setCurrentBlock(nullptr);
   }
 

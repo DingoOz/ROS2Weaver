@@ -1,6 +1,9 @@
 #include "ros_weaver/widgets/remapping_editor.hpp"
 #include "ros_weaver/canvas/package_block.hpp"
 #include "ros_weaver/canvas/connection_line.hpp"
+#include "ros_weaver/canvas/weaver_canvas.hpp"
+#include "ros_weaver/core/undo/undo_stack.hpp"
+#include "ros_weaver/core/undo/commands/modify_block_param_command.hpp"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -24,6 +27,8 @@ RemappingEditor::RemappingEditor(QWidget* parent)
     , resetButton_(nullptr)
     , statusLabel_(nullptr)
     , currentBlock_(nullptr)
+    , undoStack_(nullptr)
+    , canvas_(nullptr)
 {
   setupUi();
 }
@@ -255,23 +260,49 @@ void RemappingEditor::removeSelectedRemapping() {
 void RemappingEditor::applyChanges() {
   if (!currentBlock_) return;
 
-  // Apply namespace to block
-  currentBlock_->setNodeNamespace(namespaceEdit_->text());
+  QString newNamespace = namespaceEdit_->text();
+  bool namespaceChanged = (newNamespace != originalNamespace_);
+  bool remappingsChanged = (remappings_ != originalRemappings_);
 
-  // Apply remappings to block
-  currentBlock_->setRemappings(remappings_);
+  if (undoStack_ && canvas_) {
+    // Use undo commands
+    if (namespaceChanged) {
+      undoStack_->push(new ModifyBlockNamespaceCommand(
+          canvas_, currentBlock_->id(), originalNamespace_, newNamespace));
+    }
+    if (remappingsChanged) {
+      undoStack_->push(new ModifyBlockRemappingsCommand(
+          canvas_, currentBlock_->id(), originalRemappings_, remappings_));
+    }
+  } else {
+    // Fallback: direct modification
+    if (namespaceChanged) {
+      currentBlock_->setNodeNamespace(newNamespace);
+    }
+    if (remappingsChanged) {
+      currentBlock_->setRemappings(remappings_);
+    }
+  }
 
   // Update connection lines to show remapping status
   for (ConnectionLine* conn : currentBlock_->connections()) {
     conn->updateRemappingStatus();
   }
 
-  originalNamespace_ = namespaceEdit_->text();
+  originalNamespace_ = newNamespace;
   originalRemappings_ = remappings_;
 
   statusLabel_->setText(tr("Changes applied"));
-  emit remappingsChanged();
-  emit namespaceChanged(namespaceEdit_->text());
+  emit this->remappingsChanged();
+  emit this->namespaceChanged(newNamespace);
+}
+
+void RemappingEditor::setUndoStack(UndoStack* undoStack) {
+  undoStack_ = undoStack;
+}
+
+void RemappingEditor::setCanvas(WeaverCanvas* canvas) {
+  canvas_ = canvas;
 }
 
 void RemappingEditor::resetChanges() {

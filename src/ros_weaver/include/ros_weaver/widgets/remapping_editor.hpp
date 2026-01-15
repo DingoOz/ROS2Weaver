@@ -12,6 +12,8 @@
 namespace ros_weaver {
 
 class PackageBlock;
+class UndoStack;
+class WeaverCanvas;
 
 // A single remapping entry
 struct Remapping {
@@ -47,6 +49,10 @@ public:
 
   // Set namespace
   void setNodeNamespace(const QString& ns);
+
+  // Undo/redo support
+  void setUndoStack(UndoStack* undoStack);
+  void setCanvas(WeaverCanvas* canvas);
 
 public slots:
   // Add a new remapping
@@ -90,6 +96,10 @@ private:
   QList<Remapping> remappings_;
   QString originalNamespace_;
   QList<Remapping> originalRemappings_;
+
+  // Undo/redo support
+  UndoStack* undoStack_;
+  WeaverCanvas* canvas_;
 };
 
 }  // namespace ros_weaver

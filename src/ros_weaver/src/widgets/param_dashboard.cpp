@@ -3,7 +3,10 @@
 #include "ros_weaver/core/lineage_provider.hpp"
 #include "ros_weaver/core/theme_manager.hpp"
 #include "ros_weaver/canvas/package_block.hpp"
+#include "ros_weaver/canvas/weaver_canvas.hpp"
 #include "ros_weaver/core/project.hpp"
+#include "ros_weaver/core/undo/undo_stack.hpp"
+#include "ros_weaver/core/undo/commands/modify_block_param_command.hpp"
 
 #include <QHeaderView>
 #include <QSpinBox>
@@ -43,6 +46,8 @@ ParamDashboard::ParamDashboard(QWidget* parent)
   , currentBlock_(nullptr)
   , updatingTree_(false)
   , showingYamlParams_(false)
+  , undoStack_(nullptr)
+  , canvas_(nullptr)
 {
   setupUi();
 }
@@ -1114,11 +1119,31 @@ BlockParamData ParamDashboard::toBlockParam(const ParamDefinition& param) {
 void ParamDashboard::saveParametersToBlock() {
   if (!currentBlock_) return;
 
-  QList<BlockParamData> blockParams;
+  QList<BlockParamData> newParams;
   for (const auto& param : params_) {
-    blockParams.append(toBlockParam(param));
+    newParams.append(toBlockParam(param));
   }
-  currentBlock_->setParameters(blockParams);
+
+  // Use undo command if undo stack is available
+  if (undoStack_ && canvas_) {
+    QList<BlockParamData> oldParams = currentBlock_->parameters();
+    // Only create command if parameters actually changed
+    if (oldParams != newParams) {
+      undoStack_->push(new ModifyBlockParamCommand(
+          canvas_, currentBlock_->id(), oldParams, newParams));
+    }
+  } else {
+    // Fallback: direct modification without undo
+    currentBlock_->setParameters(newParams);
+  }
+}
+
+void ParamDashboard::setUndoStack(UndoStack* undoStack) {
+  undoStack_ = undoStack;
+}
+
+void ParamDashboard::setCanvas(WeaverCanvas* canvas) {
+  canvas_ = canvas;
 }
 
 void ParamDashboard::loadParametersFromBlock() {
@@ -1311,11 +1336,21 @@ void ParamDashboard::onSyncToBlock() {
   if (!currentBlock_ || !showingYamlParams_) return;
 
   // Copy current params to block
-  QList<BlockParamData> blockParams;
+  QList<BlockParamData> newParams;
   for (const auto& param : params_) {
-    blockParams.append(toBlockParam(param));
+    newParams.append(toBlockParam(param));
   }
-  currentBlock_->setParameters(blockParams);
+
+  // Use undo command if undo stack is available
+  if (undoStack_ && canvas_) {
+    QList<BlockParamData> oldParams = currentBlock_->parameters();
+    if (oldParams != newParams) {
+      undoStack_->push(new ModifyBlockParamCommand(
+          canvas_, currentBlock_->id(), oldParams, newParams));
+    }
+  } else {
+    currentBlock_->setParameters(newParams);
+  }
 
   // Switch back to block parameters view
   yamlSourceCombo_->setCurrentIndex(0);

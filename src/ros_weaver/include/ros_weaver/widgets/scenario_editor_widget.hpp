@@ -24,6 +24,8 @@
 
 namespace ros_weaver {
 
+class ScenarioUndoStack;
+
 class ScenarioEditorWidget : public QWidget {
   Q_OBJECT
 
@@ -35,6 +37,13 @@ public:
   void setRosNode(rclcpp::Node::SharedPtr node);
 
   ScenarioPlayer* scenarioPlayer() { return player_; }
+  ScenarioUndoStack* undoStack() { return undoStack_; }
+
+  // Undo helper methods (used by undo commands)
+  void insertStepAt(int index, const ScenarioStep& step);
+  void removeStepAt(int index);
+  void setStepAt(int index, const ScenarioStep& step);
+  void moveStep(int fromIndex, int toIndex);
 
 signals:
   void scenarioLoaded(const QString& name);
@@ -138,6 +147,9 @@ private:
   int currentStepIndex_;
   bool isModified_;
   QString currentFilePath_;
+
+  // Undo/redo
+  ScenarioUndoStack* undoStack_;
 };
 
 }  // namespace ros_weaver

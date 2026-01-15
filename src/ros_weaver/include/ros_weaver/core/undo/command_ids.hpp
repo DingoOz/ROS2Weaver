@@ -13,6 +13,11 @@ enum class CommandId {
   ModifyGroupColor,    // Merge consecutive color changes
   ModifyGroupSize,     // Merge consecutive resize operations
   ModifyBlockParam,    // Merge consecutive parameter changes
+  ModifyBlockNamespace,  // Merge consecutive namespace changes
+  ModifyBlockRemappings, // No merging - remapping changes are atomic
+
+  // Scenario editor commands
+  ModifyScenarioStep = 50,  // Merge consecutive step property changes
 
   // Mission planner commands
   MoveWaypoint = 100,            // Merge consecutive waypoint moves

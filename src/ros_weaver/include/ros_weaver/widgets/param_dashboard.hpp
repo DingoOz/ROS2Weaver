@@ -23,6 +23,8 @@ namespace ros_weaver {
 struct BlockParamData;
 struct YamlFileInfo;
 class PackageBlock;
+class UndoStack;
+class WeaverCanvas;
 
 // Represents a single parameter definition
 struct ParamDefinition {
@@ -80,6 +82,10 @@ public:
   void setProjectYamlFiles(const QList<YamlFileInfo>& yamlFiles);
   void setProjectDirectory(const QString& projectDir);
   void clearYamlFiles();
+
+  // Undo/redo support
+  void setUndoStack(UndoStack* undoStack);
+  void setCanvas(WeaverCanvas* canvas);
 
 signals:
   void parameterChanged(const QString& name, const QVariant& value);
@@ -162,6 +168,10 @@ private:
   QString projectDirectory_;
   QMap<QString, QList<ParamDefinition>> yamlParamsCache_;  // filepath -> params
   bool showingYamlParams_;  // true if showing YAML file, false if showing block params
+
+  // Undo/redo support
+  UndoStack* undoStack_;
+  WeaverCanvas* canvas_;
 };
 
 }  // namespace ros_weaver

@@ -42,6 +42,20 @@ struct BlockParamData {
 
   QJsonObject toJson() const;
   static BlockParamData fromJson(const QJsonObject& json);
+
+  bool operator==(const BlockParamData& other) const {
+    return name == other.name && type == other.type &&
+           defaultValue == other.defaultValue &&
+           currentValue == other.currentValue &&
+           description == other.description &&
+           minValue == other.minValue &&
+           maxValue == other.maxValue &&
+           enumValues == other.enumValues &&
+           group == other.group;
+  }
+  bool operator!=(const BlockParamData& other) const {
+    return !(*this == other);
+  }
 };
 
 // Serializable block data
