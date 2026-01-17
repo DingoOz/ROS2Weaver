@@ -1,0 +1,119 @@
+<?xml version="1.0"?>
+<robot name="simple_robot">
+  <!-- Base Link -->
+  <link name="base_link">
+    <visual>
+      <geometry>
+        <box size="0.5 0.3 0.1"/>
+      </geometry>
+      <material name="blue">
+        <color rgba="0.0 0.0 0.8 1.0"/>
+      </material>
+    </visual>
+    <inertial>
+      <mass value="10.0"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </inertial>
+  </link>
+
+  <!-- Shoulder Link -->
+  <link name="shoulder_link">
+    <visual>
+      <origin xyz="0 0 0.1" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.05" length="0.2"/>
+      </geometry>
+      <material name="red">
+        <color rgba="0.8 0.0 0.0 1.0"/>
+      </material>
+    </visual>
+    <inertial>
+      <mass value="2.0"/>
+      <origin xyz="0 0 0.1" rpy="0 0 0"/>
+    </inertial>
+  </link>
+
+  <!-- Upper Arm Link -->
+  <link name="upper_arm_link">
+    <visual>
+      <origin xyz="0 0 0.15" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.04" length="0.3"/>
+      </geometry>
+      <material name="green">
+        <color rgba="0.0 0.8 0.0 1.0"/>
+      </material>
+    </visual>
+    <inertial>
+      <mass value="1.5"/>
+      <origin xyz="0 0 0.15" rpy="0 0 0"/>
+    </inertial>
+  </link>
+
+  <!-- Forearm Link -->
+  <link name="forearm_link">
+    <visual>
+      <origin xyz="0 0 0.125" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.035" length="0.25"/>
+      </geometry>
+      <material name="yellow">
+        <color rgba="0.8 0.8 0.0 1.0"/>
+      </material>
+    </visual>
+    <inertial>
+      <mass value="1.0"/>
+      <origin xyz="0 0 0.125" rpy="0 0 0"/>
+    </inertial>
+  </link>
+
+  <!-- End Effector Link -->
+  <link name="end_effector_link">
+    <visual>
+      <geometry>
+        <sphere radius="0.05"/>
+      </geometry>
+      <material name="white">
+        <color rgba="1.0 1.0 1.0 1.0"/>
+      </material>
+    </visual>
+    <inertial>
+      <mass value="0.5"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </inertial>
+  </link>
+
+  <!-- Base to Shoulder Joint (Revolute around Z) -->
+  <joint name="base_to_shoulder" type="revolute">
+    <parent link="base_link"/>
+    <child link="shoulder_link"/>
+    <origin xyz="0 0 0.05" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-3.14159" upper="3.14159" effort="100.0" velocity="1.0"/>
+  </joint>
+
+  <!-- Shoulder to Upper Arm Joint (Revolute around Y) -->
+  <joint name="shoulder_to_upper_arm" type="revolute">
+    <parent link="shoulder_link"/>
+    <child link="upper_arm_link"/>
+    <origin xyz="0 0 0.2" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.57" upper="1.57" effort="80.0" velocity="1.0"/>
+  </joint>
+
+  <!-- Upper Arm to Forearm Joint (Revolute around Y) -->
+  <joint name="upper_arm_to_forearm" type="revolute">
+    <parent link="upper_arm_link"/>
+    <child link="forearm_link"/>
+    <origin xyz="0 0 0.3" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-2.35" upper="2.35" effort="60.0" velocity="1.5"/>
+  </joint>
+
+  <!-- Forearm to End Effector Joint (Fixed) -->
+  <joint name="forearm_to_end_effector" type="fixed">
+    <parent link="forearm_link"/>
+    <child link="end_effector_link"/>
+    <origin xyz="0 0 0.25" rpy="0 0 0"/>
+  </joint>
+</robot>

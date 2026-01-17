@@ -44,6 +44,22 @@ find_package(Qt5 REQUIRED COMPONENTS
   Xml
 )
 
+# Try to find Qt5 3D components (optional, for URDF Viewer)
+find_package(Qt5 QUIET COMPONENTS
+  3DCore
+  3DExtras
+  3DRender
+  3DInput
+)
+
+if(Qt5_3DCore_FOUND AND Qt5_3DExtras_FOUND AND Qt5_3DRender_FOUND AND Qt5_3DInput_FOUND)
+  set(HAVE_QT3D TRUE)
+  message(STATUS "Qt5 3D found - URDF Viewer will be enabled")
+else()
+  set(HAVE_QT3D FALSE)
+  message(STATUS "Qt5 3D not found - URDF Viewer will be disabled (install qt3d5-dev to enable)")
+endif()
+
 # Include directories
 include_directories(
   include
@@ -197,6 +213,17 @@ set(SOURCES
   src/widgets/mission_planner_panel.cpp
 )
 
+# URDF Viewer sources (only if Qt3D is available)
+if(HAVE_QT3D)
+  list(APPEND SOURCES
+    src/core/urdf_parser.cpp
+    src/core/urdf_joint_controller.cpp
+    src/widgets/urdf_viewer_panel.cpp
+    src/widgets/urdf_3d_view.cpp
+    src/widgets/urdf_tree_view.cpp
+  )
+endif()
+
 # Header files (for MOC)
 set(HEADERS
   include/ros_weaver/main_window.hpp
@@ -333,6 +360,17 @@ set(HEADERS
   include/ros_weaver/widgets/mission_planner_panel.hpp
 )
 
+# URDF Viewer headers (only if Qt3D is available)
+if(HAVE_QT3D)
+  list(APPEND HEADERS
+    include/ros_weaver/core/urdf_parser.hpp
+    include/ros_weaver/core/urdf_joint_controller.hpp
+    include/ros_weaver/widgets/urdf_viewer_panel.hpp
+    include/ros_weaver/widgets/urdf_3d_view.hpp
+    include/ros_weaver/widgets/urdf_tree_view.hpp
+  )
+endif()
+
 # Create executable
 add_executable(${PROJECT_NAME}
   ${SOURCES}
@@ -350,6 +388,17 @@ target_link_libraries(${PROJECT_NAME}
   Qt5::Xml
   yaml-cpp
 )
+
+# Add Qt3D libraries if available
+if(HAVE_QT3D)
+  target_link_libraries(${PROJECT_NAME}
+    Qt5::3DCore
+    Qt5::3DExtras
+    Qt5::3DRender
+    Qt5::3DInput
+  )
+  target_compile_definitions(${PROJECT_NAME} PRIVATE HAVE_QT3D=1)
+endif()
 
 ament_target_dependencies(${PROJECT_NAME}
   rclcpp
@@ -548,6 +597,19 @@ if(BUILD_TESTING)
   )
   target_include_directories(test_architecture_optimizer PRIVATE include)
   target_link_libraries(test_architecture_optimizer Qt5::Core Qt5::Gui)
+
+  # Unit tests - URDF Parser
+  ament_add_gtest(test_urdf_parser
+    test/test_urdf_parser.cpp
+    src/core/urdf_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/ros_weaver/core/urdf_parser.hpp
+  )
+  target_include_directories(test_urdf_parser PRIVATE include ${CMAKE_CURRENT_BINARY_DIR})
+  target_link_libraries(test_urdf_parser Qt5::Core Qt5::Gui Qt5::Widgets)
+  target_compile_definitions(test_urdf_parser PRIVATE
+    TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures"
+  )
+  set_target_properties(test_urdf_parser PROPERTIES AUTOMOC ON)
 
   # Lint tests (non-invasive ones only - skip copyright/cpplint/uncrustify for now)
   find_package(ament_cmake_xmllint REQUIRED)

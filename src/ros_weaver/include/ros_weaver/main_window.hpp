@@ -71,6 +71,9 @@ class NetworkTopologyManager;
 class NetworkTopologyPanel;
 class BehaviorTreePanel;
 class MissionPlannerPanel;
+#ifdef HAVE_QT3D
+class URDFViewerPanel;
+#endif
 class DockDragFilter;
 
 class MainWindow : public QMainWindow {
@@ -427,6 +430,12 @@ private:
   // Mission planner panel
   MissionPlannerPanel* missionPlannerPanel_;
   QDockWidget* missionPlannerDock_;
+
+  // URDF viewer panel (only when Qt3D is available)
+#ifdef HAVE_QT3D
+  URDFViewerPanel* urdfViewerPanel_;
+  QDockWidget* urdfViewerDock_;
+#endif
 };
 
 }  // namespace ros_weaver

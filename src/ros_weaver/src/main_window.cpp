@@ -77,6 +77,9 @@
 #include "ros_weaver/widgets/behavior_tree_panel.hpp"
 #include "ros_weaver/widgets/dock_drop_overlay.hpp"
 #include "ros_weaver/widgets/mission_planner_panel.hpp"
+#ifdef HAVE_QT3D
+#include "ros_weaver/widgets/urdf_viewer_panel.hpp"
+#endif
 
 #include <QApplication>
 #include <QCloseEvent>
@@ -759,6 +762,15 @@ void MainWindow::setupMenuBar() {
   showMissionPlannerAction->setChecked(false);  // Hidden by default
   showMissionPlannerAction->setObjectName("showMissionPlannerAction");
   showMissionPlannerAction->setToolTip(tr("Show/hide mission waypoint planner panel"));
+
+#ifdef HAVE_QT3D
+  QAction* showURDFViewerAction = panelsMenu->addAction(tr("&URDF Viewer"));
+  showURDFViewerAction->setCheckable(true);
+  showURDFViewerAction->setChecked(false);  // Hidden by default
+  showURDFViewerAction->setObjectName("showURDFViewerAction");
+  showURDFViewerAction->setShortcut(QKeySequence("Ctrl+Shift+U"));
+  showURDFViewerAction->setToolTip(tr("Show/hide URDF visualization and editing panel"));
+#endif
 
   panelsMenu->addSeparator();
 
@@ -1944,6 +1956,29 @@ void MainWindow::setupDockWidgets() {
     connect(showMissionPlannerAction, &QAction::toggled, missionPlannerDock_, &QDockWidget::setVisible);
     connect(missionPlannerDock_, &QDockWidget::visibilityChanged, showMissionPlannerAction, &QAction::setChecked);
   }
+
+#ifdef HAVE_QT3D
+  // URDF Viewer Panel
+  urdfViewerDock_ = new QDockWidget(tr("URDF Viewer"), this);
+  urdfViewerDock_->setObjectName("urdfViewerDock");
+  urdfViewerDock_->setAllowedAreas(Qt::AllDockWidgetAreas);
+  urdfViewerDock_->setFeatures(QDockWidget::DockWidgetMovable |
+                                QDockWidget::DockWidgetFloatable |
+                                QDockWidget::DockWidgetClosable);
+
+  urdfViewerPanel_ = new URDFViewerPanel(this);
+  urdfViewerDock_->setWidget(urdfViewerPanel_);
+
+  addDockWidget(Qt::RightDockWidgetArea, urdfViewerDock_);
+  tabifyDockWidget(missionPlannerDock_, urdfViewerDock_);
+  urdfViewerDock_->hide();  // Hidden by default
+
+  QAction* showURDFViewerAction = findChild<QAction*>("showURDFViewerAction");
+  if (showURDFViewerAction) {
+    connect(showURDFViewerAction, &QAction::toggled, urdfViewerDock_, &QDockWidget::setVisible);
+    connect(urdfViewerDock_, &QDockWidget::visibilityChanged, showURDFViewerAction, &QAction::setChecked);
+  }
+#endif
 
   // Initialize dock drag filter for Ctrl+drag docking
   dockDragFilter_ = new DockDragFilter(this, this);
