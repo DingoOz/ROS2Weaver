@@ -2,6 +2,7 @@
 
 #include <QDebug>
 #include <QtMath>
+#include <QUrlQuery>
 #include <Qt3DExtras/QForwardRenderer>
 #include <Qt3DRender/QRenderSettings>
 #include <Qt3DInput/QInputSettings>

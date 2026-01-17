@@ -337,7 +337,7 @@ void URDFViewerPanel::setupConnections() {
           this, &URDFViewerPanel::on3DViewSelectionChanged);
 
   // Tree view selection
-  connect(treeView_, &URDFTreeView::selectionChanged,
+  connect(treeView_, &URDFTreeView::jointSelectionChanged,
           this, &URDFViewerPanel::onTreeViewSelectionChanged);
 }
 

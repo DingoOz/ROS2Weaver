@@ -1,5 +1,6 @@
 #include "ros_weaver/core/urdf_joint_controller.hpp"
 
+#include <cmath>
 #include <QDebug>
 
 namespace ros_weaver {

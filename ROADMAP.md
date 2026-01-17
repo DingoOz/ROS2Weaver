@@ -91,6 +91,7 @@ These are community and AI-suggested features to enhance ROS2Weaver, prioritized
 | CI/CD Pipeline Generator | Low | Medium |
 | Embedded mini-RViz / 3D view | Low | High |
 | Multi-user collaboration | Low | High |
+| URDF Viewer and Modifier | Medium | High |
 
 ---
 
@@ -131,6 +132,17 @@ This keeps features isolated and makes code review easier.
 - Presence indicators
 - Conflict resolution
 - Would require WebSocket server infrastructure
+
+### Remaining: URDF Viewer and Modifier
+- Load and visualize URDF files in 3D with joint axis orientation indicators (RViz-style RGB coloring)
+- Blender-style camera controls (orbit, pan, zoom)
+- Synchronized tree view of URDF joints with 3D selection
+- Multi-select support for joints in both views
+- Joint orientation editing with 90-degree snap (default) or free rotation mode
+- Real-time model updates reflecting joint orientation changes
+- Configurable rendering: wireframe, basic shading, full lighting with shadows
+- Customizable view background colors
+- Would require Qt3D integration for 3D rendering
 
 ---
 
@@ -2656,6 +2668,749 @@ google_maps:
 - Comply with Google Maps Platform Terms of Service
 - Display required Google attribution
 - Option to use alternative providers (OpenStreetMap, Mapbox) for users without Google API access
+
+---
+
+### URDF Viewer and Modifier
+
+**Branch:** `feature/urdf-viewer-modifier`
+
+**Overview:** A comprehensive URDF visualization and editing tool that allows users to load URDF files, view joint orientations in 3D with RViz-style axis indicators, navigate with Blender-style controls, and modify joint orientations interactively.
+
+#### New Files to Create
+
+```
+src/ros_weaver/include/ros_weaver/widgets/urdf_viewer_panel.hpp
+src/ros_weaver/src/widgets/urdf_viewer_panel.cpp
+src/ros_weaver/include/ros_weaver/core/urdf_parser.hpp
+src/ros_weaver/src/core/urdf_parser.cpp
+src/ros_weaver/include/ros_weaver/widgets/urdf_3d_view.hpp
+src/ros_weaver/src/widgets/urdf_3d_view.cpp
+src/ros_weaver/include/ros_weaver/widgets/urdf_tree_view.hpp
+src/ros_weaver/src/widgets/urdf_tree_view.cpp
+src/ros_weaver/include/ros_weaver/core/urdf_joint_controller.hpp
+src/ros_weaver/src/core/urdf_joint_controller.cpp
+```
+
+#### Implementation Steps
+
+**Step 1: Create URDFParser class**
+
+File: `src/ros_weaver/include/ros_weaver/core/urdf_parser.hpp`
+
+```cpp
+#include <urdf/model.h>
+#include <QVector3D>
+#include <QQuaternion>
+#include <QMatrix4x4>
+
+struct URDFJoint {
+  QString name;
+  QString parentLink;
+  QString childLink;
+  QString type;  // revolute, continuous, prismatic, fixed, floating, planar
+  QVector3D origin;
+  QQuaternion orientation;
+  QVector3D axis;
+  double lowerLimit;
+  double upperLimit;
+  double currentValue;
+};
+
+struct URDFLink {
+  QString name;
+  QString meshPath;
+  QVector3D visualOrigin;
+  QQuaternion visualOrientation;
+  QVector3D scale;
+  QColor color;
+};
+
+struct URDFModel {
+  QString name;
+  QList<URDFLink> links;
+  QList<URDFJoint> joints;
+  QString rootLink;
+};
+
+class URDFParser : public QObject {
+  Q_OBJECT
+public:
+  explicit URDFParser(QObject* parent = nullptr);
+
+  // Load URDF from file or string
+  bool loadFromFile(const QString& filePath);
+  bool loadFromString(const QString& urdfContent);
+
+  // Export modified URDF
+  QString exportToString() const;
+  bool exportToFile(const QString& filePath) const;
+
+  // Access model data
+  URDFModel getModel() const;
+  URDFJoint* getJoint(const QString& jointName);
+  URDFLink* getLink(const QString& linkName);
+
+  // Modify joint orientation
+  void setJointOrientation(const QString& jointName, const QQuaternion& orientation);
+  void rotateJointBy(const QString& jointName, const QVector3D& axis, double angleDegrees);
+
+  // Compute transforms
+  QMatrix4x4 getGlobalTransform(const QString& linkName) const;
+
+signals:
+  void modelLoaded(const URDFModel& model);
+  void jointModified(const QString& jointName);
+  void parseError(const QString& error);
+
+private:
+  urdf::Model urdfModel_;
+  URDFModel model_;
+
+  void buildModelFromUrdf();
+  QQuaternion rpyToQuaternion(double roll, double pitch, double yaw);
+  void rpyFromQuaternion(const QQuaternion& q, double& roll, double& pitch, double& yaw);
+};
+```
+
+**Step 2: Create URDF3DView widget using Qt3D**
+
+File: `src/ros_weaver/include/ros_weaver/widgets/urdf_3d_view.hpp`
+
+```cpp
+#include <Qt3DExtras/Qt3DWindow>
+#include <Qt3DCore/QEntity>
+#include <Qt3DCore/QTransform>
+#include <Qt3DExtras/QOrbitCameraController>
+#include <Qt3DRender/QDirectionalLight>
+#include <Qt3DRender/QPointLight>
+
+class AxisIndicator; // Forward declaration
+
+enum class RenderMode {
+  Wireframe,
+  BasicShading,
+  FullLighting
+};
+
+class URDF3DView : public QWidget {
+  Q_OBJECT
+public:
+  explicit URDF3DView(QWidget* parent = nullptr);
+
+  void setModel(const URDFModel& model);
+  void updateJointTransform(const QString& jointName, const QQuaternion& orientation);
+
+  // Selection
+  void selectJoint(const QString& jointName, bool addToSelection = false);
+  void selectJoints(const QStringList& jointNames);
+  void clearSelection();
+  QStringList selectedJoints() const;
+
+  // Camera controls (Blender-style)
+  void resetCamera();
+  void setCameraPosition(const QVector3D& position);
+  void setCameraTarget(const QVector3D& target);
+
+  // Rendering options
+  void setRenderMode(RenderMode mode);
+  void setShadowsEnabled(bool enabled);
+  void setBackgroundColor(const QColor& color);
+  void setAmbientLightIntensity(float intensity);
+
+signals:
+  void jointClicked(const QString& jointName, bool ctrlPressed);
+  void jointDoubleClicked(const QString& jointName);
+  void selectionChanged(const QStringList& selectedJoints);
+
+protected:
+  void mousePressEvent(QMouseEvent* event) override;
+  void mouseMoveEvent(QMouseEvent* event) override;
+  void mouseReleaseEvent(QMouseEvent* event) override;
+  void wheelEvent(QWheelEvent* event) override;
+  void keyPressEvent(QKeyEvent* event) override;
+
+private:
+  void setupScene();
+  void setupCamera();
+  void setupLighting();
+  void createJointAxisIndicator(const URDFJoint& joint, Qt3DCore::QEntity* parent);
+  void createLinkMesh(const URDFLink& link, Qt3DCore::QEntity* parent);
+  void highlightSelectedJoints();
+  Qt3DCore::QEntity* pickEntityAt(const QPoint& screenPos);
+
+  // Scene components
+  Qt3DExtras::Qt3DWindow* view3D_;
+  Qt3DCore::QEntity* rootEntity_;
+  Qt3DRender::QCamera* camera_;
+  Qt3DExtras::QOrbitCameraController* cameraController_;
+
+  // Lighting
+  Qt3DCore::QEntity* ambientLightEntity_;
+  Qt3DCore::QEntity* directionalLightEntity_;
+  Qt3DCore::QEntity* pointLightEntity_;
+  bool shadowsEnabled_ = true;
+
+  // Model entities
+  QMap<QString, Qt3DCore::QEntity*> linkEntities_;
+  QMap<QString, Qt3DCore::QEntity*> jointEntities_;
+  QMap<QString, Qt3DCore::QTransform*> jointTransforms_;
+  QMap<QString, AxisIndicator*> axisIndicators_;
+
+  // Selection
+  QStringList selectedJoints_;
+  QColor selectionHighlightColor_ = QColor(255, 200, 0);
+
+  // Camera control state
+  bool isPanning_ = false;
+  bool isOrbiting_ = false;
+  QPoint lastMousePos_;
+
+  // Rendering
+  RenderMode renderMode_ = RenderMode::FullLighting;
+  QColor backgroundColor_ = QColor(50, 50, 50);
+};
+```
+
+**Step 3: Create Axis Indicator (RViz-style RGB coloring)**
+
+```cpp
+// X axis = Red, Y axis = Green, Z axis = Blue (RViz convention)
+class AxisIndicator : public Qt3DCore::QEntity {
+public:
+  AxisIndicator(Qt3DCore::QEntity* parent, float length = 0.1f);
+
+  void setHighlighted(bool highlighted);
+  void setScale(float scale);
+
+private:
+  void createAxis(const QVector3D& direction, const QColor& color, float length);
+
+  Qt3DCore::QEntity* xAxisEntity_;
+  Qt3DCore::QEntity* yAxisEntity_;
+  Qt3DCore::QEntity* zAxisEntity_;
+
+  static constexpr QColor X_AXIS_COLOR = QColor(255, 0, 0);     // Red
+  static constexpr QColor Y_AXIS_COLOR = QColor(0, 255, 0);     // Green
+  static constexpr QColor Z_AXIS_COLOR = QColor(0, 0, 255);     // Blue
+};
+```
+
+**Step 4: Create URDFTreeView widget**
+
+File: `src/ros_weaver/include/ros_weaver/widgets/urdf_tree_view.hpp`
+
+```cpp
+class URDFTreeView : public QTreeWidget {
+  Q_OBJECT
+public:
+  explicit URDFTreeView(QWidget* parent = nullptr);
+
+  void setModel(const URDFModel& model);
+  void updateJoint(const QString& jointName, const URDFJoint& joint);
+
+  // Selection synchronization
+  void selectJoint(const QString& jointName, bool addToSelection = false);
+  void selectJoints(const QStringList& jointNames);
+  QStringList selectedJointNames() const;
+
+signals:
+  void jointSelected(const QString& jointName, bool ctrlPressed);
+  void jointDoubleClicked(const QString& jointName);
+  void selectionChanged(const QStringList& selectedJoints);
+
+protected:
+  void selectionChangedEvent();
+
+private:
+  void buildTree(const URDFModel& model);
+  QTreeWidgetItem* findJointItem(const QString& jointName);
+  void populateJointItem(QTreeWidgetItem* item, const URDFJoint& joint);
+
+  QMap<QString, QTreeWidgetItem*> jointItems_;
+  QMap<QString, QTreeWidgetItem*> linkItems_;
+  bool blockSelectionSignals_ = false;
+};
+```
+
+**Step 5: Create URDFJointController for orientation editing**
+
+File: `src/ros_weaver/include/ros_weaver/core/urdf_joint_controller.hpp`
+
+```cpp
+enum class RotationMode {
+  Snap90Degrees,  // Default: rotate in 90-degree increments
+  FreeRotation    // Optional: arbitrary rotation angles
+};
+
+enum class RotationAxis {
+  X,
+  Y,
+  Z
+};
+
+class URDFJointController : public QObject {
+  Q_OBJECT
+public:
+  explicit URDFJointController(URDFParser* parser, QObject* parent = nullptr);
+
+  // Rotation mode
+  void setRotationMode(RotationMode mode);
+  RotationMode rotationMode() const;
+
+  // Rotate selected joints
+  void rotateSelectedJoints(RotationAxis axis, double angleDegrees);
+  void rotateJoint(const QString& jointName, RotationAxis axis, double angleDegrees);
+
+  // For snap mode: always use 90-degree increments
+  void snapRotateSelectedJoints(RotationAxis axis, bool positive);
+
+  // For free mode: rotate by arbitrary angle
+  void freeRotateSelectedJoints(RotationAxis axis, double angleDegrees);
+
+  // Mouse-based rotation
+  void startMouseRotation(const QString& jointName, RotationAxis axis);
+  void updateMouseRotation(double deltaAngle);
+  void finishMouseRotation();
+
+  // Selection management
+  void setSelectedJoints(const QStringList& jointNames);
+  QStringList selectedJoints() const;
+
+signals:
+  void jointRotated(const QString& jointName, const QQuaternion& newOrientation);
+  void rotationPreview(const QString& jointName, const QQuaternion& previewOrientation);
+
+private:
+  URDFParser* parser_;
+  QStringList selectedJoints_;
+  RotationMode rotationMode_ = RotationMode::Snap90Degrees;
+
+  // Mouse rotation state
+  QString activeRotationJoint_;
+  RotationAxis activeRotationAxis_;
+  QQuaternion originalOrientation_;
+};
+```
+
+**Step 6: Create main URDFViewerPanel widget**
+
+File: `src/ros_weaver/include/ros_weaver/widgets/urdf_viewer_panel.hpp`
+
+```cpp
+class URDFViewerPanel : public QWidget {
+  Q_OBJECT
+public:
+  explicit URDFViewerPanel(QWidget* parent = nullptr);
+
+public slots:
+  void loadURDF(const QString& filePath);
+  void saveURDF(const QString& filePath);
+
+private:
+  void setupUi();
+  void setupConnections();
+  void setupToolbar();
+  void setupShortcuts();
+  void syncSelectionFrom3DView();
+  void syncSelectionFromTreeView();
+
+  // UI Components
+  QSplitter* mainSplitter_;
+  URDF3DView* view3D_;
+  URDFTreeView* treeView_;
+
+  // Toolbar
+  QToolBar* toolbar_;
+  QAction* loadAction_;
+  QAction* saveAction_;
+  QComboBox* renderModeCombo_;
+  QCheckBox* shadowsCheckBox_;
+  QPushButton* bgColorButton_;
+
+  // Rotation controls
+  QGroupBox* rotationGroup_;
+  QRadioButton* snap90Radio_;
+  QRadioButton* freeRotationRadio_;
+  QPushButton* rotateXPosButton_;  // +90 around X
+  QPushButton* rotateXNegButton_;  // -90 around X
+  QPushButton* rotateYPosButton_;
+  QPushButton* rotateYNegButton_;
+  QPushButton* rotateZPosButton_;
+  QPushButton* rotateZNegButton_;
+  QDoubleSpinBox* freeAngleSpinBox_;  // For free rotation mode
+
+  // Lighting controls
+  QSlider* ambientLightSlider_;
+
+  // Core components
+  URDFParser* parser_;
+  URDFJointController* jointController_;
+
+private slots:
+  void onLoadClicked();
+  void onSaveClicked();
+  void onRenderModeChanged(int index);
+  void onShadowsToggled(bool enabled);
+  void onBgColorClicked();
+  void onRotationModeChanged();
+  void onRotateButtonClicked();
+  void onAmbientLightChanged(int value);
+};
+```
+
+**Step 7: Implement keyboard shortcuts for rotation**
+
+```cpp
+void URDFViewerPanel::setupShortcuts() {
+  // Rotation shortcuts (with joint selected)
+  // X axis rotation
+  QShortcut* rotXPos = new QShortcut(QKeySequence("X"), this);
+  connect(rotXPos, &QShortcut::activated, this, [this]() {
+    if (snap90Radio_->isChecked()) {
+      jointController_->snapRotateSelectedJoints(RotationAxis::X, true);
+    } else {
+      jointController_->freeRotateSelectedJoints(RotationAxis::X, freeAngleSpinBox_->value());
+    }
+  });
+
+  QShortcut* rotXNeg = new QShortcut(QKeySequence("Shift+X"), this);
+  connect(rotXNeg, &QShortcut::activated, this, [this]() {
+    if (snap90Radio_->isChecked()) {
+      jointController_->snapRotateSelectedJoints(RotationAxis::X, false);
+    } else {
+      jointController_->freeRotateSelectedJoints(RotationAxis::X, -freeAngleSpinBox_->value());
+    }
+  });
+
+  // Y axis rotation
+  QShortcut* rotYPos = new QShortcut(QKeySequence("Y"), this);
+  connect(rotYPos, &QShortcut::activated, this, [this]() {
+    if (snap90Radio_->isChecked()) {
+      jointController_->snapRotateSelectedJoints(RotationAxis::Y, true);
+    } else {
+      jointController_->freeRotateSelectedJoints(RotationAxis::Y, freeAngleSpinBox_->value());
+    }
+  });
+
+  QShortcut* rotYNeg = new QShortcut(QKeySequence("Shift+Y"), this);
+  // ... similar pattern
+
+  // Z axis rotation
+  QShortcut* rotZPos = new QShortcut(QKeySequence("Z"), this);
+  // ... similar pattern
+
+  // Reset orientation
+  QShortcut* resetOrientation = new QShortcut(QKeySequence("R"), this);
+  connect(resetOrientation, &QShortcut::activated, this, [this]() {
+    for (const QString& joint : jointController_->selectedJoints()) {
+      parser_->setJointOrientation(joint, QQuaternion());
+    }
+  });
+}
+```
+
+**Step 8: Blender-style camera controls implementation**
+
+```cpp
+void URDF3DView::mousePressEvent(QMouseEvent* event) {
+  lastMousePos_ = event->pos();
+
+  if (event->button() == Qt::MiddleButton) {
+    if (event->modifiers() & Qt::ShiftModifier) {
+      isPanning_ = true;
+      setCursor(Qt::ClosedHandCursor);
+    } else {
+      isOrbiting_ = true;
+      setCursor(Qt::SizeAllCursor);
+    }
+  } else if (event->button() == Qt::LeftButton) {
+    // Object selection via ray casting
+    Qt3DCore::QEntity* picked = pickEntityAt(event->pos());
+    if (picked) {
+      QString jointName = findJointForEntity(picked);
+      if (!jointName.isEmpty()) {
+        bool ctrlPressed = event->modifiers() & Qt::ControlModifier;
+        emit jointClicked(jointName, ctrlPressed);
+      }
+    }
+  }
+}
+
+void URDF3DView::mouseMoveEvent(QMouseEvent* event) {
+  QPoint delta = event->pos() - lastMousePos_;
+  lastMousePos_ = event->pos();
+
+  if (isOrbiting_) {
+    // Orbit camera around target
+    float sensitivity = 0.5f;
+    float yaw = -delta.x() * sensitivity;
+    float pitch = -delta.y() * sensitivity;
+
+    QVector3D cameraPos = camera_->position();
+    QVector3D target = camera_->viewCenter();
+    QVector3D direction = cameraPos - target;
+
+    // Apply rotation
+    QMatrix4x4 rotationMatrix;
+    rotationMatrix.rotate(yaw, QVector3D(0, 1, 0));
+    rotationMatrix.rotate(pitch, QVector3D::crossProduct(direction, camera_->upVector()).normalized());
+
+    QVector3D newDirection = rotationMatrix.map(direction);
+    camera_->setPosition(target + newDirection);
+    camera_->setViewCenter(target);
+  } else if (isPanning_) {
+    // Pan camera
+    float sensitivity = 0.01f;
+    QVector3D right = QVector3D::crossProduct(camera_->viewVector(), camera_->upVector()).normalized();
+    QVector3D up = camera_->upVector();
+
+    QVector3D pan = right * (-delta.x() * sensitivity) + up * (delta.y() * sensitivity);
+    camera_->setPosition(camera_->position() + pan);
+    camera_->setViewCenter(camera_->viewCenter() + pan);
+  }
+}
+
+void URDF3DView::wheelEvent(QWheelEvent* event) {
+  // Zoom with scroll wheel
+  float zoomSensitivity = 0.001f;
+  float zoomFactor = 1.0f - (event->angleDelta().y() * zoomSensitivity);
+
+  QVector3D cameraPos = camera_->position();
+  QVector3D target = camera_->viewCenter();
+  QVector3D direction = cameraPos - target;
+
+  camera_->setPosition(target + direction * zoomFactor);
+}
+```
+
+**Step 9: Real-time model updates with joint orientation changes**
+
+```cpp
+void URDF3DView::updateJointTransform(const QString& jointName, const QQuaternion& orientation) {
+  if (!jointTransforms_.contains(jointName)) return;
+
+  Qt3DCore::QTransform* transform = jointTransforms_[jointName];
+  transform->setRotation(orientation);
+
+  // Update all child links recursively
+  updateChildTransforms(jointName);
+}
+
+void URDF3DView::updateChildTransforms(const QString& jointName) {
+  // Find child link of this joint
+  URDFJoint* joint = parser_->getJoint(jointName);
+  if (!joint) return;
+
+  QString childLinkName = joint->childLink;
+
+  // Find all joints that have this link as parent
+  for (const URDFJoint& childJoint : parser_->getModel().joints) {
+    if (childJoint.parentLink == childLinkName) {
+      // Compute accumulated transform
+      QMatrix4x4 globalTransform = parser_->getGlobalTransform(childJoint.name);
+
+      if (jointTransforms_.contains(childJoint.name)) {
+        jointTransforms_[childJoint.name]->setMatrix(globalTransform);
+      }
+
+      // Recursively update children
+      updateChildTransforms(childJoint.name);
+    }
+  }
+}
+```
+
+**Step 10: Rendering mode implementation**
+
+```cpp
+void URDF3DView::setRenderMode(RenderMode mode) {
+  renderMode_ = mode;
+
+  for (auto entity : linkEntities_.values()) {
+    Qt3DExtras::QPhongMaterial* material = entity->findChild<Qt3DExtras::QPhongMaterial*>();
+    if (!material) continue;
+
+    switch (mode) {
+      case RenderMode::Wireframe:
+        // Use a wireframe effect
+        applyWireframeEffect(entity);
+        break;
+
+      case RenderMode::BasicShading:
+        material->setAmbient(QColor(100, 100, 100));
+        material->setDiffuse(QColor(150, 150, 150));
+        material->setSpecular(QColor(0, 0, 0));
+        material->setShininess(0.0f);
+        break;
+
+      case RenderMode::FullLighting:
+        material->setAmbient(QColor(50, 50, 50));
+        material->setDiffuse(QColor(200, 200, 200));
+        material->setSpecular(QColor(255, 255, 255));
+        material->setShininess(50.0f);
+        break;
+    }
+  }
+
+  // Update lighting based on mode
+  directionalLightEntity_->setEnabled(mode == RenderMode::FullLighting);
+  pointLightEntity_->setEnabled(mode == RenderMode::FullLighting);
+}
+
+void URDF3DView::setShadowsEnabled(bool enabled) {
+  shadowsEnabled_ = enabled;
+
+  // Configure shadow map on directional light
+  Qt3DRender::QDirectionalLight* light =
+      directionalLightEntity_->findChild<Qt3DRender::QDirectionalLight*>();
+  if (light) {
+    // Qt3D shadow configuration would go here
+    // Note: Qt3D shadow support may require custom framegraph setup
+  }
+}
+
+void URDF3DView::setBackgroundColor(const QColor& color) {
+  backgroundColor_ = color;
+  view3D_->defaultFrameGraph()->setClearColor(color);
+}
+```
+
+**Step 11: Integration with MainWindow**
+
+```cpp
+void MainWindow::createURDFViewerPanel() {
+  urdfViewerPanel_ = new URDFViewerPanel(this);
+  urdfViewerDock_ = new QDockWidget(tr("URDF Viewer"), this);
+  urdfViewerDock_->setWidget(urdfViewerPanel_);
+  urdfViewerDock_->setObjectName("URDFViewerDock");
+  addDockWidget(Qt::RightDockWidgetArea, urdfViewerDock_);
+
+  // Add menu action
+  QAction* showURDFViewer = viewMenu_->addAction(tr("URDF Viewer"));
+  showURDFViewer->setCheckable(true);
+  showURDFViewer->setChecked(true);
+  connect(showURDFViewer, &QAction::toggled,
+          urdfViewerDock_, &QDockWidget::setVisible);
+  connect(urdfViewerDock_, &QDockWidget::visibilityChanged,
+          showURDFViewer, &QAction::setChecked);
+
+  // File menu integration
+  QAction* loadURDFAction = fileMenu_->addAction(tr("Load URDF..."));
+  loadURDFAction->setShortcut(QKeySequence("Ctrl+Shift+U"));
+  connect(loadURDFAction, &QAction::triggered, urdfViewerPanel_, &URDFViewerPanel::onLoadClicked);
+}
+```
+
+**Step 12: Add to CMakeLists.txt**
+
+```cmake
+# Qt3D dependencies
+find_package(Qt6 REQUIRED COMPONENTS 3DCore 3DExtras 3DRender 3DInput)
+
+set(WIDGET_SOURCES
+  # ... existing sources ...
+  src/widgets/urdf_viewer_panel.cpp
+  src/widgets/urdf_3d_view.cpp
+  src/widgets/urdf_tree_view.cpp
+)
+
+set(CORE_SOURCES
+  # ... existing sources ...
+  src/core/urdf_parser.cpp
+  src/core/urdf_joint_controller.cpp
+)
+
+target_link_libraries(${PROJECT_NAME}
+  # ... existing libraries ...
+  Qt6::3DCore
+  Qt6::3DExtras
+  Qt6::3DRender
+  Qt6::3DInput
+  urdfdom
+)
+```
+
+#### Dependencies
+
+- Qt3D (Qt6::3DCore, Qt6::3DExtras, Qt6::3DRender, Qt6::3DInput)
+- urdfdom (for URDF parsing)
+- Assimp (optional, for loading mesh files like .dae, .stl)
+
+#### Testing
+
+Create test file `test/test_urdf_viewer.cpp`:
+
+```cpp
+TEST(URDFParserTest, LoadValidURDF) {
+  URDFParser parser;
+  bool success = parser.loadFromFile("test/fixtures/simple_robot.urdf");
+  EXPECT_TRUE(success);
+  EXPECT_FALSE(parser.getModel().joints.empty());
+}
+
+TEST(URDFParserTest, JointOrientationModification) {
+  URDFParser parser;
+  parser.loadFromFile("test/fixtures/simple_robot.urdf");
+
+  QQuaternion rot90Z = QQuaternion::fromAxisAndAngle(0, 0, 1, 90);
+  parser.setJointOrientation("joint1", rot90Z);
+
+  URDFJoint* joint = parser.getJoint("joint1");
+  EXPECT_TRUE(qFuzzyCompare(joint->orientation, rot90Z));
+}
+
+TEST(URDFParserTest, ExportModifiedURDF) {
+  URDFParser parser;
+  parser.loadFromFile("test/fixtures/simple_robot.urdf");
+  parser.rotateJointBy("joint1", QVector3D(0, 0, 1), 90);
+
+  QString exported = parser.exportToString();
+  EXPECT_TRUE(exported.contains("rpy="));  // Check orientation is preserved
+}
+
+TEST(URDFJointControllerTest, Snap90DegreeRotation) {
+  URDFParser parser;
+  parser.loadFromFile("test/fixtures/simple_robot.urdf");
+
+  URDFJointController controller(&parser);
+  controller.setSelectedJoints({"joint1"});
+  controller.snapRotateSelectedJoints(RotationAxis::Z, true);
+
+  // Should have rotated exactly 90 degrees
+  URDFJoint* joint = parser.getJoint("joint1");
+  // Verify orientation
+}
+```
+
+#### User Interface Features
+
+1. **Toolbar Controls:**
+   - Load/Save URDF buttons
+   - Render mode dropdown (Wireframe, Basic, Full Lighting)
+   - Shadows toggle checkbox
+   - Background color picker button
+   - Ambient light intensity slider
+
+2. **Rotation Panel:**
+   - Radio buttons: "90° Snap" (default) / "Free Rotation"
+   - Six buttons for +/- rotation around X, Y, Z axes
+   - Angle spinbox for free rotation mode (1-180 degrees)
+
+3. **Keyboard Shortcuts:**
+   - `X` / `Shift+X`: Rotate selected joints around X axis
+   - `Y` / `Shift+Y`: Rotate selected joints around Y axis
+   - `Z` / `Shift+Z`: Rotate selected joints around Z axis
+   - `R`: Reset selected joint orientation
+   - `Ctrl+A`: Select all joints
+   - `Escape`: Clear selection
+
+4. **Mouse Controls (Blender-style):**
+   - Middle mouse button: Orbit camera
+   - Shift + Middle mouse button: Pan camera
+   - Scroll wheel: Zoom
+   - Left click: Select joint
+   - Ctrl + Left click: Add to selection
 
 ---
 

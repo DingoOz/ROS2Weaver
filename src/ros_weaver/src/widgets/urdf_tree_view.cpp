@@ -277,11 +277,19 @@ void URDFTreeView::expandToJoint(const QString& jointName) {
   }
 }
 
+void URDFTreeView::expandAll() {
+  QTreeWidget::expandAll();
+}
+
+void URDFTreeView::collapseAll() {
+  QTreeWidget::collapseAll();
+}
+
 void URDFTreeView::onItemSelectionChanged() {
   if (blockSelectionSignals_) return;
 
   QStringList selectedJoints = selectedJointNames();
-  emit selectionChanged(selectedJoints);
+  emit jointSelectionChanged(selectedJoints);
 }
 
 void URDFTreeView::selectionChanged(const QItemSelection& selected, const QItemSelection& deselected) {

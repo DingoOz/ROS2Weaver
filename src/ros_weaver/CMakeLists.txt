@@ -45,14 +45,13 @@ find_package(Qt5 REQUIRED COMPONENTS
 )
 
 # Try to find Qt5 3D components (optional, for URDF Viewer)
-find_package(Qt5 QUIET COMPONENTS
-  3DCore
-  3DExtras
-  3DRender
-  3DInput
-)
+# Note: We find each Qt53D package directly because Qt5 COMPONENTS syntax doesn't work for 3D on some systems
+find_package(Qt53DCore QUIET)
+find_package(Qt53DExtras QUIET)
+find_package(Qt53DRender QUIET)
+find_package(Qt53DInput QUIET)
 
-if(Qt5_3DCore_FOUND AND Qt5_3DExtras_FOUND AND Qt5_3DRender_FOUND AND Qt5_3DInput_FOUND)
+if(Qt53DCore_FOUND AND Qt53DExtras_FOUND AND Qt53DRender_FOUND AND Qt53DInput_FOUND)
   set(HAVE_QT3D TRUE)
   message(STATUS "Qt5 3D found - URDF Viewer will be enabled")
 else()

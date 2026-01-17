@@ -37,7 +37,7 @@ public:
 signals:
   void jointSelected(const QString& jointName, bool ctrlPressed);
   void jointDoubleClicked(const QString& jointName);
-  void selectionChanged(const QStringList& selectedJoints);
+  void jointSelectionChanged(const QStringList& selectedJoints);
   void jointContextMenuRequested(const QString& jointName, const QPoint& globalPos);
 
 protected:
