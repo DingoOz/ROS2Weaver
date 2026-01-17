@@ -397,6 +397,12 @@ void MainWindow::setupMenuBar() {
   behaviorTreeAction->setToolTip(tr("Load the behavior tree patrol example - demonstrates Nav2 BT-driven navigation"));
   connect(behaviorTreeAction, &QAction::triggered, this, &MainWindow::onLoadBehaviorTreeExample);
 
+#ifdef HAVE_QT3D
+  QAction* turtleBot3URDFAction = examplesMenu->addAction(tr("TurtleBot3 &URDF Viewer"));
+  turtleBot3URDFAction->setToolTip(tr("Load TurtleBot3 robot model in the URDF Viewer"));
+  connect(turtleBot3URDFAction, &QAction::triggered, this, &MainWindow::onLoadTurtleBot3URDFExample);
+#endif
+
   examplesMenu->addSeparator();
 
   QAction* launchTurtlesimAction = examplesMenu->addAction(tr("&Launch Turtlesim Nodes"));
@@ -2590,6 +2596,93 @@ void MainWindow::onLoadBehaviorTreeExample() {
   outputPanel_->appendBuildOutput(tr("Explore the patrol_behavior.xml tree structure visually!\n\n"));
   outputPanel_->appendBuildOutput(tr("BT XML location: %1\n").arg(btXmlPath));
 }
+
+#ifdef HAVE_QT3D
+void MainWindow::onLoadTurtleBot3URDFExample() {
+  // Try to find TurtleBot3 description package
+  QString urdfPath;
+  QString modelName = "burger";  // Default model
+
+  // Check TURTLEBOT3_MODEL environment variable
+  QString tbModel = qgetenv("TURTLEBOT3_MODEL");
+  if (!tbModel.isEmpty()) {
+    modelName = tbModel;
+  }
+
+  // Try to find the URDF from the turtlebot3_description package
+  try {
+    std::string packageShare = ament_index_cpp::get_package_share_directory("turtlebot3_description");
+    urdfPath = QString::fromStdString(packageShare) +
+               "/urdf/turtlebot3_" + modelName + ".urdf";
+  } catch (const std::exception&) {
+    // Package not found
+  }
+
+  // Check if file exists
+  if (urdfPath.isEmpty() || !QFile::exists(urdfPath)) {
+    // Try common fallback paths
+    QStringList searchPaths;
+    searchPaths << QString("/opt/ros/jazzy/share/turtlebot3_description/urdf/turtlebot3_%1.urdf").arg(modelName);
+    searchPaths << QString("/opt/ros/humble/share/turtlebot3_description/urdf/turtlebot3_%1.urdf").arg(modelName);
+
+    bool found = false;
+    for (const QString& path : searchPaths) {
+      if (QFile::exists(path)) {
+        urdfPath = path;
+        found = true;
+        break;
+      }
+    }
+
+    if (!found) {
+      QMessageBox::warning(this, tr("TurtleBot3 Not Found"),
+        tr("Could not find TurtleBot3 description package.\n\n"
+           "Install it with:\n"
+           "  sudo apt install ros-jazzy-turtlebot3-description\n\n"
+           "Or for your ROS2 distribution:\n"
+           "  sudo apt install ros-${ROS_DISTRO}-turtlebot3-description\n\n"
+           "Current TURTLEBOT3_MODEL: %1").arg(modelName.isEmpty() ? "(not set)" : modelName));
+      return;
+    }
+  }
+
+  // Show the URDF viewer panel
+  urdfViewerDock_->show();
+  urdfViewerDock_->raise();
+
+  // Load the URDF
+  urdfViewerPanel_->loadURDF(urdfPath);
+
+  // Update the menu action checkbox
+  QAction* showURDFViewerAction = findChild<QAction*>("showURDFViewerAction");
+  if (showURDFViewerAction) {
+    showURDFViewerAction->setChecked(true);
+  }
+
+  // Show instructions in output panel
+  outputPanel_->clearBuildOutput();
+  outputPanel_->appendBuildOutput(tr("Loaded TurtleBot3 URDF: %1\n\n").arg(urdfPath));
+  outputPanel_->appendBuildOutput(tr("URDF Viewer Controls:\n"));
+  outputPanel_->appendBuildOutput(tr("  Mouse Controls:\n"));
+  outputPanel_->appendBuildOutput(tr("    - Middle-mouse drag: Orbit camera\n"));
+  outputPanel_->appendBuildOutput(tr("    - Shift + middle-mouse: Pan camera\n"));
+  outputPanel_->appendBuildOutput(tr("    - Scroll wheel: Zoom in/out\n"));
+  outputPanel_->appendBuildOutput(tr("    - Click: Select joint\n"));
+  outputPanel_->appendBuildOutput(tr("    - Ctrl+click: Multi-select joints\n\n"));
+  outputPanel_->appendBuildOutput(tr("  Keyboard Shortcuts:\n"));
+  outputPanel_->appendBuildOutput(tr("    - X: Rotate selected joint around X axis (+90°)\n"));
+  outputPanel_->appendBuildOutput(tr("    - Y: Rotate selected joint around Y axis (+90°)\n"));
+  outputPanel_->appendBuildOutput(tr("    - Z: Rotate selected joint around Z axis (+90°)\n"));
+  outputPanel_->appendBuildOutput(tr("    - Shift+X/Y/Z: Rotate in opposite direction (-90°)\n"));
+  outputPanel_->appendBuildOutput(tr("    - R: Reset camera view\n"));
+  outputPanel_->appendBuildOutput(tr("    - Ctrl+A: Select all joints\n"));
+  outputPanel_->appendBuildOutput(tr("    - Escape: Clear selection\n\n"));
+  outputPanel_->appendBuildOutput(tr("The tree view shows the robot's kinematic structure.\n"));
+  outputPanel_->appendBuildOutput(tr("Click on joints to see their axis indicators (RGB = XYZ).\n"));
+
+  statusBar()->showMessage(tr("Loaded TurtleBot3 %1 URDF in viewer").arg(modelName), 5000);
+}
+#endif
 
 void MainWindow::onLaunchTurtlesim() {
   // Check if turtlesim is available
