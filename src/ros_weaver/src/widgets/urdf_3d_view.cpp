@@ -22,7 +22,12 @@ URDF3DView::URDF3DView(QWidget* parent)
   // Create a container widget for the 3D window
   container_ = QWidget::createWindowContainer(view3D_, this);
   container_->setFocusPolicy(Qt::StrongFocus);
+  container_->setMouseTracking(true);
+
+  // Install event filter on both the container and the 3D window
+  // Qt3DWindow captures events before container, so we need to filter both
   container_->installEventFilter(this);
+  view3D_->installEventFilter(this);
 
   // Layout
   QVBoxLayout* layout = new QVBoxLayout(this);
@@ -484,9 +489,15 @@ void URDF3DView::setGridVisible(bool visible) {
 }
 
 bool URDF3DView::eventFilter(QObject* obj, QEvent* event) {
-  if (obj == container_) {
+  // Handle events from both the container widget and the Qt3D window
+  if (obj == container_ || obj == view3D_) {
     switch (event->type()) {
+      case QEvent::Enter:
+        // Grab focus when mouse enters to ensure we receive key events
+        container_->setFocus();
+        break;
       case QEvent::MouseButtonPress:
+        container_->setFocus();
         handleMousePress(static_cast<QMouseEvent*>(event));
         return true;
       case QEvent::MouseMove:
@@ -511,7 +522,9 @@ bool URDF3DView::eventFilter(QObject* obj, QEvent* event) {
 void URDF3DView::handleMousePress(QMouseEvent* event) {
   lastMousePos_ = event->pos();
 
-  if (event->button() == Qt::MiddleButton) {
+  // Support both middle-click and right-click for camera controls
+  // (right-click is more reliable as middle-click can be problematic with Qt3D)
+  if (event->button() == Qt::MiddleButton || event->button() == Qt::RightButton) {
     if (event->modifiers() & Qt::ShiftModifier) {
       isPanning_ = true;
       container_->setCursor(Qt::ClosedHandCursor);
@@ -520,8 +533,12 @@ void URDF3DView::handleMousePress(QMouseEvent* event) {
       container_->setCursor(Qt::SizeAllCursor);
     }
   } else if (event->button() == Qt::LeftButton) {
+    // Left-click with Alt for orbit (Maya-style)
+    if (event->modifiers() & Qt::AltModifier) {
+      isOrbiting_ = true;
+      container_->setCursor(Qt::SizeAllCursor);
+    }
     // TODO: Implement ray picking for joint selection
-    // For now, this is a placeholder
   }
 }
 
