@@ -77,6 +77,7 @@
 #include "ros_weaver/widgets/behavior_tree_panel.hpp"
 #include "ros_weaver/widgets/dock_drop_overlay.hpp"
 #include "ros_weaver/widgets/mission_planner_panel.hpp"
+#include "ros_weaver/widgets/ekf_tuner_panel.hpp"
 
 #include <QApplication>
 #include <QCloseEvent>
@@ -192,6 +193,8 @@ MainWindow::MainWindow(QWidget* parent)
   , networkTopologyDock_(nullptr)
   , behaviorTreePanel_(nullptr)
   , behaviorTreeDock_(nullptr)
+  , ekfTunerPanel_(nullptr)
+  , ekfTunerDock_(nullptr)
 {
   setWindowTitle(baseWindowTitle_);
   setMinimumSize(constants::ui::MIN_WINDOW_WIDTH, constants::ui::MIN_WINDOW_HEIGHT);
@@ -296,6 +299,8 @@ MainWindow::~MainWindow() {
   scenarioEditorDock_ = nullptr;
   delete rosbagWorkbenchDock_;
   rosbagWorkbenchDock_ = nullptr;
+  delete ekfTunerDock_;
+  ekfTunerDock_ = nullptr;
   delete outputDock_;
   outputDock_ = nullptr;
   delete propertiesDock_;
@@ -759,6 +764,13 @@ void MainWindow::setupMenuBar() {
   showMissionPlannerAction->setChecked(false);  // Hidden by default
   showMissionPlannerAction->setObjectName("showMissionPlannerAction");
   showMissionPlannerAction->setToolTip(tr("Show/hide mission waypoint planner panel"));
+
+  QAction* showEkfTunerAction = panelsMenu->addAction(tr("EKF &Tuner"));
+  showEkfTunerAction->setCheckable(true);
+  showEkfTunerAction->setChecked(false);  // Hidden by default
+  showEkfTunerAction->setShortcut(tr("Ctrl+Shift+E"));
+  showEkfTunerAction->setObjectName("showEkfTunerAction");
+  showEkfTunerAction->setToolTip(tr("Show/hide EKF tuner workbench for robot_localization parameter tuning"));
 
   panelsMenu->addSeparator();
 
@@ -1943,6 +1955,26 @@ void MainWindow::setupDockWidgets() {
   if (showMissionPlannerAction) {
     connect(showMissionPlannerAction, &QAction::toggled, missionPlannerDock_, &QDockWidget::setVisible);
     connect(missionPlannerDock_, &QDockWidget::visibilityChanged, showMissionPlannerAction, &QAction::setChecked);
+  }
+
+  // EKF Tuner Panel (bottom, initially hidden)
+  ekfTunerDock_ = new QDockWidget(tr("EKF Tuner"), this);
+  ekfTunerDock_->setObjectName("ekfTunerDock");
+  ekfTunerDock_->setAllowedAreas(Qt::BottomDockWidgetArea | Qt::TopDockWidgetArea);
+  ekfTunerDock_->setFeatures(QDockWidget::DockWidgetMovable |
+                              QDockWidget::DockWidgetFloatable |
+                              QDockWidget::DockWidgetClosable);
+
+  ekfTunerPanel_ = new EKFTunerPanel(this);
+  ekfTunerDock_->setWidget(ekfTunerPanel_);
+
+  addDockWidget(Qt::BottomDockWidgetArea, ekfTunerDock_);
+  ekfTunerDock_->hide();  // Hidden by default
+
+  QAction* showEkfTunerAction = findChild<QAction*>("showEkfTunerAction");
+  if (showEkfTunerAction) {
+    connect(showEkfTunerAction, &QAction::toggled, ekfTunerDock_, &QDockWidget::setVisible);
+    connect(ekfTunerDock_, &QDockWidget::visibilityChanged, showEkfTunerAction, &QAction::setChecked);
   }
 
   // Initialize dock drag filter for Ctrl+drag docking

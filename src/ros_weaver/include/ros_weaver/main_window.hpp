@@ -72,6 +72,7 @@ class NetworkTopologyPanel;
 class BehaviorTreePanel;
 class MissionPlannerPanel;
 class DockDragFilter;
+class EKFTunerPanel;
 
 class MainWindow : public QMainWindow {
   Q_OBJECT
@@ -427,6 +428,10 @@ private:
   // Mission planner panel
   MissionPlannerPanel* missionPlannerPanel_;
   QDockWidget* missionPlannerDock_;
+
+  // EKF Tuner panel
+  EKFTunerPanel* ekfTunerPanel_;
+  QDockWidget* ekfTunerDock_;
 };
 
 }  // namespace ros_weaver

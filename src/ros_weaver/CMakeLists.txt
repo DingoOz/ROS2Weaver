@@ -195,6 +195,13 @@ set(SOURCES
   src/widgets/mission_map_view.cpp
   src/widgets/waypoint_editor_widget.cpp
   src/widgets/mission_planner_panel.cpp
+  src/core/ekf_simulation_engine.cpp
+  src/core/ekf_metrics_analyzer.cpp
+  src/core/ekf_parameter_sweep.cpp
+  src/widgets/ekf_config_editor.cpp
+  src/widgets/ekf_path_visualizer.cpp
+  src/widgets/ekf_results_panel.cpp
+  src/widgets/ekf_tuner_panel.cpp
 )
 
 # Header files (for MOC)
@@ -331,6 +338,14 @@ set(HEADERS
   include/ros_weaver/widgets/mission_map_view.hpp
   include/ros_weaver/widgets/waypoint_editor_widget.hpp
   include/ros_weaver/widgets/mission_planner_panel.hpp
+  include/ros_weaver/core/ekf_config.hpp
+  include/ros_weaver/core/ekf_simulation_engine.hpp
+  include/ros_weaver/core/ekf_metrics_analyzer.hpp
+  include/ros_weaver/core/ekf_parameter_sweep.hpp
+  include/ros_weaver/widgets/ekf_config_editor.hpp
+  include/ros_weaver/widgets/ekf_path_visualizer.hpp
+  include/ros_weaver/widgets/ekf_results_panel.hpp
+  include/ros_weaver/widgets/ekf_tuner_panel.hpp
 )
 
 # Create executable
