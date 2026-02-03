@@ -383,8 +383,54 @@ ament_target_dependencies(${PROJECT_NAME}
   lifecycle_msgs
 )
 
+# EKF Analyzer CLI executable (headless)
+# Core sources needed for CLI (shared with main GUI)
+set(EKF_CORE_SOURCES
+  src/core/bag_manager.cpp
+  src/core/ekf_simulation_engine.cpp
+  src/core/ekf_metrics_analyzer.cpp
+  src/core/ekf_parameter_sweep.cpp
+)
+
+set(EKF_CLI_SOURCES
+  src/cli/ekf_analyzer_main.cpp
+  src/cli/ekf_analyzer_cli.cpp
+)
+
+set(EKF_CLI_HEADERS
+  include/ros_weaver/cli/ekf_analyzer_cli.hpp
+  include/ros_weaver/core/ekf_config.hpp
+  include/ros_weaver/core/ekf_simulation_engine.hpp
+  include/ros_weaver/core/ekf_metrics_analyzer.hpp
+  include/ros_weaver/core/ekf_parameter_sweep.hpp
+  include/ros_weaver/core/bag_manager.hpp
+)
+
+add_executable(ekf_analyzer
+  ${EKF_CLI_SOURCES}
+  ${EKF_CORE_SOURCES}
+  ${EKF_CLI_HEADERS}
+)
+
+target_link_libraries(ekf_analyzer
+  Qt5::Core
+  Qt5::Gui
+  yaml-cpp
+)
+
+ament_target_dependencies(ekf_analyzer
+  rclcpp
+  rosbag2_cpp
+  rosbag2_storage
+  nav_msgs
+  geometry_msgs
+  sensor_msgs
+  tf2
+  tf2_ros
+)
+
 # Install targets
-install(TARGETS ${PROJECT_NAME}
+install(TARGETS ${PROJECT_NAME} ekf_analyzer
   DESTINATION lib/${PROJECT_NAME}
 )
 

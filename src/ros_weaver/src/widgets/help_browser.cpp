@@ -1794,6 +1794,175 @@ FastDDS Discovery Server mode. Check ROS_DISCOVERY_SERVER environment variable.
     {"network", "topology", "dds", "domain", "hosts", "discovery", "multicast", "unicast"}
   };
   topicOrder_ << "network-topology";
+
+  // EKF Analyzer CLI
+  topics_["ekf-analyzer-cli"] = {
+    "ekf-analyzer-cli",
+    tr("EKF Analyzer CLI"),
+    tr(R"(# EKF Analyzer CLI Tool
+
+A command-line interface for analyzing robot_localization EKF performance on rosbag files without the GUI.
+
+## Overview
+
+The `ekf_analyzer` tool provides terminal-based EKF analysis, allowing you to:
+
+- Evaluate EKF configuration against recorded rosbag data
+- Compute trajectory metrics (ATE, RPE, yaw drift)
+- Run parameter sweeps to find optimal settings
+- Output results in text, JSON, or CSV formats
+- Integrate with CI/CD pipelines and automation scripts
+
+## Quick Start
+
+### Basic Analysis
+
+```bash
+ros2 run ros_weaver ekf_analyzer /path/to/bag.mcap -c ekf_config.yaml
+```
+
+### Output to JSON File
+
+```bash
+ros2 run ros_weaver ekf_analyzer bag.mcap -c config.yaml -o results.json -f json
+```
+
+### Parameter Sweep
+
+```bash
+ros2 run ros_weaver ekf_analyzer bag.mcap -c config.yaml --sweep \
+    --sweep-param "processNoiseCovariance.0:0.01:0.5:5" \
+    -o sweep_results.csv -f csv
+```
+
+## Command-Line Options
+
+| Option | Description |
+|--------|-------------|
+| `bag` (positional) | Path to input rosbag2 file |
+| `-c, --config FILE` | EKF YAML config file (required) |
+| `-o, --output FILE` | Output file path (stdout if omitted) |
+| `-f, --format FORMAT` | Output format: text, json, csv |
+| `-g, --ground-truth TOPIC` | Ground truth topic |
+| `-r, --rate RATE` | Playback rate (0 = max speed) |
+| `--sweep` | Enable parameter sweep mode |
+| `--sweep-param SPEC` | Sweep parameter specification |
+| `--verbose` | Verbose output with progress |
+
+## Output Formats
+
+### Text (default)
+
+Human-readable format:
+
+```
+=== EKF Analysis Results ===
+Bag: /path/to/bag.mcap
+
+--- Absolute Trajectory Error (ATE) ---
+RMSE:    0.0432 m
+Mean:    0.0387 m
+Median:  0.0356 m
+...
+```
+
+### JSON
+
+Machine-readable format for programmatic processing:
+
+```json
+{
+  "ate": {"rmse": 0.0432, "mean": 0.0387, ...},
+  "rpe": {"rmse": 0.0156, ...},
+  "yaw_drift": 0.0023,
+  "trajectory_length": 125.67
+}
+```
+
+### CSV
+
+Tabular format for parameter sweeps, ideal for spreadsheet analysis.
+
+## Parameter Sweep Mode
+
+Test multiple parameter configurations automatically:
+
+### Sweep Parameter Format
+
+`name:min:max:steps[:log]`
+
+- **name**: Parameter path (e.g., `processNoiseCovariance.0`)
+- **min**: Minimum value to test
+- **max**: Maximum value to test
+- **steps**: Number of values to test
+- **log**: Optional logarithmic scale
+
+### Examples
+
+Linear sweep:
+```bash
+--sweep-param "processNoiseCovariance.0:0.01:0.5:5"
+```
+
+Logarithmic sweep:
+```bash
+--sweep-param "processNoiseCovariance.6:0.001:0.1:10:log"
+```
+
+Multiple parameters:
+```bash
+--sweep-param "processNoiseCovariance.0:0.01:0.1:3" \
+--sweep-param "processNoiseCovariance.5:0.01:0.1:3"
+```
+
+## Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success |
+| 1 | Invalid arguments |
+| 2 | Config file error |
+| 3 | Input bag error |
+| 4 | robot_localization not installed |
+| 5 | Simulation failed |
+| 6 | Output write error |
+
+## CI/CD Integration Example
+
+```yaml
+- name: Run EKF analysis
+  run: |
+    ros2 run ros_weaver ekf_analyzer test.mcap \
+      -c config/ekf.yaml -o results.json -f json
+
+- name: Check ATE threshold
+  run: |
+    ATE=$(jq '.ate.rmse' results.json)
+    if (( $(echo "$ATE > 0.1" | bc -l) )); then
+      exit 1
+    fi
+```
+
+## Requirements
+
+- ROS2 (Humble or later)
+- robot_localization package
+- Rosbag with odometry/IMU data
+
+Install robot_localization:
+```bash
+sudo apt install ros-${ROS_DISTRO}-robot-localization
+```
+
+## See Also
+
+- **EKF Tuner Workbench** - GUI-based EKF parameter tuning
+- **Rosbag Workbench** - Recording and playback tools
+)"),
+    "",
+    {"ekf", "analyzer", "cli", "command", "line", "terminal", "batch", "sweep", "metrics", "ate", "rpe"}
+  };
+  topicOrder_ << "ekf-analyzer-cli";
 }
 
 void HelpBrowser::buildTableOfContents() {
@@ -1870,6 +2039,10 @@ void HelpBrowser::buildTableOfContents() {
   QTreeWidgetItem* networkTopoItem = new QTreeWidgetItem(ros2Item);
   networkTopoItem->setText(0, tr("Network Topology"));
   networkTopoItem->setData(0, Qt::UserRole, "network-topology");
+
+  QTreeWidgetItem* ekfCliItem = new QTreeWidgetItem(ros2Item);
+  ekfCliItem->setText(0, tr("EKF Analyzer CLI"));
+  ekfCliItem->setData(0, Qt::UserRole, "ekf-analyzer-cli");
 
   QTreeWidgetItem* aiItem = new QTreeWidgetItem(tocTree_);
   aiItem->setText(0, tr("Local AI Assistant"));
