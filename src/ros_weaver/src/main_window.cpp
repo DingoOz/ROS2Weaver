@@ -78,6 +78,7 @@
 #include "ros_weaver/widgets/dock_drop_overlay.hpp"
 #include "ros_weaver/widgets/mission_planner_panel.hpp"
 #include "ros_weaver/widgets/ekf_tuner_panel.hpp"
+#include "ros_weaver/widgets/urdf_editor_panel.hpp"
 
 #include <QApplication>
 #include <QCloseEvent>
@@ -195,6 +196,8 @@ MainWindow::MainWindow(QWidget* parent)
   , behaviorTreeDock_(nullptr)
   , ekfTunerPanel_(nullptr)
   , ekfTunerDock_(nullptr)
+  , urdfEditorPanel_(nullptr)
+  , urdfEditorDock_(nullptr)
 {
   setWindowTitle(baseWindowTitle_);
   setMinimumSize(constants::ui::MIN_WINDOW_WIDTH, constants::ui::MIN_WINDOW_HEIGHT);
@@ -771,6 +774,13 @@ void MainWindow::setupMenuBar() {
   showEkfTunerAction->setShortcut(tr("Ctrl+Shift+E"));
   showEkfTunerAction->setObjectName("showEkfTunerAction");
   showEkfTunerAction->setToolTip(tr("Show/hide EKF tuner workbench for robot_localization parameter tuning"));
+
+  QAction* showUrdfEditorAction = panelsMenu->addAction(tr("&URDF Editor"));
+  showUrdfEditorAction->setCheckable(true);
+  showUrdfEditorAction->setChecked(false);  // Hidden by default
+  showUrdfEditorAction->setShortcut(tr("Ctrl+Shift+U"));
+  showUrdfEditorAction->setObjectName("showUrdfEditorAction");
+  showUrdfEditorAction->setToolTip(tr("Show/hide URDF editor for visual robot description editing"));
 
   panelsMenu->addSeparator();
 
@@ -1975,6 +1985,26 @@ void MainWindow::setupDockWidgets() {
   if (showEkfTunerAction) {
     connect(showEkfTunerAction, &QAction::toggled, ekfTunerDock_, &QDockWidget::setVisible);
     connect(ekfTunerDock_, &QDockWidget::visibilityChanged, showEkfTunerAction, &QAction::setChecked);
+  }
+
+  // URDF Editor Panel (bottom, initially hidden)
+  urdfEditorDock_ = new QDockWidget(tr("URDF Editor"), this);
+  urdfEditorDock_->setObjectName("urdfEditorDock");
+  urdfEditorDock_->setAllowedAreas(Qt::AllDockWidgetAreas);
+  urdfEditorDock_->setFeatures(QDockWidget::DockWidgetMovable |
+                                QDockWidget::DockWidgetFloatable |
+                                QDockWidget::DockWidgetClosable);
+
+  urdfEditorPanel_ = new URDFEditorPanel(this);
+  urdfEditorDock_->setWidget(urdfEditorPanel_);
+
+  addDockWidget(Qt::BottomDockWidgetArea, urdfEditorDock_);
+  urdfEditorDock_->hide();  // Hidden by default
+
+  QAction* showUrdfEditorAction = findChild<QAction*>("showUrdfEditorAction");
+  if (showUrdfEditorAction) {
+    connect(showUrdfEditorAction, &QAction::toggled, urdfEditorDock_, &QDockWidget::setVisible);
+    connect(urdfEditorDock_, &QDockWidget::visibilityChanged, showUrdfEditorAction, &QAction::setChecked);
   }
 
   // Initialize dock drag filter for Ctrl+drag docking

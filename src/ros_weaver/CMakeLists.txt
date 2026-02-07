@@ -42,6 +42,10 @@ find_package(Qt5 REQUIRED COMPONENTS
   Test
   PrintSupport
   Xml
+  3DCore
+  3DRender
+  3DInput
+  3DExtras
 )
 
 # Include directories
@@ -204,6 +208,16 @@ set(SOURCES
   src/widgets/ekf_tuner_panel.cpp
   src/widgets/rolling_digit_label.cpp
   src/widgets/rolling_digit_delegate.cpp
+  src/core/urdf_model.cpp
+  src/core/urdf_parser.cpp
+  src/core/undo/urdf_undo_commands.cpp
+  src/widgets/urdf_editor_panel.cpp
+  src/widgets/urdf_hierarchy_tree.cpp
+  src/widgets/urdf_viewport_3d.cpp
+  src/widgets/urdf_gizmo.cpp
+  src/widgets/urdf_properties_panel.cpp
+  src/widgets/link_properties_widget.cpp
+  src/widgets/joint_properties_widget.cpp
 )
 
 # Header files (for MOC)
@@ -350,6 +364,16 @@ set(HEADERS
   include/ros_weaver/widgets/ekf_tuner_panel.hpp
   include/ros_weaver/widgets/rolling_digit_label.hpp
   include/ros_weaver/widgets/rolling_digit_delegate.hpp
+  include/ros_weaver/core/urdf_model.hpp
+  include/ros_weaver/core/urdf_parser.hpp
+  include/ros_weaver/core/undo/urdf_undo_commands.hpp
+  include/ros_weaver/widgets/urdf_editor_panel.hpp
+  include/ros_weaver/widgets/urdf_hierarchy_tree.hpp
+  include/ros_weaver/widgets/urdf_viewport_3d.hpp
+  include/ros_weaver/widgets/urdf_gizmo.hpp
+  include/ros_weaver/widgets/urdf_properties_panel.hpp
+  include/ros_weaver/widgets/link_properties_widget.hpp
+  include/ros_weaver/widgets/joint_properties_widget.hpp
 )
 
 # Create executable
@@ -367,6 +391,10 @@ target_link_libraries(${PROJECT_NAME}
   Qt5::Charts
   Qt5::PrintSupport
   Qt5::Xml
+  Qt5::3DCore
+  Qt5::3DRender
+  Qt5::3DInput
+  Qt5::3DExtras
   yaml-cpp
 )
 

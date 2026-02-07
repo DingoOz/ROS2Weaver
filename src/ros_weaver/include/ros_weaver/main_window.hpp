@@ -73,6 +73,7 @@ class BehaviorTreePanel;
 class MissionPlannerPanel;
 class DockDragFilter;
 class EKFTunerPanel;
+class URDFEditorPanel;
 
 class MainWindow : public QMainWindow {
   Q_OBJECT
@@ -432,6 +433,10 @@ private:
   // EKF Tuner panel
   EKFTunerPanel* ekfTunerPanel_;
   QDockWidget* ekfTunerDock_;
+
+  // URDF Editor panel
+  URDFEditorPanel* urdfEditorPanel_;
+  QDockWidget* urdfEditorDock_;
 };
 
 }  // namespace ros_weaver

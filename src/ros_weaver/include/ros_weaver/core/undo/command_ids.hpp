@@ -24,6 +24,12 @@ enum class CommandId {
   ChangeWaypointOrientation,     // Merge consecutive orientation changes
   MoveStartPose,                 // Merge consecutive start pose moves
   ChangeStartPoseOrientation,    // Merge consecutive start pose orientation changes
+
+  // URDF editor commands
+  MoveLinkOrigin = 200,          // Merge consecutive link origin moves
+  RotateLinkOrigin,              // Merge consecutive link origin rotations
+  MoveJointOrigin,               // Merge consecutive joint origin moves
+  RotateJointOrigin,             // Merge consecutive joint origin rotations
 };
 
 }  // namespace ros_weaver
