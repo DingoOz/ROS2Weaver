@@ -55,6 +55,7 @@ public:
 
 signals:
   void topicUpdated(const QString& topicName);
+  void rateChanged(int row, double oldRate, double newRate);
 
 private:
   QList<TopicDisplayInfo> topics_;

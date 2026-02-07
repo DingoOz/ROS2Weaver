@@ -202,6 +202,8 @@ set(SOURCES
   src/widgets/ekf_path_visualizer.cpp
   src/widgets/ekf_results_panel.cpp
   src/widgets/ekf_tuner_panel.cpp
+  src/widgets/rolling_digit_label.cpp
+  src/widgets/rolling_digit_delegate.cpp
 )
 
 # Header files (for MOC)
@@ -346,6 +348,8 @@ set(HEADERS
   include/ros_weaver/widgets/ekf_path_visualizer.hpp
   include/ros_weaver/widgets/ekf_results_panel.hpp
   include/ros_weaver/widgets/ekf_tuner_panel.hpp
+  include/ros_weaver/widgets/rolling_digit_label.hpp
+  include/ros_weaver/widgets/rolling_digit_delegate.hpp
 )
 
 # Create executable

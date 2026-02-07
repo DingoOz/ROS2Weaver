@@ -24,6 +24,8 @@ namespace ros_weaver {
 
 class TopicListModel;
 class WeaverCanvas;
+class RollingDigitLabel;
+class RollingDigitDelegate;
 
 // Information about a topic for display
 struct TopicDisplayInfo {
@@ -145,12 +147,14 @@ private:
   QTreeView* topicTreeView_;
   TopicListModel* topicModel_;
   QSortFilterProxyModel* proxyModel_;
+  RollingDigitDelegate* rateDelegate_;
 
   // Details panel
   QWidget* detailsPanel_;
   QLabel* topicNameLabel_;
   QLabel* topicTypeLabel_;
   QLabel* topicStatsLabel_;
+  RollingDigitLabel* topicRateLabel_;
   QTextEdit* messagePreviewEdit_;
 
   // Canvas integration
