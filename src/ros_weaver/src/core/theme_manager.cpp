@@ -1,7 +1,9 @@
 #include "ros_weaver/core/theme_manager.hpp"
+#include "ros_weaver/core/constants.hpp"
 #include <QApplication>
 #include <QSettings>
 #include <QStyleFactory>
+#include <cmath>
 
 namespace ros_weaver {
 
@@ -102,28 +104,44 @@ QPalette ThemeManager::currentPalette() const {
 }
 
 QString ThemeManager::currentStyleSheet() const {
+  QString qss;
+
   if (currentTheme_ == Theme::Light) {
-    return
+    qss =
       "QToolTip { color: #1e1e1e; background-color: #ffffdc; border: 1px solid #c0c0c0; }"
       "QMenu { background-color: #ffffff; border: 1px solid #c0c0c0; }"
       "QMenu::item:selected { background-color: #2a82da; color: white; }"
       "QMenuBar { background-color: #f0f0f0; }"
       "QMenuBar::item:selected { background-color: #2a82da; color: white; }";
   } else if (currentTheme_ == Theme::HighContrast) {
-    return
+    qss =
       "QToolTip { color: #ffffff; background-color: #000000; border: 2px solid #ffff00; }"
       "QMenu { background-color: #000000; border: 2px solid #ffffff; }"
       "QMenu::item:selected { background-color: #ffff00; color: #000000; }"
       "QMenuBar { background-color: #000000; }"
       "QMenuBar::item:selected { background-color: #ffff00; color: #000000; }";
   } else {
-    return
+    qss =
       "QToolTip { color: #ffffff; background-color: #2a2a2a; border: 1px solid #3a3a3a; }"
       "QMenu { background-color: #353535; border: 1px solid #3a3a3a; }"
       "QMenu::item:selected { background-color: #2a82da; }"
       "QMenuBar { background-color: #353535; }"
       "QMenuBar::item:selected { background-color: #2a82da; }";
   }
+
+  // Dock button sizing
+  int btnSize = static_cast<int>(std::round(dockButtonScale_ * constants::ui::DOCK_BUTTON_BASE_SIZE));
+  qss += QString(
+    "QDockWidget { icon-size: %1px; }"
+    "QDockWidget::close-button, QDockWidget::float-button {"
+    "  width: %1px; height: %1px;"
+    "  subcontrol-origin: padding; subcontrol-position: top right; padding: 2px;"
+    "}"
+    "QDockWidget::float-button { right: %2px; }")
+    .arg(btnSize)
+    .arg(btnSize + 4);
+
+  return qss;
 }
 
 // =============================================================================
@@ -590,6 +608,11 @@ void ThemeManager::loadSettings() {
     customAccentColor_ = QColor(accentColorStr);
   }
 
+  // Load dock button scale
+  dockButtonScale_ = qBound(constants::ui::DOCK_BUTTON_MIN_SCALE,
+                            settings.value("dockButtonScale", constants::ui::DOCK_BUTTON_DEFAULT_SCALE).toDouble(),
+                            constants::ui::DOCK_BUTTON_MAX_SCALE);
+
   settings.endGroup();
 }
 
@@ -603,6 +626,8 @@ void ThemeManager::saveSettings() {
   } else {
     settings.remove("accentColor");
   }
+
+  settings.setValue("dockButtonScale", dockButtonScale_);
 
   settings.endGroup();
 }
@@ -628,6 +653,18 @@ void ThemeManager::resetAccentColor() {
     customAccentColor_ = QColor();  // Invalid = use default
     saveSettings();
     emit accentColorChanged(primaryColor());
+  }
+}
+
+void ThemeManager::setDockButtonScale(double scale) {
+  scale = qBound(constants::ui::DOCK_BUTTON_MIN_SCALE,
+                 scale,
+                 constants::ui::DOCK_BUTTON_MAX_SCALE);
+  if (!qFuzzyCompare(dockButtonScale_, scale)) {
+    dockButtonScale_ = scale;
+    saveSettings();
+    applyTheme();
+    emit dockButtonScaleChanged(scale);
   }
 }
 

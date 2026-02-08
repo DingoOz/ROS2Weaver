@@ -122,9 +122,14 @@ public:
   void setAccentColor(const QColor& color);
   void resetAccentColor();
 
+  // Dock button scale
+  double dockButtonScale() const { return dockButtonScale_; }
+  void setDockButtonScale(double scale);
+
 signals:
   void themeChanged(Theme newTheme);
   void accentColorChanged(const QColor& color);
+  void dockButtonScaleChanged(double scale);
 
 private:
   ThemeManager();
@@ -134,6 +139,7 @@ private:
 
   Theme currentTheme_ = Theme::Dark;
   QColor customAccentColor_;
+  double dockButtonScale_ = 1.5;
 };
 
 }  // namespace ros_weaver

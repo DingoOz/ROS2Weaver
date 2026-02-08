@@ -154,6 +154,13 @@ namespace ui {
   constexpr int BUTTON_HEIGHT = 32;
   constexpr int SMALL_BUTTON_HEIGHT = 24;
   constexpr int ICON_BUTTON_SIZE = 32;
+
+  // Dock panel title bar buttons
+  constexpr int DOCK_BUTTON_BASE_SIZE = 16;
+  constexpr double DOCK_BUTTON_DEFAULT_SCALE = 1.5;
+  constexpr double DOCK_BUTTON_MIN_SCALE = 1.0;
+  constexpr double DOCK_BUTTON_MAX_SCALE = 3.0;
+  constexpr double DOCK_BUTTON_SCALE_STEP = 0.25;
 }
 
 // =============================================================================

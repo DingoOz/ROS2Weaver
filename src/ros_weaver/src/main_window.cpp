@@ -108,6 +108,7 @@
 #include <QGroupBox>
 #include <QFormLayout>
 #include <QSpinBox>
+#include <QDoubleSpinBox>
 #include <QColorDialog>
 #include <QGridLayout>
 
@@ -3808,9 +3809,8 @@ void MainWindow::onOpenSettings() {
 
   // Appearance group
   QGroupBox* appearanceGroup = new QGroupBox(tr("Appearance"), generalTab);
-  QHBoxLayout* appearanceLayout = new QHBoxLayout(appearanceGroup);
+  QFormLayout* appearanceLayout = new QFormLayout(appearanceGroup);
 
-  QLabel* themeLabel = new QLabel(tr("Theme:"), appearanceGroup);
   QComboBox* themeCombo = new QComboBox(appearanceGroup);
   themeCombo->addItem(ThemeManager::themeName(Theme::Dark), static_cast<int>(Theme::Dark));
   themeCombo->addItem(ThemeManager::themeName(Theme::Light), static_cast<int>(Theme::Light));
@@ -3819,9 +3819,17 @@ void MainWindow::onOpenSettings() {
   Theme currentTheme = ThemeManager::instance().currentTheme();
   themeCombo->setCurrentIndex(themeCombo->findData(static_cast<int>(currentTheme)));
 
-  appearanceLayout->addWidget(themeLabel);
-  appearanceLayout->addWidget(themeCombo);
-  appearanceLayout->addStretch();
+  appearanceLayout->addRow(tr("Theme:"), themeCombo);
+
+  QDoubleSpinBox* dockButtonScaleSpin = new QDoubleSpinBox(appearanceGroup);
+  dockButtonScaleSpin->setRange(constants::ui::DOCK_BUTTON_MIN_SCALE, constants::ui::DOCK_BUTTON_MAX_SCALE);
+  dockButtonScaleSpin->setSingleStep(constants::ui::DOCK_BUTTON_SCALE_STEP);
+  dockButtonScaleSpin->setDecimals(2);
+  dockButtonScaleSpin->setSuffix("x");
+  dockButtonScaleSpin->setValue(ThemeManager::instance().dockButtonScale());
+  dockButtonScaleSpin->setToolTip(tr("Scale factor for dock panel close/float buttons (1.0x = 16px default)"));
+
+  appearanceLayout->addRow(tr("Dock button size:"), dockButtonScaleSpin);
 
   generalLayout->addWidget(appearanceGroup);
 
@@ -4118,6 +4126,9 @@ void MainWindow::onOpenSettings() {
     // Apply theme setting
     Theme selectedTheme = static_cast<Theme>(themeCombo->currentData().toInt());
     ThemeManager::instance().setTheme(selectedTheme);
+
+    // Apply dock button scale
+    ThemeManager::instance().setDockButtonScale(dockButtonScaleSpin->value());
 
     // Apply settings
     rosStatusWidget_->setShowRos2Status(showStatusCheck->isChecked());
