@@ -4044,6 +4044,114 @@ void MainWindow::onOpenSettings() {
   });
   plotLayout->addWidget(resetPlotColorsBtn);
 
+  // Default render mode
+  QHBoxLayout* renderModeLayout = new QHBoxLayout();
+  QLabel* renderModeLabel = new QLabel(tr("Default render mode:"), plotGroup);
+  QComboBox* renderModeCombo = new QComboBox(plotGroup);
+  renderModeCombo->addItem(tr("Solid"), 0);
+  renderModeCombo->addItem(tr("Threshold"), 1);
+  renderModeCombo->addItem(tr("Gradient"), 2);
+  if (plotPanel_) {
+    auto cfg = plotPanel_->defaultConfig();
+    if (cfg.renderMode == PlotRenderMode::Threshold) renderModeCombo->setCurrentIndex(1);
+    else if (cfg.renderMode == PlotRenderMode::Gradient) renderModeCombo->setCurrentIndex(2);
+    else renderModeCombo->setCurrentIndex(0);
+  }
+  renderModeCombo->setToolTip(tr("Default rendering mode for new plot series"));
+  renderModeLayout->addWidget(renderModeLabel);
+  renderModeLayout->addWidget(renderModeCombo);
+  renderModeLayout->addStretch();
+  plotLayout->addLayout(renderModeLayout);
+
+  // Threshold settings
+  QHBoxLayout* thresholdLayout = new QHBoxLayout();
+  PlotSeriesConfig plotDefCfg = plotPanel_ ? plotPanel_->defaultConfig() : PlotSeriesConfig();
+
+  QLabel* threshUpperLabel = new QLabel(tr("Threshold upper:"), plotGroup);
+  QDoubleSpinBox* threshUpperSpin = new QDoubleSpinBox(plotGroup);
+  threshUpperSpin->setRange(-1e9, 1e9);
+  threshUpperSpin->setDecimals(3);
+  threshUpperSpin->setValue(plotDefCfg.thresholdUpper);
+  thresholdLayout->addWidget(threshUpperLabel);
+  thresholdLayout->addWidget(threshUpperSpin);
+
+  QLabel* threshLowerLabel = new QLabel(tr("Lower:"), plotGroup);
+  QDoubleSpinBox* threshLowerSpin = new QDoubleSpinBox(plotGroup);
+  threshLowerSpin->setRange(-1e9, 1e9);
+  threshLowerSpin->setDecimals(3);
+  threshLowerSpin->setValue(plotDefCfg.thresholdLower);
+  thresholdLayout->addWidget(threshLowerLabel);
+  thresholdLayout->addWidget(threshLowerSpin);
+  thresholdLayout->addStretch();
+  plotLayout->addLayout(thresholdLayout);
+
+  // Threshold alarm color
+  QHBoxLayout* alarmColorLayout = new QHBoxLayout();
+  QLabel* alarmColorLabel = new QLabel(tr("Alarm color:"), plotGroup);
+  QPushButton* alarmColorBtn = new QPushButton(plotGroup);
+  alarmColorBtn->setFixedSize(40, 24);
+  QColor plotAlarmColor = plotDefCfg.thresholdAlarmColor;
+  alarmColorBtn->setStyleSheet(
+    QString("background-color: %1; border: 1px solid #555;").arg(plotAlarmColor.name()));
+  connect(alarmColorBtn, &QPushButton::clicked, [alarmColorBtn, &plotAlarmColor]() {
+    QColor c = QColorDialog::getColor(plotAlarmColor, alarmColorBtn, QObject::tr("Alarm Color"));
+    if (c.isValid()) {
+      plotAlarmColor = c;
+      alarmColorBtn->setStyleSheet(
+        QString("background-color: %1; border: 1px solid #555;").arg(c.name()));
+    }
+  });
+  alarmColorLayout->addWidget(alarmColorLabel);
+  alarmColorLayout->addWidget(alarmColorBtn);
+  alarmColorLayout->addStretch();
+  plotLayout->addLayout(alarmColorLayout);
+
+  // Gradient settings
+  QHBoxLayout* gradientLayout = new QHBoxLayout();
+  QLabel* gradBucketsLabel = new QLabel(tr("Gradient steps:"), plotGroup);
+  QSpinBox* gradBucketsSpin = new QSpinBox(plotGroup);
+  gradBucketsSpin->setRange(constants::plot::MIN_GRADIENT_BUCKETS,
+                             constants::plot::MAX_GRADIENT_BUCKETS);
+  gradBucketsSpin->setValue(plotDefCfg.gradientBuckets);
+  gradientLayout->addWidget(gradBucketsLabel);
+  gradientLayout->addWidget(gradBucketsSpin);
+
+  QLabel* gradLowLabel = new QLabel(tr("Low:"), plotGroup);
+  QPushButton* gradLowBtn = new QPushButton(plotGroup);
+  gradLowBtn->setFixedSize(40, 24);
+  QColor plotGradLow = plotDefCfg.gradientColorLow;
+  gradLowBtn->setStyleSheet(
+    QString("background-color: %1; border: 1px solid #555;").arg(plotGradLow.name()));
+  connect(gradLowBtn, &QPushButton::clicked, [gradLowBtn, &plotGradLow]() {
+    QColor c = QColorDialog::getColor(plotGradLow, gradLowBtn, QObject::tr("Gradient Low"));
+    if (c.isValid()) {
+      plotGradLow = c;
+      gradLowBtn->setStyleSheet(
+        QString("background-color: %1; border: 1px solid #555;").arg(c.name()));
+    }
+  });
+  gradientLayout->addWidget(gradLowLabel);
+  gradientLayout->addWidget(gradLowBtn);
+
+  QLabel* gradHighLabel = new QLabel(tr("High:"), plotGroup);
+  QPushButton* gradHighBtn = new QPushButton(plotGroup);
+  gradHighBtn->setFixedSize(40, 24);
+  QColor plotGradHigh = plotDefCfg.gradientColorHigh;
+  gradHighBtn->setStyleSheet(
+    QString("background-color: %1; border: 1px solid #555;").arg(plotGradHigh.name()));
+  connect(gradHighBtn, &QPushButton::clicked, [gradHighBtn, &plotGradHigh]() {
+    QColor c = QColorDialog::getColor(plotGradHigh, gradHighBtn, QObject::tr("Gradient High"));
+    if (c.isValid()) {
+      plotGradHigh = c;
+      gradHighBtn->setStyleSheet(
+        QString("background-color: %1; border: 1px solid #555;").arg(c.name()));
+    }
+  });
+  gradientLayout->addWidget(gradHighLabel);
+  gradientLayout->addWidget(gradHighBtn);
+  gradientLayout->addStretch();
+  plotLayout->addLayout(gradientLayout);
+
   generalLayout->addWidget(plotGroup);
 
   // Add stretch to push remaining space to bottom
@@ -4173,6 +4281,21 @@ void MainWindow::onOpenSettings() {
       if (!newPalette.isEmpty()) {
         plotPanel_->setColorPalette(newPalette);
       }
+
+      // Apply new default settings
+      int modeIdx = renderModeCombo->currentData().toInt();
+      PlotRenderMode newMode = PlotRenderMode::Solid;
+      if (modeIdx == 1) newMode = PlotRenderMode::Threshold;
+      else if (modeIdx == 2) newMode = PlotRenderMode::Gradient;
+      plotPanel_->setDefaultRenderMode(newMode);
+
+      plotPanel_->setDefaultThresholdUpper(threshUpperSpin->value());
+      plotPanel_->setDefaultThresholdLower(threshLowerSpin->value());
+      plotPanel_->setDefaultThresholdAlarmColor(plotAlarmColor);
+
+      plotPanel_->setDefaultGradientBuckets(gradBucketsSpin->value());
+      plotPanel_->setDefaultGradientColorLow(plotGradLow);
+      plotPanel_->setDefaultGradientColorHigh(plotGradHigh);
     }
 
     // Apply Network Topology settings

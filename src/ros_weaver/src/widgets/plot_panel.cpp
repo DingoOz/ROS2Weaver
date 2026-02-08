@@ -1,6 +1,10 @@
 #include "ros_weaver/widgets/plot_panel.hpp"
+#include "ros_weaver/widgets/plot_series_config_dialog.hpp"
 #include "ros_weaver/canvas/weaver_canvas.hpp"
 #include "ros_weaver/core/theme_manager.hpp"
+#include "ros_weaver/core/constants.hpp"
+
+#include <QtCharts/QLegendMarker>
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -41,6 +45,43 @@
 
 namespace ros_weaver {
 
+// ---- SegmentSeriesPool implementation ----
+
+void SegmentSeriesPool::ensureCapacity(int needed, QChart* chart,
+                                        QValueAxis* axisX, QValueAxis* axisY) {
+  while (pool.size() < needed && pool.size() < constants::plot::MAX_POOL_SIZE) {
+    auto* s = new QLineSeries();
+    s->setUseOpenGL(false);
+    chart->addSeries(s);
+    s->attachAxis(axisX);
+    s->attachAxis(axisY);
+    // Hide from legend
+    auto markers = chart->legend()->markers(s);
+    for (auto* m : markers) {
+      m->setVisible(false);
+    }
+    pool.append(s);
+  }
+}
+
+void SegmentSeriesPool::hideUnused() {
+  for (int i = activeCount; i < pool.size(); ++i) {
+    pool[i]->clear();
+    pool[i]->setVisible(false);
+  }
+}
+
+void SegmentSeriesPool::clearAll(QChart* chart) {
+  for (auto* s : pool) {
+    chart->removeSeries(s);
+    delete s;
+  }
+  pool.clear();
+  activeCount = 0;
+}
+
+// ---- PlotPanel implementation ----
+
 PlotPanel::PlotPanel(QWidget* parent)
   : QWidget(parent)
   , mainSplitter_(nullptr)
@@ -67,7 +108,6 @@ PlotPanel::PlotPanel(QWidget* parent)
   , paused_(false)
   , updateTimer_(nullptr)
   , colorIndex_(0)
-  , lineThickness_(DEFAULT_LINE_THICKNESS)
 {
   // Register meta type for cross-thread signals
   static bool typeRegistered = false;
@@ -100,7 +140,7 @@ PlotPanel::PlotPanel(QWidget* parent)
   // Start update timer
   updateTimer_ = new QTimer(this);
   connect(updateTimer_, &QTimer::timeout, this, &PlotPanel::onUpdateTimer);
-  updateTimer_->start(UPDATE_INTERVAL_MS);
+  updateTimer_->start(constants::plot::UPDATE_INTERVAL_MS);
 }
 
 PlotPanel::~PlotPanel() {
@@ -288,6 +328,11 @@ void PlotPanel::setupConnections() {
           this, &PlotPanel::onSeriesListContextMenu);
   connect(seriesList_, &QListWidget::currentItemChanged,
           this, &PlotPanel::onSeriesSelectionChanged);
+  connect(seriesList_, &QListWidget::itemDoubleClicked, [this](QListWidgetItem* item) {
+    if (item) {
+      showSeriesConfigDialog(item->data(Qt::UserRole).toString());
+    }
+  });
 
   // Cross-thread data signal
   connect(this, &PlotPanel::dataReceived,
@@ -636,32 +681,38 @@ void PlotPanel::addPlot(const QString& topicName, const QString& fieldPath) {
       return;
     }
 
-    // Create new series
+    // Create new series with default config
     PlotSeriesInfo info;
     info.topicName = topicName;
     info.fieldPath = fieldPath;
     info.fullPath = fullPath;
-    info.color = generateSeriesColor();
+    info.config = defaultConfig_;
+    info.config.color = generateSeriesColor();
     info.series = new QLineSeries();
     info.series->setName(fullPath);
 
-    // Apply color and line thickness
-    QPen pen(info.color);
-    pen.setWidth(lineThickness_);
+    // Apply color and line thickness from config
+    QPen pen(info.config.color);
+    pen.setWidth(info.config.lineThickness);
     info.series->setPen(pen);
+
+    // Pre-compute gradient palette if needed
+    if (info.config.renderMode == PlotRenderMode::Gradient) {
+      computeGradientPalette(info.config);
+    }
 
     // Add to chart
     chart_->addSeries(info.series);
     info.series->attachAxis(axisX_);
     info.series->attachAxis(axisY_);
 
-    plotSeries_[fullPath.toStdString()] = info;
+    plotSeries_[fullPath.toStdString()] = std::move(info);
   }
 
   // Add to list widget
   QListWidgetItem* item = new QListWidgetItem(fullPath);
   item->setData(Qt::UserRole, fullPath);
-  item->setForeground(plotSeries_[fullPath.toStdString()].color);
+  item->setForeground(plotSeries_[fullPath.toStdString()].config.color);
   seriesList_->addItem(item);
 
   statusLabel_->setText(tr("Added: %1").arg(fullPath));
@@ -674,6 +725,9 @@ void PlotPanel::removePlot(const QString& fullPath) {
 
     auto it = plotSeries_.find(fullPath.toStdString());
     if (it == plotSeries_.end()) return;
+
+    // Clean up segment pool
+    it->second.segmentPool.clearAll(chart_);
 
     // Remove from chart
     chart_->removeSeries(it->second.series);
@@ -699,6 +753,7 @@ void PlotPanel::clearAllPlots() {
     std::lock_guard<std::mutex> lock(dataMutex_);
 
     for (auto& [path, info] : plotSeries_) {
+      info.segmentPool.clearAll(chart_);
       chart_->removeSeries(info.series);
       delete info.series;
     }
@@ -866,12 +921,22 @@ void PlotPanel::onDataReceived(const QString& fullPath, double value, qint64 tim
 
   PlotSeriesInfo& info = it->second;
 
+  // Sample rate decimation
+  if (info.config.decimationEnabled && info.config.maxSampleRateHz > 0) {
+    double minIntervalMs = 1000.0 / info.config.maxSampleRateHz;
+    if (info.config.lastAcceptedTimestamp > 0 &&
+        (timestamp - info.config.lastAcceptedTimestamp) < minIntervalMs) {
+      return;  // Skip this sample
+    }
+    info.config.lastAcceptedTimestamp = timestamp;
+  }
+
   // Add to buffer
   PlotDataPoint point{timestamp, value};
   info.buffer.push_back(point);
 
   // Limit buffer size
-  while (info.buffer.size() > MAX_BUFFER_SIZE) {
+  while (static_cast<int>(info.buffer.size()) > constants::plot::MAX_BUFFER_SIZE) {
     info.buffer.pop_front();
   }
 
@@ -912,7 +977,7 @@ void PlotPanel::updateChart() {
 
   for (auto& [path, info] : plotSeries_) {
     QVector<QPointF> points;
-    points.reserve(info.buffer.size());
+    points.reserve(static_cast<int>(info.buffer.size()));
 
     // Calculate statistics while building points
     double sum = 0.0;
@@ -922,7 +987,6 @@ void PlotPanel::updateChart() {
 
     for (const auto& dp : info.buffer) {
       if (dp.timestamp >= windowStart) {
-        // Convert timestamp to seconds relative to now
         double x = (dp.timestamp - now) / 1000.0;
         points.append(QPointF(x, dp.value));
 
@@ -937,14 +1001,24 @@ void PlotPanel::updateChart() {
       }
     }
 
-    // Update series data
-    info.series->replace(points);
-
     // Update statistics
     if (count > 0) {
       info.minValue = minVal;
       info.maxValue = maxVal;
       info.meanValue = sum / count;
+    }
+
+    // Dispatch to render mode
+    switch (info.config.renderMode) {
+      case PlotRenderMode::Threshold:
+        renderThresholdSeries(info, points);
+        break;
+      case PlotRenderMode::Gradient:
+        renderGradientSeries(info, points);
+        break;
+      default:
+        renderSolidSeries(info, points);
+        break;
     }
   }
 
@@ -952,7 +1026,7 @@ void PlotPanel::updateChart() {
   if (hasData) {
     double range = globalMax - globalMin;
     double margin = range * 0.1;
-    if (range < 0.001) margin = 0.5;  // Minimum margin for nearly constant data
+    if (range < 0.001) margin = 0.5;
 
     axisY_->setRange(globalMin - margin, globalMax + margin);
   }
@@ -977,7 +1051,7 @@ void PlotPanel::updateDetailsPanel() {
 
   selectedSeriesLabel_->setText(info.fullPath);
   selectedSeriesLabel_->setStyleSheet(
-    QString("font-weight: bold; font-size: 10px; color: %1;").arg(info.color.name()));
+    QString("font-weight: bold; font-size: 10px; color: %1;").arg(info.config.color.name()));
 
   // Compact horizontal stats format
   QString stats = tr("Val: %1 | Min: %2 | Max: %3 | Avg: %4")
@@ -993,6 +1067,230 @@ void PlotPanel::updateDetailsPanel() {
   rateLabel_->setText(rate);
 }
 
+// ---- Render mode implementations ----
+
+void PlotPanel::renderSolidSeries(PlotSeriesInfo& info, const QVector<QPointF>& points) {
+  // Simple: just replace points on the primary series
+  info.series->replace(points);
+  info.series->setVisible(true);
+
+  // Make sure pen matches current config
+  QPen pen(info.config.color);
+  pen.setWidth(info.config.lineThickness);
+  info.series->setPen(pen);
+
+  // Hide any pool series from a previous mode
+  info.segmentPool.hideUnused();
+}
+
+void PlotPanel::renderThresholdSeries(PlotSeriesInfo& info,
+                                       const QVector<QPointF>& points) {
+  if (points.isEmpty()) {
+    info.series->clear();
+    info.segmentPool.hideUnused();
+    return;
+  }
+
+  // Hide primary series -- rendering delegated to pool
+  info.series->clear();
+  info.series->setVisible(false);
+
+  const double upper = info.config.thresholdUpper;
+  const double lower = info.config.thresholdLower;
+  const QColor& normalColor = info.config.color;
+  const QColor& alarmColor = info.config.thresholdAlarmColor;
+  const int thickness = info.config.lineThickness;
+
+  // Build segments: contiguous runs of same in/out-of-bounds state
+  struct Segment {
+    QVector<QPointF> pts;
+    bool alarm;
+  };
+  QVector<Segment> segments;
+
+  auto isAlarm = [&](double y) { return y > upper || y < lower; };
+
+  // Linear interpolation helper for crossing point
+  auto interpolateCrossing = [](const QPointF& a, const QPointF& b, double threshold) -> QPointF {
+    double t = (threshold - a.y()) / (b.y() - a.y());
+    return QPointF(a.x() + t * (b.x() - a.x()), threshold);
+  };
+
+  bool currentAlarm = isAlarm(points[0].y());
+  Segment current;
+  current.alarm = currentAlarm;
+  current.pts.append(points[0]);
+
+  for (int i = 1; i < points.size(); ++i) {
+    bool ptAlarm = isAlarm(points[i].y());
+    if (ptAlarm != currentAlarm) {
+      // Compute interpolated crossing point
+      double crossThreshold = upper;  // default
+      const QPointF& prev = points[i - 1];
+      const QPointF& cur = points[i];
+
+      // Determine which threshold was crossed
+      if ((prev.y() <= upper && cur.y() > upper) || (prev.y() > upper && cur.y() <= upper)) {
+        crossThreshold = upper;
+      } else {
+        crossThreshold = lower;
+      }
+
+      QPointF crossPt = interpolateCrossing(prev, cur, crossThreshold);
+      current.pts.append(crossPt);
+      segments.append(current);
+
+      // Start new segment
+      current = Segment();
+      current.alarm = ptAlarm;
+      current.pts.append(crossPt);
+    }
+    current.pts.append(points[i]);
+  }
+  segments.append(current);
+
+  // Assign segments to pool series
+  info.segmentPool.activeCount = 0;
+  info.segmentPool.ensureCapacity(segments.size(), chart_, axisX_, axisY_);
+
+  for (int i = 0; i < segments.size() && i < info.segmentPool.pool.size(); ++i) {
+    auto* s = info.segmentPool.pool[i];
+    QPen pen(segments[i].alarm ? alarmColor : normalColor);
+    pen.setWidth(thickness);
+    s->setPen(pen);
+    s->replace(segments[i].pts);
+    s->setVisible(true);
+    info.segmentPool.activeCount++;
+  }
+
+  info.segmentPool.hideUnused();
+}
+
+void PlotPanel::renderGradientSeries(PlotSeriesInfo& info,
+                                      const QVector<QPointF>& points) {
+  if (points.isEmpty()) {
+    info.series->clear();
+    info.segmentPool.hideUnused();
+    return;
+  }
+
+  // Hide primary series -- rendering delegated to pool
+  info.series->clear();
+  info.series->setVisible(false);
+
+  const auto& cfg = info.config;
+
+  // Ensure palette is computed
+  if (cfg.gradientPaletteCache.isEmpty()) {
+    computeGradientPalette(info.config);
+  }
+
+  const int buckets = cfg.gradientPaletteCache.size();
+  const double range = cfg.gradientMaxValue - cfg.gradientMinValue;
+  const int thickness = cfg.lineThickness;
+
+  auto bucketIndex = [&](double y) -> int {
+    if (range <= 0.0) return 0;
+    double t = (y - cfg.gradientMinValue) / range;
+    t = std::clamp(t, 0.0, 1.0);
+    int idx = static_cast<int>(t * (buckets - 1));
+    return std::clamp(idx, 0, buckets - 1);
+  };
+
+  // Build segments by bucket transitions
+  struct Segment {
+    QVector<QPointF> pts;
+    int bucket;
+  };
+  QVector<Segment> segments;
+
+  int currentBucket = bucketIndex(points[0].y());
+  Segment current;
+  current.bucket = currentBucket;
+  current.pts.append(points[0]);
+
+  for (int i = 1; i < points.size(); ++i) {
+    int ptBucket = bucketIndex(points[i].y());
+    if (ptBucket != currentBucket) {
+      // Add midpoint for continuity
+      QPointF mid((points[i - 1].x() + points[i].x()) / 2.0,
+                  (points[i - 1].y() + points[i].y()) / 2.0);
+      current.pts.append(mid);
+      segments.append(current);
+
+      current = Segment();
+      current.bucket = ptBucket;
+      current.pts.append(mid);
+      currentBucket = ptBucket;
+    }
+    current.pts.append(points[i]);
+  }
+  segments.append(current);
+
+  // Assign segments to pool series
+  info.segmentPool.activeCount = 0;
+  info.segmentPool.ensureCapacity(segments.size(), chart_, axisX_, axisY_);
+
+  for (int i = 0; i < segments.size() && i < info.segmentPool.pool.size(); ++i) {
+    auto* s = info.segmentPool.pool[i];
+    int bucket = std::clamp(segments[i].bucket, 0, buckets - 1);
+    QPen pen(cfg.gradientPaletteCache[bucket]);
+    pen.setWidth(thickness);
+    s->setPen(pen);
+    s->replace(segments[i].pts);
+    s->setVisible(true);
+    info.segmentPool.activeCount++;
+  }
+
+  info.segmentPool.hideUnused();
+}
+
+void PlotPanel::computeGradientPalette(PlotSeriesConfig& config) {
+  config.gradientPaletteCache.clear();
+  int n = std::max(config.gradientBuckets, 2);
+  config.gradientPaletteCache.reserve(n);
+
+  for (int i = 0; i < n; ++i) {
+    double t = static_cast<double>(i) / (n - 1);
+    int r = static_cast<int>(config.gradientColorLow.red() +
+            t * (config.gradientColorHigh.red() - config.gradientColorLow.red()));
+    int g = static_cast<int>(config.gradientColorLow.green() +
+            t * (config.gradientColorHigh.green() - config.gradientColorLow.green()));
+    int b = static_cast<int>(config.gradientColorLow.blue() +
+            t * (config.gradientColorHigh.blue() - config.gradientColorLow.blue()));
+    config.gradientPaletteCache.append(QColor(r, g, b));
+  }
+}
+
+void PlotPanel::showSeriesConfigDialog(const QString& fullPath) {
+  auto it = plotSeries_.find(fullPath.toStdString());
+  if (it == plotSeries_.end()) return;
+
+  PlotSeriesInfo& info = it->second;
+
+  PlotSeriesConfigDialog dlg(info.config, this);
+  if (dlg.exec() == QDialog::Accepted) {
+    PlotSeriesConfig newCfg = dlg.result();
+    // Preserve runtime state
+    newCfg.lastAcceptedTimestamp = info.config.lastAcceptedTimestamp;
+
+    info.config = newCfg;
+
+    // Rebuild gradient palette if in gradient mode
+    if (newCfg.renderMode == PlotRenderMode::Gradient) {
+      computeGradientPalette(info.config);
+    }
+
+    // Update list widget color
+    for (int i = 0; i < seriesList_->count(); ++i) {
+      if (seriesList_->item(i)->data(Qt::UserRole).toString() == fullPath) {
+        seriesList_->item(i)->setForeground(info.config.color);
+        break;
+      }
+    }
+  }
+}
+
 void PlotPanel::onSeriesListContextMenu(const QPoint& pos) {
   QListWidgetItem* item = seriesList_->itemAt(pos);
   if (!item) return;
@@ -1001,16 +1299,21 @@ void PlotPanel::onSeriesListContextMenu(const QPoint& pos) {
 
   QMenu menu(this);
 
-  // Change color
+  // Configure series (full dialog)
+  QAction* configAction = menu.addAction(tr("Configure Series..."));
+  connect(configAction, &QAction::triggered, [this, fullPath]() {
+    showSeriesConfigDialog(fullPath);
+  });
+
+  // Quick change color
   QAction* colorAction = menu.addAction(tr("Change Color..."));
   connect(colorAction, &QAction::triggered, [this, fullPath, item]() {
     std::lock_guard<std::mutex> lock(dataMutex_);
     auto it = plotSeries_.find(fullPath.toStdString());
     if (it != plotSeries_.end()) {
-      QColor newColor = QColorDialog::getColor(it->second.color, this, tr("Select Color"));
+      QColor newColor = QColorDialog::getColor(it->second.config.color, this, tr("Select Color"));
       if (newColor.isValid()) {
-        it->second.color = newColor;
-        // Update pen with new color while preserving line thickness
+        it->second.config.color = newColor;
         QPen pen = it->second.series->pen();
         pen.setColor(newColor);
         it->second.series->setPen(pen);
@@ -1258,16 +1561,17 @@ void PlotPanel::applyChartTheme() {
 }
 
 void PlotPanel::setLineThickness(int thickness) {
-  if (thickness < 1) thickness = 1;
-  if (thickness > 10) thickness = 10;
+  thickness = std::clamp(thickness, constants::plot::MIN_LINE_THICKNESS,
+                          constants::plot::MAX_LINE_THICKNESS);
 
-  lineThickness_ = thickness;
+  defaultConfig_.lineThickness = thickness;
 
   // Update existing series
   std::lock_guard<std::mutex> lock(dataMutex_);
   for (auto& [path, info] : plotSeries_) {
+    info.config.lineThickness = thickness;
     QPen pen = info.series->pen();
-    pen.setWidth(lineThickness_);
+    pen.setWidth(thickness);
     info.series->setPen(pen);
   }
 
@@ -1285,9 +1589,39 @@ void PlotPanel::loadSettings() {
   QSettings settings("ROS Weaver", "ROS Weaver");
   settings.beginGroup("PlotPanel");
 
-  lineThickness_ = settings.value("lineThickness", DEFAULT_LINE_THICKNESS).toInt();
-  if (lineThickness_ < 1) lineThickness_ = 1;
-  if (lineThickness_ > 10) lineThickness_ = 10;
+  defaultConfig_.lineThickness = std::clamp(
+    settings.value("lineThickness", constants::plot::DEFAULT_LINE_THICKNESS).toInt(),
+    constants::plot::MIN_LINE_THICKNESS, constants::plot::MAX_LINE_THICKNESS);
+
+  // Render mode
+  int mode = settings.value("defaultRenderMode", 0).toInt();
+  if (mode == 1) defaultConfig_.renderMode = PlotRenderMode::Threshold;
+  else if (mode == 2) defaultConfig_.renderMode = PlotRenderMode::Gradient;
+  else defaultConfig_.renderMode = PlotRenderMode::Solid;
+
+  // Threshold defaults
+  defaultConfig_.thresholdUpper = settings.value("thresholdUpper",
+    constants::plot::DEFAULT_THRESHOLD_UPPER).toDouble();
+  defaultConfig_.thresholdLower = settings.value("thresholdLower",
+    constants::plot::DEFAULT_THRESHOLD_LOWER).toDouble();
+  QColor alarmColor = settings.value("thresholdAlarmColor").value<QColor>();
+  if (alarmColor.isValid()) defaultConfig_.thresholdAlarmColor = alarmColor;
+
+  // Gradient defaults
+  defaultConfig_.gradientMinValue = settings.value("gradientMinValue", 0.0).toDouble();
+  defaultConfig_.gradientMaxValue = settings.value("gradientMaxValue", 1.0).toDouble();
+  QColor gradLow = settings.value("gradientColorLow").value<QColor>();
+  if (gradLow.isValid()) defaultConfig_.gradientColorLow = gradLow;
+  QColor gradHigh = settings.value("gradientColorHigh").value<QColor>();
+  if (gradHigh.isValid()) defaultConfig_.gradientColorHigh = gradHigh;
+  defaultConfig_.gradientBuckets = std::clamp(
+    settings.value("gradientBuckets", constants::plot::DEFAULT_GRADIENT_BUCKETS).toInt(),
+    constants::plot::MIN_GRADIENT_BUCKETS, constants::plot::MAX_GRADIENT_BUCKETS);
+
+  // Decimation defaults
+  defaultConfig_.decimationEnabled = settings.value("decimationEnabled", false).toBool();
+  defaultConfig_.maxSampleRateHz = settings.value("maxSampleRateHz",
+    constants::plot::DEFAULT_SAMPLE_RATE_HZ).toDouble();
 
   // Load custom color palette if saved
   int colorCount = settings.beginReadArray("colorPalette");
@@ -1310,7 +1644,29 @@ void PlotPanel::saveSettings() {
   QSettings settings("ROS Weaver", "ROS Weaver");
   settings.beginGroup("PlotPanel");
 
-  settings.setValue("lineThickness", lineThickness_);
+  settings.setValue("lineThickness", defaultConfig_.lineThickness);
+
+  // Render mode
+  int mode = 0;
+  if (defaultConfig_.renderMode == PlotRenderMode::Threshold) mode = 1;
+  else if (defaultConfig_.renderMode == PlotRenderMode::Gradient) mode = 2;
+  settings.setValue("defaultRenderMode", mode);
+
+  // Threshold defaults
+  settings.setValue("thresholdUpper", defaultConfig_.thresholdUpper);
+  settings.setValue("thresholdLower", defaultConfig_.thresholdLower);
+  settings.setValue("thresholdAlarmColor", defaultConfig_.thresholdAlarmColor);
+
+  // Gradient defaults
+  settings.setValue("gradientMinValue", defaultConfig_.gradientMinValue);
+  settings.setValue("gradientMaxValue", defaultConfig_.gradientMaxValue);
+  settings.setValue("gradientColorLow", defaultConfig_.gradientColorLow);
+  settings.setValue("gradientColorHigh", defaultConfig_.gradientColorHigh);
+  settings.setValue("gradientBuckets", defaultConfig_.gradientBuckets);
+
+  // Decimation defaults
+  settings.setValue("decimationEnabled", defaultConfig_.decimationEnabled);
+  settings.setValue("maxSampleRateHz", defaultConfig_.maxSampleRateHz);
 
   // Save color palette
   settings.beginWriteArray("colorPalette", colorPalette_.size());
@@ -1321,6 +1677,64 @@ void PlotPanel::saveSettings() {
   settings.endArray();
 
   settings.endGroup();
+}
+
+// ---- Default config setters ----
+
+void PlotPanel::setDefaultRenderMode(PlotRenderMode mode) {
+  defaultConfig_.renderMode = mode;
+  saveSettings();
+}
+
+void PlotPanel::setDefaultThresholdUpper(double val) {
+  defaultConfig_.thresholdUpper = val;
+  saveSettings();
+}
+
+void PlotPanel::setDefaultThresholdLower(double val) {
+  defaultConfig_.thresholdLower = val;
+  saveSettings();
+}
+
+void PlotPanel::setDefaultThresholdAlarmColor(const QColor& color) {
+  defaultConfig_.thresholdAlarmColor = color;
+  saveSettings();
+}
+
+void PlotPanel::setDefaultGradientMinValue(double val) {
+  defaultConfig_.gradientMinValue = val;
+  saveSettings();
+}
+
+void PlotPanel::setDefaultGradientMaxValue(double val) {
+  defaultConfig_.gradientMaxValue = val;
+  saveSettings();
+}
+
+void PlotPanel::setDefaultGradientColorLow(const QColor& color) {
+  defaultConfig_.gradientColorLow = color;
+  saveSettings();
+}
+
+void PlotPanel::setDefaultGradientColorHigh(const QColor& color) {
+  defaultConfig_.gradientColorHigh = color;
+  saveSettings();
+}
+
+void PlotPanel::setDefaultGradientBuckets(int buckets) {
+  defaultConfig_.gradientBuckets = std::clamp(buckets,
+    constants::plot::MIN_GRADIENT_BUCKETS, constants::plot::MAX_GRADIENT_BUCKETS);
+  saveSettings();
+}
+
+void PlotPanel::setDefaultDecimationEnabled(bool enabled) {
+  defaultConfig_.decimationEnabled = enabled;
+  saveSettings();
+}
+
+void PlotPanel::setDefaultMaxSampleRateHz(double hz) {
+  defaultConfig_.maxSampleRateHz = hz;
+  saveSettings();
 }
 
 }  // namespace ros_weaver

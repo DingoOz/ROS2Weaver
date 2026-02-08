@@ -112,6 +112,7 @@ set(SOURCES
   src/widgets/topic_list_model.cpp
   src/widgets/tf_tree_panel.cpp
   src/widgets/plot_panel.cpp
+  src/widgets/plot_series_config_dialog.cpp
   src/widgets/guided_tour.cpp
   src/widgets/topic_echo_dialog.cpp
   src/widgets/rosbag_workbench_panel.cpp
@@ -265,6 +266,7 @@ set(HEADERS
   include/ros_weaver/widgets/topic_list_model.hpp
   include/ros_weaver/widgets/tf_tree_panel.hpp
   include/ros_weaver/widgets/plot_panel.hpp
+  include/ros_weaver/widgets/plot_series_config_dialog.hpp
   include/ros_weaver/widgets/guided_tour.hpp
   include/ros_weaver/widgets/topic_echo_dialog.hpp
   include/ros_weaver/widgets/rosbag_workbench_panel.hpp

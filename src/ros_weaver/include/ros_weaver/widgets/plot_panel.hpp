@@ -21,6 +21,8 @@
 #include <QtCharts/QValueAxis>
 #include <QtCharts/QDateTimeAxis>
 
+#include "ros_weaver/core/constants.hpp"
+
 #include <rclcpp/rclcpp.hpp>
 #include <memory>
 #include <thread>
@@ -34,7 +36,11 @@ QT_CHARTS_USE_NAMESPACE
 namespace ros_weaver {
 
 class WeaverCanvas;
+class PlotSeriesConfigDialog;
 enum class Theme;
+
+// Render mode for a plot series
+enum class PlotRenderMode { Solid, Threshold, Gradient };
 
 // Data point for plotting
 struct PlotDataPoint {
@@ -42,14 +48,56 @@ struct PlotDataPoint {
   double value;
 };
 
+// Per-series configuration
+struct PlotSeriesConfig {
+  QColor color;
+  int lineThickness = constants::plot::DEFAULT_LINE_THICKNESS;
+
+  // Sample rate decimation
+  bool decimationEnabled = false;
+  double maxSampleRateHz = constants::plot::DEFAULT_SAMPLE_RATE_HZ;
+  qint64 lastAcceptedTimestamp = 0;
+
+  // Render mode
+  PlotRenderMode renderMode = PlotRenderMode::Solid;
+
+  // Threshold settings
+  double thresholdUpper = constants::plot::DEFAULT_THRESHOLD_UPPER;
+  double thresholdLower = constants::plot::DEFAULT_THRESHOLD_LOWER;
+  QColor thresholdAlarmColor = constants::plot::defaultThresholdAlarmColor();
+
+  // Gradient settings
+  double gradientMinValue = 0.0;
+  double gradientMaxValue = 1.0;
+  QColor gradientColorLow = constants::plot::defaultGradientLowColor();
+  QColor gradientColorHigh = constants::plot::defaultGradientHighColor();
+  int gradientBuckets = constants::plot::DEFAULT_GRADIENT_BUCKETS;
+  QVector<QColor> gradientPaletteCache;
+};
+
+// Pool of QLineSeries for segmented rendering (threshold/gradient modes)
+struct SegmentSeriesPool {
+  QVector<QLineSeries*> pool;
+  int activeCount = 0;
+
+  void ensureCapacity(int needed, QChart* chart, QValueAxis* axisX, QValueAxis* axisY);
+  void hideUnused();
+  void clearAll(QChart* chart);
+};
+
 // Information about a plotted series
 struct PlotSeriesInfo {
   QString topicName;
   QString fieldPath;      // e.g., "linear.x" for Twist
   QString fullPath;       // topicName + fieldPath
-  QColor color;
   QLineSeries* series;
   std::deque<PlotDataPoint> buffer;
+
+  // Per-series config (color, thickness, render mode, etc.)
+  PlotSeriesConfig config;
+
+  // Segment pool for multi-color rendering
+  SegmentSeriesPool segmentPool;
 
   // Statistics
   double minValue = 0.0;
@@ -81,13 +129,27 @@ public:
   // Set canvas for integration
   void setCanvas(WeaverCanvas* canvas) { canvas_ = canvas; }
 
-  // Line thickness settings
-  int lineThickness() const { return lineThickness_; }
+  // Line thickness settings (global default for new series)
+  int lineThickness() const { return defaultConfig_.lineThickness; }
   void setLineThickness(int thickness);
 
   // Color palette access
   QList<QColor> colorPalette() const { return colorPalette_; }
   void setColorPalette(const QList<QColor>& colors);
+
+  // Default config accessors for Settings dialog
+  PlotSeriesConfig defaultConfig() const { return defaultConfig_; }
+  void setDefaultRenderMode(PlotRenderMode mode);
+  void setDefaultThresholdUpper(double val);
+  void setDefaultThresholdLower(double val);
+  void setDefaultThresholdAlarmColor(const QColor& color);
+  void setDefaultGradientMinValue(double val);
+  void setDefaultGradientMaxValue(double val);
+  void setDefaultGradientColorLow(const QColor& color);
+  void setDefaultGradientColorHigh(const QColor& color);
+  void setDefaultGradientBuckets(int buckets);
+  void setDefaultDecimationEnabled(bool enabled);
+  void setDefaultMaxSampleRateHz(double hz);
 
   // Settings persistence
   void loadSettings();
@@ -161,6 +223,17 @@ private:
   void updateStatistics(PlotSeriesInfo& info);
   void updateDetailsPanel();
 
+  // Render mode dispatch
+  void renderSolidSeries(PlotSeriesInfo& info, const QVector<QPointF>& points);
+  void renderThresholdSeries(PlotSeriesInfo& info, const QVector<QPointF>& points);
+  void renderGradientSeries(PlotSeriesInfo& info, const QVector<QPointF>& points);
+
+  // Gradient palette computation
+  void computeGradientPalette(PlotSeriesConfig& config);
+
+  // Per-series config dialog
+  void showSeriesConfigDialog(const QString& fullPath);
+
   // Adjust axes based on data
   void adjustAxes();
 
@@ -215,22 +288,19 @@ private:
 
   // Time window (seconds)
   int timeWindowSeconds_;
-  static constexpr int MAX_BUFFER_SIZE = 10000;  // Max points per series
 
   // Playback state
   bool paused_;
 
   // Update timer
   QTimer* updateTimer_;
-  static constexpr int UPDATE_INTERVAL_MS = 50;  // 20 Hz update rate
 
   // Color palette for series
   QList<QColor> colorPalette_;
   int colorIndex_;
 
-  // Line thickness (default 2)
-  int lineThickness_;
-  static constexpr int DEFAULT_LINE_THICKNESS = 2;
+  // Default config template for new series
+  PlotSeriesConfig defaultConfig_;
 
   // Selected series for details
   QString selectedSeriesPath_;
