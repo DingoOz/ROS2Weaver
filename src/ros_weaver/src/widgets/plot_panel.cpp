@@ -21,7 +21,7 @@
 #include <QTreeWidget>
 #include <QScreen>
 #include <QSettings>
-#include <iostream>
+#include <QDebug>
 
 #include <std_msgs/msg/float32.hpp>
 #include <std_msgs/msg/float64.hpp>
@@ -62,6 +62,11 @@ void SegmentSeriesPool::ensureCapacity(int needed, QChart* chart,
     }
     pool.append(s);
   }
+  if (needed > constants::plot::MAX_POOL_SIZE && !poolCapWarned) {
+    qWarning("SegmentSeriesPool: needed %d segments but capped at %d; trailing segments will not render.",
+             needed, constants::plot::MAX_POOL_SIZE);
+    poolCapWarned = true;
+  }
 }
 
 void SegmentSeriesPool::hideUnused() {
@@ -78,6 +83,7 @@ void SegmentSeriesPool::clearAll(QChart* chart) {
   }
   pool.clear();
   activeCount = 0;
+  poolCapWarned = false;
 }
 
 // ---- PlotPanel implementation ----
@@ -144,12 +150,10 @@ PlotPanel::PlotPanel(QWidget* parent)
 }
 
 PlotPanel::~PlotPanel() {
-  std::cerr << "PlotPanel destructor: starting" << std::endl;
   if (updateTimer_) {
     updateTimer_->stop();
   }
   shutdownRosNode();
-  std::cerr << "PlotPanel destructor: complete" << std::endl;
 }
 
 void PlotPanel::setupUi() {
@@ -921,30 +925,9 @@ void PlotPanel::onDataReceived(const QString& fullPath, double value, qint64 tim
 
   PlotSeriesInfo& info = it->second;
 
-  // Sample rate decimation
-  if (info.config.decimationEnabled && info.config.maxSampleRateHz > 0) {
-    double minIntervalMs = 1000.0 / info.config.maxSampleRateHz;
-    if (info.config.lastAcceptedTimestamp > 0 &&
-        (timestamp - info.config.lastAcceptedTimestamp) < minIntervalMs) {
-      return;  // Skip this sample
-    }
-    info.config.lastAcceptedTimestamp = timestamp;
-  }
-
-  // Add to buffer
-  PlotDataPoint point{timestamp, value};
-  info.buffer.push_back(point);
-
-  // Limit buffer size
-  while (static_cast<int>(info.buffer.size()) > constants::plot::MAX_BUFFER_SIZE) {
-    info.buffer.pop_front();
-  }
-
-  // Update statistics
+  // Statistics reflect the real incoming stream, not the decimated view.
   info.currentValue = value;
   info.messageCount++;
-
-  // Calculate rate
   if (info.lastMessageTime > 0) {
     double dt = (timestamp - info.lastMessageTime) / 1000.0;
     if (dt > 0) {
@@ -952,6 +935,23 @@ void PlotPanel::onDataReceived(const QString& fullPath, double value, qint64 tim
     }
   }
   info.lastMessageTime = timestamp;
+
+  // Sample rate decimation — only gates buffer insertion, not stats.
+  if (info.config.decimationEnabled && info.config.maxSampleRateHz > 0) {
+    double minIntervalMs = 1000.0 / info.config.maxSampleRateHz;
+    if (info.config.lastAcceptedTimestamp > 0 &&
+        (timestamp - info.config.lastAcceptedTimestamp) < minIntervalMs) {
+      return;
+    }
+    info.config.lastAcceptedTimestamp = timestamp;
+  }
+
+  PlotDataPoint point{timestamp, value};
+  info.buffer.push_back(point);
+
+  while (static_cast<int>(info.buffer.size()) > constants::plot::MAX_BUFFER_SIZE) {
+    info.buffer.pop_front();
+  }
 }
 
 void PlotPanel::onUpdateTimer() {
@@ -1110,9 +1110,12 @@ void PlotPanel::renderThresholdSeries(PlotSeriesInfo& info,
 
   auto isAlarm = [&](double y) { return y > upper || y < lower; };
 
-  // Linear interpolation helper for crossing point
   auto interpolateCrossing = [](const QPointF& a, const QPointF& b, double threshold) -> QPointF {
-    double t = (threshold - a.y()) / (b.y() - a.y());
+    const double dy = b.y() - a.y();
+    if (std::abs(dy) < 1e-12) {
+      return QPointF(0.5 * (a.x() + b.x()), threshold);
+    }
+    double t = (threshold - a.y()) / dy;
     return QPointF(a.x() + t * (b.x() - a.x()), threshold);
   };
 

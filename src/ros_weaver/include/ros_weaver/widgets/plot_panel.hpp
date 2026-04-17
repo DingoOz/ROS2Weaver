@@ -79,6 +79,7 @@ struct PlotSeriesConfig {
 struct SegmentSeriesPool {
   QVector<QLineSeries*> pool;
   int activeCount = 0;
+  bool poolCapWarned = false;
 
   void ensureCapacity(int needed, QChart* chart, QValueAxis* axisX, QValueAxis* axisY);
   void hideUnused();
