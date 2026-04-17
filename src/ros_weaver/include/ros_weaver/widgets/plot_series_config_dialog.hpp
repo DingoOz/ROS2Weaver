@@ -23,6 +23,9 @@ public:
 
   PlotSeriesConfig result() const;
 
+public slots:
+  void accept() override;
+
 private:
   void setupUi(const PlotSeriesConfig& config);
   void updateSectionVisibility();

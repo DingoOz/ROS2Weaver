@@ -8,6 +8,7 @@
 #include <QLabel>
 #include <QDialogButtonBox>
 #include <QColorDialog>
+#include <QMessageBox>
 
 namespace ros_weaver {
 
@@ -212,6 +213,28 @@ void PlotSeriesConfigDialog::chooseColor(QPushButton* btn, QColor& target) {
     btn->setStyleSheet(
       QString("background-color: %1; border: 1px solid #555;").arg(c.name()));
   }
+}
+
+void PlotSeriesConfigDialog::accept() {
+  if (thresholdRadio_->isChecked()) {
+    if (thresholdLowerSpin_->value() >= thresholdUpperSpin_->value()) {
+      QMessageBox::warning(this, tr("Invalid Thresholds"),
+        tr("Lower threshold must be less than upper threshold."));
+      thresholdLowerSpin_->setFocus();
+      return;
+    }
+  }
+
+  if (gradientRadio_->isChecked()) {
+    if (gradientMinSpin_->value() >= gradientMaxSpin_->value()) {
+      QMessageBox::warning(this, tr("Invalid Gradient Range"),
+        tr("Minimum value must be less than maximum value."));
+      gradientMinSpin_->setFocus();
+      return;
+    }
+  }
+
+  QDialog::accept();
 }
 
 PlotSeriesConfig PlotSeriesConfigDialog::result() const {
