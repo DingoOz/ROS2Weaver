@@ -77,6 +77,8 @@
 #include "ros_weaver/widgets/behavior_tree_panel.hpp"
 #include "ros_weaver/widgets/dock_drop_overlay.hpp"
 #include "ros_weaver/widgets/mission_planner_panel.hpp"
+#include "ros_weaver/widgets/ekf_tuner_panel.hpp"
+#include "ros_weaver/widgets/urdf_editor_panel.hpp"
 
 #include <QApplication>
 #include <QCloseEvent>
@@ -106,6 +108,7 @@
 #include <QGroupBox>
 #include <QFormLayout>
 #include <QSpinBox>
+#include <QDoubleSpinBox>
 #include <QColorDialog>
 #include <QGridLayout>
 
@@ -192,6 +195,10 @@ MainWindow::MainWindow(QWidget* parent)
   , networkTopologyDock_(nullptr)
   , behaviorTreePanel_(nullptr)
   , behaviorTreeDock_(nullptr)
+  , ekfTunerPanel_(nullptr)
+  , ekfTunerDock_(nullptr)
+  , urdfEditorPanel_(nullptr)
+  , urdfEditorDock_(nullptr)
 {
   setWindowTitle(baseWindowTitle_);
   setMinimumSize(constants::ui::MIN_WINDOW_WIDTH, constants::ui::MIN_WINDOW_HEIGHT);
@@ -296,6 +303,8 @@ MainWindow::~MainWindow() {
   scenarioEditorDock_ = nullptr;
   delete rosbagWorkbenchDock_;
   rosbagWorkbenchDock_ = nullptr;
+  delete ekfTunerDock_;
+  ekfTunerDock_ = nullptr;
   delete outputDock_;
   outputDock_ = nullptr;
   delete propertiesDock_;
@@ -759,6 +768,20 @@ void MainWindow::setupMenuBar() {
   showMissionPlannerAction->setChecked(false);  // Hidden by default
   showMissionPlannerAction->setObjectName("showMissionPlannerAction");
   showMissionPlannerAction->setToolTip(tr("Show/hide mission waypoint planner panel"));
+
+  QAction* showEkfTunerAction = panelsMenu->addAction(tr("EKF &Tuner"));
+  showEkfTunerAction->setCheckable(true);
+  showEkfTunerAction->setChecked(false);  // Hidden by default
+  showEkfTunerAction->setShortcut(tr("Ctrl+Shift+E"));
+  showEkfTunerAction->setObjectName("showEkfTunerAction");
+  showEkfTunerAction->setToolTip(tr("Show/hide EKF tuner workbench for robot_localization parameter tuning"));
+
+  QAction* showUrdfEditorAction = panelsMenu->addAction(tr("&URDF Editor"));
+  showUrdfEditorAction->setCheckable(true);
+  showUrdfEditorAction->setChecked(false);  // Hidden by default
+  showUrdfEditorAction->setShortcut(tr("Ctrl+Shift+U"));
+  showUrdfEditorAction->setObjectName("showUrdfEditorAction");
+  showUrdfEditorAction->setToolTip(tr("Show/hide URDF editor for visual robot description editing"));
 
   panelsMenu->addSeparator();
 
@@ -1943,6 +1966,46 @@ void MainWindow::setupDockWidgets() {
   if (showMissionPlannerAction) {
     connect(showMissionPlannerAction, &QAction::toggled, missionPlannerDock_, &QDockWidget::setVisible);
     connect(missionPlannerDock_, &QDockWidget::visibilityChanged, showMissionPlannerAction, &QAction::setChecked);
+  }
+
+  // EKF Tuner Panel (bottom, initially hidden)
+  ekfTunerDock_ = new QDockWidget(tr("EKF Tuner"), this);
+  ekfTunerDock_->setObjectName("ekfTunerDock");
+  ekfTunerDock_->setAllowedAreas(Qt::BottomDockWidgetArea | Qt::TopDockWidgetArea);
+  ekfTunerDock_->setFeatures(QDockWidget::DockWidgetMovable |
+                              QDockWidget::DockWidgetFloatable |
+                              QDockWidget::DockWidgetClosable);
+
+  ekfTunerPanel_ = new EKFTunerPanel(this);
+  ekfTunerDock_->setWidget(ekfTunerPanel_);
+
+  addDockWidget(Qt::BottomDockWidgetArea, ekfTunerDock_);
+  ekfTunerDock_->hide();  // Hidden by default
+
+  QAction* showEkfTunerAction = findChild<QAction*>("showEkfTunerAction");
+  if (showEkfTunerAction) {
+    connect(showEkfTunerAction, &QAction::toggled, ekfTunerDock_, &QDockWidget::setVisible);
+    connect(ekfTunerDock_, &QDockWidget::visibilityChanged, showEkfTunerAction, &QAction::setChecked);
+  }
+
+  // URDF Editor Panel (bottom, initially hidden)
+  urdfEditorDock_ = new QDockWidget(tr("URDF Editor"), this);
+  urdfEditorDock_->setObjectName("urdfEditorDock");
+  urdfEditorDock_->setAllowedAreas(Qt::AllDockWidgetAreas);
+  urdfEditorDock_->setFeatures(QDockWidget::DockWidgetMovable |
+                                QDockWidget::DockWidgetFloatable |
+                                QDockWidget::DockWidgetClosable);
+
+  urdfEditorPanel_ = new URDFEditorPanel(this);
+  urdfEditorDock_->setWidget(urdfEditorPanel_);
+
+  addDockWidget(Qt::BottomDockWidgetArea, urdfEditorDock_);
+  urdfEditorDock_->hide();  // Hidden by default
+
+  QAction* showUrdfEditorAction = findChild<QAction*>("showUrdfEditorAction");
+  if (showUrdfEditorAction) {
+    connect(showUrdfEditorAction, &QAction::toggled, urdfEditorDock_, &QDockWidget::setVisible);
+    connect(urdfEditorDock_, &QDockWidget::visibilityChanged, showUrdfEditorAction, &QAction::setChecked);
   }
 
   // Initialize dock drag filter for Ctrl+drag docking
@@ -3746,9 +3809,8 @@ void MainWindow::onOpenSettings() {
 
   // Appearance group
   QGroupBox* appearanceGroup = new QGroupBox(tr("Appearance"), generalTab);
-  QHBoxLayout* appearanceLayout = new QHBoxLayout(appearanceGroup);
+  QFormLayout* appearanceLayout = new QFormLayout(appearanceGroup);
 
-  QLabel* themeLabel = new QLabel(tr("Theme:"), appearanceGroup);
   QComboBox* themeCombo = new QComboBox(appearanceGroup);
   themeCombo->addItem(ThemeManager::themeName(Theme::Dark), static_cast<int>(Theme::Dark));
   themeCombo->addItem(ThemeManager::themeName(Theme::Light), static_cast<int>(Theme::Light));
@@ -3757,9 +3819,17 @@ void MainWindow::onOpenSettings() {
   Theme currentTheme = ThemeManager::instance().currentTheme();
   themeCombo->setCurrentIndex(themeCombo->findData(static_cast<int>(currentTheme)));
 
-  appearanceLayout->addWidget(themeLabel);
-  appearanceLayout->addWidget(themeCombo);
-  appearanceLayout->addStretch();
+  appearanceLayout->addRow(tr("Theme:"), themeCombo);
+
+  QDoubleSpinBox* dockButtonScaleSpin = new QDoubleSpinBox(appearanceGroup);
+  dockButtonScaleSpin->setRange(constants::ui::DOCK_BUTTON_MIN_SCALE, constants::ui::DOCK_BUTTON_MAX_SCALE);
+  dockButtonScaleSpin->setSingleStep(constants::ui::DOCK_BUTTON_SCALE_STEP);
+  dockButtonScaleSpin->setDecimals(2);
+  dockButtonScaleSpin->setSuffix("x");
+  dockButtonScaleSpin->setValue(ThemeManager::instance().dockButtonScale());
+  dockButtonScaleSpin->setToolTip(tr("Scale factor for dock panel close/float buttons (1.0x = 16px default)"));
+
+  appearanceLayout->addRow(tr("Dock button size:"), dockButtonScaleSpin);
 
   generalLayout->addWidget(appearanceGroup);
 
@@ -3974,6 +4044,114 @@ void MainWindow::onOpenSettings() {
   });
   plotLayout->addWidget(resetPlotColorsBtn);
 
+  // Default render mode
+  QHBoxLayout* renderModeLayout = new QHBoxLayout();
+  QLabel* renderModeLabel = new QLabel(tr("Default render mode:"), plotGroup);
+  QComboBox* renderModeCombo = new QComboBox(plotGroup);
+  renderModeCombo->addItem(tr("Solid"), 0);
+  renderModeCombo->addItem(tr("Threshold"), 1);
+  renderModeCombo->addItem(tr("Gradient"), 2);
+  if (plotPanel_) {
+    auto cfg = plotPanel_->defaultConfig();
+    if (cfg.renderMode == PlotRenderMode::Threshold) renderModeCombo->setCurrentIndex(1);
+    else if (cfg.renderMode == PlotRenderMode::Gradient) renderModeCombo->setCurrentIndex(2);
+    else renderModeCombo->setCurrentIndex(0);
+  }
+  renderModeCombo->setToolTip(tr("Default rendering mode for new plot series"));
+  renderModeLayout->addWidget(renderModeLabel);
+  renderModeLayout->addWidget(renderModeCombo);
+  renderModeLayout->addStretch();
+  plotLayout->addLayout(renderModeLayout);
+
+  // Threshold settings
+  QHBoxLayout* thresholdLayout = new QHBoxLayout();
+  PlotSeriesConfig plotDefCfg = plotPanel_ ? plotPanel_->defaultConfig() : PlotSeriesConfig();
+
+  QLabel* threshUpperLabel = new QLabel(tr("Threshold upper:"), plotGroup);
+  QDoubleSpinBox* threshUpperSpin = new QDoubleSpinBox(plotGroup);
+  threshUpperSpin->setRange(-1e9, 1e9);
+  threshUpperSpin->setDecimals(3);
+  threshUpperSpin->setValue(plotDefCfg.thresholdUpper);
+  thresholdLayout->addWidget(threshUpperLabel);
+  thresholdLayout->addWidget(threshUpperSpin);
+
+  QLabel* threshLowerLabel = new QLabel(tr("Lower:"), plotGroup);
+  QDoubleSpinBox* threshLowerSpin = new QDoubleSpinBox(plotGroup);
+  threshLowerSpin->setRange(-1e9, 1e9);
+  threshLowerSpin->setDecimals(3);
+  threshLowerSpin->setValue(plotDefCfg.thresholdLower);
+  thresholdLayout->addWidget(threshLowerLabel);
+  thresholdLayout->addWidget(threshLowerSpin);
+  thresholdLayout->addStretch();
+  plotLayout->addLayout(thresholdLayout);
+
+  // Threshold alarm color
+  QHBoxLayout* alarmColorLayout = new QHBoxLayout();
+  QLabel* alarmColorLabel = new QLabel(tr("Alarm color:"), plotGroup);
+  QPushButton* alarmColorBtn = new QPushButton(plotGroup);
+  alarmColorBtn->setFixedSize(40, 24);
+  QColor plotAlarmColor = plotDefCfg.thresholdAlarmColor;
+  alarmColorBtn->setStyleSheet(
+    QString("background-color: %1; border: 1px solid #555;").arg(plotAlarmColor.name()));
+  connect(alarmColorBtn, &QPushButton::clicked, [alarmColorBtn, &plotAlarmColor]() {
+    QColor c = QColorDialog::getColor(plotAlarmColor, alarmColorBtn, QObject::tr("Alarm Color"));
+    if (c.isValid()) {
+      plotAlarmColor = c;
+      alarmColorBtn->setStyleSheet(
+        QString("background-color: %1; border: 1px solid #555;").arg(c.name()));
+    }
+  });
+  alarmColorLayout->addWidget(alarmColorLabel);
+  alarmColorLayout->addWidget(alarmColorBtn);
+  alarmColorLayout->addStretch();
+  plotLayout->addLayout(alarmColorLayout);
+
+  // Gradient settings
+  QHBoxLayout* gradientLayout = new QHBoxLayout();
+  QLabel* gradBucketsLabel = new QLabel(tr("Gradient steps:"), plotGroup);
+  QSpinBox* gradBucketsSpin = new QSpinBox(plotGroup);
+  gradBucketsSpin->setRange(constants::plot::MIN_GRADIENT_BUCKETS,
+                             constants::plot::MAX_GRADIENT_BUCKETS);
+  gradBucketsSpin->setValue(plotDefCfg.gradientBuckets);
+  gradientLayout->addWidget(gradBucketsLabel);
+  gradientLayout->addWidget(gradBucketsSpin);
+
+  QLabel* gradLowLabel = new QLabel(tr("Low:"), plotGroup);
+  QPushButton* gradLowBtn = new QPushButton(plotGroup);
+  gradLowBtn->setFixedSize(40, 24);
+  QColor plotGradLow = plotDefCfg.gradientColorLow;
+  gradLowBtn->setStyleSheet(
+    QString("background-color: %1; border: 1px solid #555;").arg(plotGradLow.name()));
+  connect(gradLowBtn, &QPushButton::clicked, [gradLowBtn, &plotGradLow]() {
+    QColor c = QColorDialog::getColor(plotGradLow, gradLowBtn, QObject::tr("Gradient Low"));
+    if (c.isValid()) {
+      plotGradLow = c;
+      gradLowBtn->setStyleSheet(
+        QString("background-color: %1; border: 1px solid #555;").arg(c.name()));
+    }
+  });
+  gradientLayout->addWidget(gradLowLabel);
+  gradientLayout->addWidget(gradLowBtn);
+
+  QLabel* gradHighLabel = new QLabel(tr("High:"), plotGroup);
+  QPushButton* gradHighBtn = new QPushButton(plotGroup);
+  gradHighBtn->setFixedSize(40, 24);
+  QColor plotGradHigh = plotDefCfg.gradientColorHigh;
+  gradHighBtn->setStyleSheet(
+    QString("background-color: %1; border: 1px solid #555;").arg(plotGradHigh.name()));
+  connect(gradHighBtn, &QPushButton::clicked, [gradHighBtn, &plotGradHigh]() {
+    QColor c = QColorDialog::getColor(plotGradHigh, gradHighBtn, QObject::tr("Gradient High"));
+    if (c.isValid()) {
+      plotGradHigh = c;
+      gradHighBtn->setStyleSheet(
+        QString("background-color: %1; border: 1px solid #555;").arg(c.name()));
+    }
+  });
+  gradientLayout->addWidget(gradHighLabel);
+  gradientLayout->addWidget(gradHighBtn);
+  gradientLayout->addStretch();
+  plotLayout->addLayout(gradientLayout);
+
   generalLayout->addWidget(plotGroup);
 
   // Add stretch to push remaining space to bottom
@@ -4057,6 +4235,9 @@ void MainWindow::onOpenSettings() {
     Theme selectedTheme = static_cast<Theme>(themeCombo->currentData().toInt());
     ThemeManager::instance().setTheme(selectedTheme);
 
+    // Apply dock button scale
+    ThemeManager::instance().setDockButtonScale(dockButtonScaleSpin->value());
+
     // Apply settings
     rosStatusWidget_->setShowRos2Status(showStatusCheck->isChecked());
     rosStatusWidget_->setShowDomainId(showDomainCheck->isChecked());
@@ -4100,6 +4281,21 @@ void MainWindow::onOpenSettings() {
       if (!newPalette.isEmpty()) {
         plotPanel_->setColorPalette(newPalette);
       }
+
+      // Apply new default settings
+      int modeIdx = renderModeCombo->currentData().toInt();
+      PlotRenderMode newMode = PlotRenderMode::Solid;
+      if (modeIdx == 1) newMode = PlotRenderMode::Threshold;
+      else if (modeIdx == 2) newMode = PlotRenderMode::Gradient;
+      plotPanel_->setDefaultRenderMode(newMode);
+
+      plotPanel_->setDefaultThresholdUpper(threshUpperSpin->value());
+      plotPanel_->setDefaultThresholdLower(threshLowerSpin->value());
+      plotPanel_->setDefaultThresholdAlarmColor(plotAlarmColor);
+
+      plotPanel_->setDefaultGradientBuckets(gradBucketsSpin->value());
+      plotPanel_->setDefaultGradientColorLow(plotGradLow);
+      plotPanel_->setDefaultGradientColorHigh(plotGradHigh);
     }
 
     // Apply Network Topology settings

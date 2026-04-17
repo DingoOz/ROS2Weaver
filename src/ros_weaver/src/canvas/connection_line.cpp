@@ -26,9 +26,15 @@ ConnectionLine::ConnectionLine(PackageBlock* sourceBlock, int sourcePin,
   , pulseAnimation_(nullptr)
   , dataFlowAnimation_(nullptr)
   , activityGlowAnimation_(nullptr)
+  , rateAnimation_(nullptr)
+  , bandwidthAnimation_(nullptr)
   , pulsePhase_(0.0)
   , dataFlowPhase_(0.0)
   , activityGlow_(0.0)
+  , rateAnimProgress_(1.0)
+  , bandwidthAnimProgress_(1.0)
+  , previousRate_(0.0)
+  , previousBandwidth_(0.0)
   , activityState_(TopicActivityState::Unknown)
   , messageRate_(0.0)
   , showRateLabel_(true)
@@ -64,6 +70,14 @@ ConnectionLine::~ConnectionLine() {
   if (activityGlowAnimation_) {
     activityGlowAnimation_->stop();
     delete activityGlowAnimation_;
+  }
+  if (rateAnimation_) {
+    rateAnimation_->stop();
+    delete rateAnimation_;
+  }
+  if (bandwidthAnimation_) {
+    bandwidthAnimation_->stop();
+    delete bandwidthAnimation_;
   }
 
   // Remove this connection from source and target blocks
@@ -251,7 +265,7 @@ void ConnectionLine::paint(QPainter* painter, const QStyleOptionGraphicsItem* op
     qreal rateIntensity = 0.5;  // Base intensity for low rates
     if (messageRate_ > 0) {
       // Scale from 0.5 at 1Hz to 1.0 at 10kHz
-      rateIntensity = std::min(1.0, 0.5 + 0.125 * std::log10(messageRate_));
+      rateIntensity = qBound(0.0, 0.5 + 0.125 * std::log10(messageRate_), 1.0);
     }
     qreal throb = 0.5 + 0.5 * std::sin(dataFlowPhase_ * 2 * M_PI);
     // Higher rates = thicker line (2.0-3.0 base + 0-2 rate bonus)
@@ -292,7 +306,7 @@ void ConnectionLine::paint(QPainter* painter, const QStyleOptionGraphicsItem* op
     // Scale glow intensity with rate
     qreal rateIntensity = 0.5;
     if (messageRate_ > 0) {
-      rateIntensity = std::min(1.0, 0.5 + 0.125 * std::log10(messageRate_));
+      rateIntensity = qBound(0.0, 0.5 + 0.125 * std::log10(messageRate_), 1.0);
     }
 
     // Outer glow that pulses - brighter and larger for higher rates
@@ -440,8 +454,14 @@ void ConnectionLine::setActivityState(TopicActivityState state) {
 }
 
 void ConnectionLine::setMessageRate(double rateHz) {
-  if (messageRate_ != rateHz) {
+  if (!qFuzzyCompare(1.0 + messageRate_, 1.0 + rateHz)) {
+    // Store previous rate for animation
+    previousRate_ = messageRate_;
+    previousRateStr_ = formatRate(messageRate_);
     messageRate_ = rateHz;
+
+    // Start rolling digit animation
+    startRateAnimation();
 
     // Adjust animation speed based on rate
     if (dataFlowAnimation_ && dataFlowAnimation_->state() == QAbstractAnimation::Running) {
@@ -534,8 +554,9 @@ void ConnectionLine::stopDataFlowAnimation() {
     // Stop the looping animation and animate to 0
     dataFlowAnimation_->stop();
 
-    // Create a one-shot fade-out animation
-    QPropertyAnimation* fadeOut = new QPropertyAnimation(this, "dataFlowPhase");
+    // Create a one-shot fade-out animation parented to this object
+    // so it is automatically destroyed if this ConnectionLine is deleted
+    QPropertyAnimation* fadeOut = new QPropertyAnimation(this, "dataFlowPhase", this);
     fadeOut->setDuration(250);
     fadeOut->setStartValue(dataFlowPhase_);
     fadeOut->setEndValue(0.0);
@@ -547,6 +568,136 @@ void ConnectionLine::stopDataFlowAnimation() {
     dataFlowPhase_ = 0.0;
     update();
   }
+}
+
+void ConnectionLine::startRateAnimation() {
+  if (!rateAnimation_) {
+    rateAnimation_ = new QPropertyAnimation(this, "rateAnimProgress");
+    rateAnimation_->setEasingCurve(QEasingCurve::OutCubic);
+  }
+  rateAnimation_->stop();
+  rateAnimation_->setDuration(300);
+  rateAnimation_->setStartValue(0.0);
+  rateAnimation_->setEndValue(1.0);
+  rateAnimation_->start();
+}
+
+void ConnectionLine::startBandwidthAnimation() {
+  if (!bandwidthAnimation_) {
+    bandwidthAnimation_ = new QPropertyAnimation(this, "bandwidthAnimProgress");
+    bandwidthAnimation_->setEasingCurve(QEasingCurve::OutCubic);
+  }
+  bandwidthAnimation_->stop();
+  bandwidthAnimation_->setDuration(300);
+  bandwidthAnimation_->setStartValue(0.0);
+  bandwidthAnimation_->setEndValue(1.0);
+  bandwidthAnimation_->start();
+}
+
+void ConnectionLine::setRateAnimProgress(qreal progress) {
+  if (rateAnimProgress_ != progress) {
+    rateAnimProgress_ = progress;
+    update();
+  }
+}
+
+void ConnectionLine::setBandwidthAnimProgress(qreal progress) {
+  if (bandwidthAnimProgress_ != progress) {
+    bandwidthAnimProgress_ = progress;
+    update();
+  }
+}
+
+QString ConnectionLine::formatRate(double rateHz) const {
+  if (rateHz >= 1000) {
+    return QString("%1 kHz").arg(rateHz / 1000.0, 0, 'f', 1);
+  } else if (rateHz >= 1) {
+    return QString("%1 Hz").arg(rateHz, 0, 'f', 1);
+  } else if (rateHz > 0) {
+    return QString("%1 Hz").arg(rateHz, 0, 'f', 2);
+  } else {
+    return QString();
+  }
+}
+
+int ConnectionLine::digitScrollDistance(int fromDigit, int toDigit) const {
+  // Calculate shortest path between two digits (0-9)
+  int directDist = toDigit - fromDigit;
+  int wrapDist = directDist > 0 ? directDist - 10 : directDist + 10;
+  return std::abs(directDist) <= std::abs(wrapDist) ? directDist : wrapDist;
+}
+
+void ConnectionLine::drawRollingDigits(QPainter* painter, const QString& oldValue,
+                                        const QString& newValue, qreal progress,
+                                        const QPointF& position, const QFont& font,
+                                        const QColor& textColor, const QColor& bgColor) {
+  if (newValue.isEmpty()) return;
+
+  painter->setFont(font);
+  QFontMetrics fm(font);
+  qreal charHeight = fm.height();
+
+  // Calculate text rect for background
+  QRect textRect = fm.boundingRect(newValue);
+  textRect.moveCenter(position.toPoint());
+  QRect bgRect = textRect.adjusted(-4, -2, 4, 2);
+
+  // Draw background
+  painter->setBrush(bgColor);
+  painter->setPen(Qt::NoPen);
+  painter->drawRoundedRect(bgRect, 3, 3);
+
+  // If animation is complete or no old value, just draw normally
+  if (progress >= 1.0 || oldValue.isEmpty() || oldValue == newValue) {
+    painter->setPen(textColor);
+    painter->drawText(textRect, Qt::AlignCenter, newValue);
+    return;
+  }
+
+  // Animate digit by digit with clipping
+  painter->save();
+  painter->setClipRect(bgRect);
+
+  qreal x = textRect.left();
+  qreal y = textRect.top() + fm.ascent();
+
+  // Get monospace-like digit width
+  qreal digitWidth = fm.horizontalAdvance('0');
+
+  int maxLen = qMax(oldValue.length(), newValue.length());
+  for (int i = 0; i < maxLen; ++i) {
+    QChar fromChar = i < oldValue.length() ? oldValue.at(i) : QChar(' ');
+    QChar toChar = i < newValue.length() ? newValue.at(i) : QChar(' ');
+
+    qreal charWidth = (fromChar.isDigit() || toChar.isDigit()) ? digitWidth : fm.horizontalAdvance(toChar);
+
+    if (fromChar.isDigit() && toChar.isDigit() && fromChar != toChar) {
+      int fromDigit = fromChar.digitValue();
+      int toDigit = toChar.digitValue();
+      int scrollDist = digitScrollDistance(fromDigit, toDigit);
+      qreal currentDigitPos = fromDigit + scrollDist * progress;
+
+      while (currentDigitPos < 0) currentDigitPos += 10;
+      while (currentDigitPos >= 10) currentDigitPos -= 10;
+
+      int lowerDigit = static_cast<int>(std::floor(currentDigitPos)) % 10;
+      int upperDigit = (lowerDigit + 1) % 10;
+      qreal fraction = currentDigitPos - std::floor(currentDigitPos);
+
+      qreal scrollOffset = fraction * charHeight;
+
+      painter->setPen(textColor);
+      painter->drawText(QPointF(x, y - scrollOffset), QString::number(lowerDigit));
+      painter->drawText(QPointF(x, y - scrollOffset + charHeight), QString::number(upperDigit));
+    } else {
+      painter->setPen(textColor);
+      painter->drawText(QPointF(x, y), toChar);
+    }
+
+    x += charWidth;
+  }
+
+  painter->restore();
 }
 
 QColor ConnectionLine::getActivityColor() const {
@@ -570,45 +721,47 @@ QColor ConnectionLine::getActivityColor() const {
 void ConnectionLine::drawRateLabel(QPainter* painter) {
   if (path_.isEmpty()) return;
 
-  // Position label at center of path
-  QPointF midPoint = path_.pointAtPercent(0.5);
-
-  // Format rate string
-  QString rateStr;
-  if (messageRate_ >= 1000) {
-    rateStr = QString("%1 kHz").arg(messageRate_ / 1000.0, 0, 'f', 1);
-  } else if (messageRate_ >= 1) {
-    rateStr = QString("%1 Hz").arg(messageRate_, 0, 'f', 1);
-  } else if (messageRate_ > 0) {
-    rateStr = QString("%1 Hz").arg(messageRate_, 0, 'f', 2);
-  } else {
+  // Format current rate string
+  QString rateStr = formatRate(messageRate_);
+  if (rateStr.isEmpty()) {
     return;  // Don't draw if rate is 0
   }
 
-  // Set up font
+  // Position label at center of path
+  QPointF midPoint = path_.pointAtPercent(0.5);
+
+  // Set up font and colors
   QFont font("Sans", 8);
   font.setBold(true);
-  painter->setFont(font);
 
-  QFontMetrics fm(font);
-  QRect textRect = fm.boundingRect(rateStr);
-  textRect.moveCenter(midPoint.toPoint());
-
-  // Draw background
-  QRect bgRect = textRect.adjusted(-4, -2, 4, 2);
-  QColor bgColor(30, 30, 30, 200);
-  painter->setBrush(bgColor);
-  painter->setPen(Qt::NoPen);
-  painter->drawRoundedRect(bgRect, 3, 3);
-
-  // Draw text
   QColor textColor = getActivityColor();
   if (activityState_ == TopicActivityState::Unknown ||
       activityState_ == TopicActivityState::Inactive) {
     textColor = QColor(200, 200, 200);
   }
-  painter->setPen(textColor);
-  painter->drawText(textRect, Qt::AlignCenter, rateStr);
+  QColor bgColor(30, 30, 30, 200);
+
+  // Use rolling digit animation if in progress
+  if (rateAnimProgress_ < 1.0 && !previousRateStr_.isEmpty()) {
+    drawRollingDigits(painter, previousRateStr_, rateStr, rateAnimProgress_,
+                      midPoint, font, textColor, bgColor);
+  } else {
+    // No animation - draw normally
+    painter->setFont(font);
+    QFontMetrics fm(font);
+    QRect textRect = fm.boundingRect(rateStr);
+    textRect.moveCenter(midPoint.toPoint());
+
+    // Draw background
+    QRect bgRect = textRect.adjusted(-4, -2, 4, 2);
+    painter->setBrush(bgColor);
+    painter->setPen(Qt::NoPen);
+    painter->drawRoundedRect(bgRect, 3, 3);
+
+    // Draw text
+    painter->setPen(textColor);
+    painter->drawText(textRect, Qt::AlignCenter, rateStr);
+  }
 }
 
 void ConnectionLine::drawActivityIndicator(QPainter* painter) {
@@ -632,7 +785,7 @@ void ConnectionLine::drawActivityIndicator(QPainter* painter) {
     // Scale particle size with rate
     qreal rateIntensity = 0.5;
     if (messageRate_ > 0) {
-      rateIntensity = std::min(1.0, 0.5 + 0.125 * std::log10(messageRate_));
+      rateIntensity = qBound(0.0, 0.5 + 0.125 * std::log10(messageRate_), 1.0);
     }
 
     for (int i = 0; i < numParticles; ++i) {
@@ -679,7 +832,15 @@ void ConnectionLine::drawActivityIndicator(QPainter* painter) {
 // Bandwidth visualization methods
 
 void ConnectionLine::setConnectionStats(const ConnectionStats& stats) {
-  stats_ = stats;
+  // Check if bandwidth changed for animation
+  if (!qFuzzyCompare(1.0 + stats_.bandwidthBps, 1.0 + stats.bandwidthBps)) {
+    previousBandwidth_ = stats_.bandwidthBps;
+    previousBandwidthStr_ = formatBandwidth(stats_.bandwidthBps);
+    stats_ = stats;
+    startBandwidthAnimation();
+  } else {
+    stats_ = stats;
+  }
 
   // Update message rate from stats
   if (stats.messageRate > 0) {
@@ -727,25 +888,32 @@ void ConnectionLine::drawBandwidthLabel(QPainter* painter) {
 
   QString bwStr = formatBandwidth(stats_.bandwidthBps);
 
-  // Set up font
+  // Set up font and colors
   QFont font("Sans", 7);
-  painter->setFont(font);
-
-  QFontMetrics fm(font);
-  QRect textRect = fm.boundingRect(bwStr);
-  textRect.moveCenter(labelPoint.toPoint());
-
-  // Draw background
-  QRect bgRect = textRect.adjusted(-3, -1, 3, 1);
-  QColor bgColor(40, 40, 40, 180);
-  painter->setBrush(bgColor);
-  painter->setPen(Qt::NoPen);
-  painter->drawRoundedRect(bgRect, 2, 2);
-
-  // Draw text
   QColor textColor(180, 180, 255);  // Light blue for bandwidth
-  painter->setPen(textColor);
-  painter->drawText(textRect, Qt::AlignCenter, bwStr);
+  QColor bgColor(40, 40, 40, 180);
+
+  // Use rolling digit animation if in progress
+  if (bandwidthAnimProgress_ < 1.0 && !previousBandwidthStr_.isEmpty()) {
+    drawRollingDigits(painter, previousBandwidthStr_, bwStr, bandwidthAnimProgress_,
+                      labelPoint, font, textColor, bgColor);
+  } else {
+    // No animation - draw normally
+    painter->setFont(font);
+    QFontMetrics fm(font);
+    QRect textRect = fm.boundingRect(bwStr);
+    textRect.moveCenter(labelPoint.toPoint());
+
+    // Draw background
+    QRect bgRect = textRect.adjusted(-3, -1, 3, 1);
+    painter->setBrush(bgColor);
+    painter->setPen(Qt::NoPen);
+    painter->drawRoundedRect(bgRect, 2, 2);
+
+    // Draw text
+    painter->setPen(textColor);
+    painter->drawText(textRect, Qt::AlignCenter, bwStr);
+  }
 }
 
 void ConnectionLine::drawHealthIndicator(QPainter* painter) {

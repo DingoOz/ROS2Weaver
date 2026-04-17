@@ -3,12 +3,14 @@
 
 #include <QDialog>
 #include <QLabel>
+#include <QPointer>
 #include <QProgressBar>
 #include <QTimer>
 
 namespace ros_weaver {
 
 class ConnectionLine;
+class RollingDigitLabel;
 
 /**
  * @brief Dialog showing detailed statistics for a connection
@@ -37,15 +39,15 @@ private:
   QString formatBytes(qint64 bytes) const;
   QString formatDuration(qint64 milliseconds) const;
 
-  ConnectionLine* connection_;
+  QPointer<ConnectionLine> connection_;
   QTimer* updateTimer_;
 
   // UI elements
   QLabel* topicNameLabel_;
   QLabel* messageTypeLabel_;
   QLabel* healthStatusLabel_;
-  QLabel* messageRateLabel_;
-  QLabel* bandwidthLabel_;
+  RollingDigitLabel* messageRateLabel_;
+  RollingDigitLabel* bandwidthLabel_;
   QLabel* latencyLabel_;
   QLabel* jitterLabel_;
   QLabel* queueDepthLabel_;

@@ -1,4 +1,5 @@
 #include "ros_weaver/widgets/connection_stats_dialog.hpp"
+#include "ros_weaver/widgets/rolling_digit_label.hpp"
 #include "ros_weaver/canvas/connection_line.hpp"
 
 #include <QVBoxLayout>
@@ -89,13 +90,17 @@ void ConnectionStatsDialog::setupUI() {
   int row = 0;
 
   statsLayout->addWidget(new QLabel("Message Rate:"), row, 0);
-  messageRateLabel_ = new QLabel("-");
-  messageRateLabel_->setStyleSheet("font-weight: bold; color: #64C864;");
+  messageRateLabel_ = new RollingDigitLabel(this);
+  messageRateLabel_->setTextColor(QColor("#64C864"));
+  messageRateLabel_->setFont(QFont(font().family(), font().pointSize(), QFont::Bold));
+  messageRateLabel_->setValue("-");
   statsLayout->addWidget(messageRateLabel_, row++, 1);
 
   statsLayout->addWidget(new QLabel("Bandwidth:"), row, 0);
-  bandwidthLabel_ = new QLabel("-");
-  bandwidthLabel_->setStyleSheet("font-weight: bold; color: #6464FF;");
+  bandwidthLabel_ = new RollingDigitLabel(this);
+  bandwidthLabel_->setTextColor(QColor("#6464FF"));
+  bandwidthLabel_->setFont(QFont(font().family(), font().pointSize(), QFont::Bold));
+  bandwidthLabel_->setValue("-");
   statsLayout->addWidget(bandwidthLabel_, row++, 1);
 
   statsLayout->addWidget(new QLabel("Avg Latency:"), row, 0);
@@ -164,28 +169,32 @@ void ConnectionStatsDialog::updateStats() {
   // Connection stats
   ConnectionStats stats = connection_->connectionStats();
 
-  // Message rate
+  // Message rate (using rolling digit animation)
   double rate = connection_->messageRate();
+  QString rateString;
   if (rate >= 1000) {
-    messageRateLabel_->setText(QString("%1 kHz").arg(rate / 1000.0, 0, 'f', 2));
+    rateString = QString("%1 kHz").arg(rate / 1000.0, 0, 'f', 2);
   } else if (rate >= 1) {
-    messageRateLabel_->setText(QString("%1 Hz").arg(rate, 0, 'f', 1));
+    rateString = QString("%1 Hz").arg(rate, 0, 'f', 1);
   } else if (rate > 0) {
-    messageRateLabel_->setText(QString("%1 Hz").arg(rate, 0, 'f', 3));
+    rateString = QString("%1 Hz").arg(rate, 0, 'f', 3);
   } else {
-    messageRateLabel_->setText("0 Hz");
+    rateString = "0 Hz";
   }
+  messageRateLabel_->setValue(rateString);
 
-  // Bandwidth
+  // Bandwidth (using rolling digit animation)
+  QString bandwidthString;
   if (stats.bandwidthBps >= 1e9) {
-    bandwidthLabel_->setText(QString("%1 GB/s").arg(stats.bandwidthBps / 1e9, 0, 'f', 2));
+    bandwidthString = QString("%1 GB/s").arg(stats.bandwidthBps / 1e9, 0, 'f', 2);
   } else if (stats.bandwidthBps >= 1e6) {
-    bandwidthLabel_->setText(QString("%1 MB/s").arg(stats.bandwidthBps / 1e6, 0, 'f', 2));
+    bandwidthString = QString("%1 MB/s").arg(stats.bandwidthBps / 1e6, 0, 'f', 2);
   } else if (stats.bandwidthBps >= 1e3) {
-    bandwidthLabel_->setText(QString("%1 KB/s").arg(stats.bandwidthBps / 1e3, 0, 'f', 1));
+    bandwidthString = QString("%1 KB/s").arg(stats.bandwidthBps / 1e3, 0, 'f', 1);
   } else {
-    bandwidthLabel_->setText(QString("%1 B/s").arg(stats.bandwidthBps, 0, 'f', 0));
+    bandwidthString = QString("%1 B/s").arg(stats.bandwidthBps, 0, 'f', 0);
   }
+  bandwidthLabel_->setValue(bandwidthString);
 
   // Latency and jitter
   if (stats.avgLatencyMs > 0) {

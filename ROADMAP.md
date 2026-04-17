@@ -86,6 +86,7 @@ These are community and AI-suggested features to enhance ROS2Weaver, prioritized
 |---------|----------|------------|
 | Google Maps Integration for Mission Planner | High | Medium |
 | Enhanced Architecture Documentation | High | Medium |
+| URDF Realtime Editor | Medium | High |
 | Message Schema Diff Tool | Medium | Low |
 | Plugin/Extension System | Low | High |
 | CI/CD Pipeline Generator | Low | Medium |
@@ -875,6 +876,369 @@ void MainWindow::setupConnectionMenu() {
 ---
 
 ### MEDIUM PRIORITY
+
+---
+
+### URDF Realtime Editor
+
+**Branch:** `feature/urdf-editor`
+
+**Overview:** A visual URDF/xacro editor that allows users to load robot description files, manipulate links/joints interactively in a 3D viewport with Blender-style controls, and save modifications back to file.
+
+#### Key Features
+
+1. **URDF/Xacro Loading**
+   - Load URDF files directly or process xacro files with parameter substitution
+   - Parse and resolve all includes and macros
+   - Display loading errors with line numbers for debugging
+
+2. **Hierarchy Tree View**
+   - Blender-style outliner showing links and joints in tree structure
+   - Click to select, shift-click for multi-select
+   - Drag-and-drop to reparent (with validation)
+   - Icons indicating link type (visual, collision, inertial)
+   - Search/filter functionality
+
+3. **3D Viewport with Interactive Manipulation**
+   - Render robot model with visual meshes
+   - Translation gizmo for selected link/joint
+   - Blender-style controls:
+     - Click and drag to move freely
+     - Middle mouse button after initial drag constrains to single axis (X, Y, or Z)
+     - Ctrl modifier enables discrete/snapped movement (configurable step size)
+     - Shift modifier for precision (slower) movement
+   - Camera orbit/pan/zoom controls
+
+4. **Properties Panel**
+   - Direct numeric input for X, Y, Z position
+   - Direct numeric input for Roll, Pitch, Yaw orientation
+   - Joint limits editor (lower, upper, effort, velocity)
+   - Mass and inertia tensor editor
+   - Visual/collision geometry parameters
+
+5. **Save Functionality**
+   - Save over existing file (with backup option)
+   - Save As to new location
+   - Export processed xacro as flat URDF
+   - Preserve comments and formatting where possible
+
+#### New Files to Create
+
+```
+src/ros_weaver/include/ros_weaver/urdf_editor/urdf_editor_panel.hpp
+src/ros_weaver/src/urdf_editor/urdf_editor_panel.cpp
+src/ros_weaver/include/ros_weaver/urdf_editor/urdf_parser.hpp
+src/ros_weaver/src/urdf_editor/urdf_parser.cpp
+src/ros_weaver/include/ros_weaver/urdf_editor/urdf_3d_viewport.hpp
+src/ros_weaver/src/urdf_editor/urdf_3d_viewport.cpp
+src/ros_weaver/include/ros_weaver/urdf_editor/urdf_hierarchy_tree.hpp
+src/ros_weaver/src/urdf_editor/urdf_hierarchy_tree.cpp
+src/ros_weaver/include/ros_weaver/urdf_editor/urdf_properties_widget.hpp
+src/ros_weaver/src/urdf_editor/urdf_properties_widget.cpp
+src/ros_weaver/include/ros_weaver/urdf_editor/transform_gizmo.hpp
+src/ros_weaver/src/urdf_editor/transform_gizmo.cpp
+```
+
+#### Implementation Steps
+
+**Step 1: Create URDFParser class for loading and processing**
+
+```cpp
+class URDFParser : public QObject {
+  Q_OBJECT
+public:
+  struct LinkData {
+    QString name;
+    QVector3D origin;
+    QVector3D rpy;
+    QString visualMesh;
+    QString collisionMesh;
+    double mass;
+    QMatrix3x3 inertia;
+  };
+
+  struct JointData {
+    QString name;
+    QString type;  // revolute, prismatic, fixed, continuous, floating, planar
+    QString parentLink;
+    QString childLink;
+    QVector3D origin;
+    QVector3D rpy;
+    QVector3D axis;
+    double lowerLimit;
+    double upperLimit;
+    double effortLimit;
+    double velocityLimit;
+  };
+
+  struct URDFModel {
+    QString name;
+    QString filePath;
+    QList<LinkData> links;
+    QList<JointData> joints;
+    QString rootLink;
+  };
+
+  // Load URDF directly
+  URDFModel loadURDF(const QString& filePath);
+
+  // Process xacro and load resulting URDF
+  URDFModel loadXacro(const QString& filePath, const QMap<QString, QString>& args = {});
+
+  // Save model back to URDF
+  bool saveURDF(const URDFModel& model, const QString& filePath);
+
+signals:
+  void parseError(const QString& message, int lineNumber);
+  void parseWarning(const QString& message);
+
+private:
+  // Use xacro command-line tool for processing
+  QString processXacro(const QString& filePath, const QMap<QString, QString>& args);
+  URDFModel parseURDFXml(const QString& xml);
+};
+```
+
+**Step 2: Create URDF3DViewport with Qt3D**
+
+```cpp
+class URDF3DViewport : public Qt3DExtras::Qt3DWindow {
+  Q_OBJECT
+public:
+  explicit URDF3DViewport(QWidget* parent = nullptr);
+
+  void loadModel(const URDFParser::URDFModel& model);
+  void setSelectedLink(const QString& linkName);
+  void setSelectedJoint(const QString& jointName);
+
+  // Gizmo settings
+  void setSnapEnabled(bool enabled);
+  void setSnapIncrement(float increment);  // Default 0.01m for Ctrl-drag
+
+signals:
+  void linkSelected(const QString& linkName);
+  void jointSelected(const QString& jointName);
+  void transformChanged(const QString& elementName, const QVector3D& position,
+                        const QVector3D& rotation);
+
+protected:
+  void mousePressEvent(QMouseEvent* event) override;
+  void mouseMoveEvent(QMouseEvent* event) override;
+  void mouseReleaseEvent(QMouseEvent* event) override;
+
+private:
+  // Blender-style axis constraint detection
+  enum class AxisConstraint { None, X, Y, Z };
+  AxisConstraint detectAxisConstraint(const QPointF& dragStart, const QPointF& current);
+
+  Qt3DCore::QEntity* rootEntity_;
+  Qt3DRender::QCamera* camera_;
+  TransformGizmo* gizmo_;
+  QMap<QString, Qt3DCore::QEntity*> linkEntities_;
+
+  // Drag state
+  bool isDragging_ = false;
+  QPointF dragStart_;
+  AxisConstraint currentConstraint_ = AxisConstraint::None;
+  float dragThreshold_ = 20.0f;  // Pixels before axis constraint activates
+};
+```
+
+**Step 3: Create TransformGizmo for visual manipulation handles**
+
+```cpp
+class TransformGizmo : public Qt3DCore::QEntity {
+  Q_OBJECT
+public:
+  enum class Mode { Translate, Rotate, Scale };
+
+  explicit TransformGizmo(Qt3DCore::QEntity* parent = nullptr);
+
+  void setTarget(Qt3DCore::QTransform* target);
+  void setMode(Mode mode);
+  void setAxisConstraint(int axis);  // -1 = none, 0 = X, 1 = Y, 2 = Z
+  void setSnapEnabled(bool enabled);
+  void setSnapIncrement(float increment);
+
+  // Apply delta movement (called during drag)
+  void applyDelta(const QVector3D& worldDelta, bool snapEnabled);
+
+signals:
+  void transformStarted();
+  void transformChanged(const QVector3D& position, const QVector3D& rotation);
+  void transformFinished();
+
+private:
+  void createArrows();  // Red=X, Green=Y, Blue=Z
+  void highlightAxis(int axis);
+
+  Qt3DCore::QTransform* target_ = nullptr;
+  Mode mode_ = Mode::Translate;
+  int constrainedAxis_ = -1;
+  float snapIncrement_ = 0.01f;
+};
+```
+
+**Step 4: Create URDFHierarchyTree widget**
+
+```cpp
+class URDFHierarchyTree : public QTreeWidget {
+  Q_OBJECT
+public:
+  explicit URDFHierarchyTree(QWidget* parent = nullptr);
+
+  void loadModel(const URDFParser::URDFModel& model);
+  void setSelectedElement(const QString& name);
+
+signals:
+  void linkSelected(const QString& linkName);
+  void jointSelected(const QString& jointName);
+  void elementReparented(const QString& element, const QString& newParent);
+
+protected:
+  void dropEvent(QDropEvent* event) override;
+
+private:
+  void buildTree(const URDFParser::URDFModel& model);
+  QTreeWidgetItem* findLinkItem(const QString& linkName);
+
+  QIcon linkIcon_;
+  QIcon jointIcon_;
+  QIcon visualIcon_;
+  QIcon collisionIcon_;
+};
+```
+
+**Step 5: Create URDFPropertiesWidget for numeric input**
+
+```cpp
+class URDFPropertiesWidget : public QWidget {
+  Q_OBJECT
+public:
+  explicit URDFPropertiesWidget(QWidget* parent = nullptr);
+
+  void setLinkData(const URDFParser::LinkData& link);
+  void setJointData(const URDFParser::JointData& joint);
+  void clear();
+
+signals:
+  void linkDataChanged(const URDFParser::LinkData& link);
+  void jointDataChanged(const URDFParser::JointData& joint);
+
+private:
+  void setupUI();
+  void createPositionGroup();  // X, Y, Z spin boxes
+  void createOrientationGroup();  // Roll, Pitch, Yaw spin boxes
+  void createJointLimitsGroup();
+  void createInertialGroup();
+
+  // Position spin boxes with direct numeric entry
+  QDoubleSpinBox* posX_;
+  QDoubleSpinBox* posY_;
+  QDoubleSpinBox* posZ_;
+
+  // Orientation spin boxes
+  QDoubleSpinBox* roll_;
+  QDoubleSpinBox* pitch_;
+  QDoubleSpinBox* yaw_;
+
+  // Joint limits
+  QDoubleSpinBox* lowerLimit_;
+  QDoubleSpinBox* upperLimit_;
+  QDoubleSpinBox* effortLimit_;
+  QDoubleSpinBox* velocityLimit_;
+};
+```
+
+**Step 6: Create main URDFEditorPanel integrating all components**
+
+```cpp
+class URDFEditorPanel : public QWidget {
+  Q_OBJECT
+public:
+  explicit URDFEditorPanel(QWidget* parent = nullptr);
+
+  void loadFile(const QString& filePath);
+  bool hasUnsavedChanges() const;
+
+public slots:
+  void onOpen();
+  void onSave();
+  void onSaveAs();
+  void onExportFlatURDF();
+
+signals:
+  void fileLoaded(const QString& filePath);
+  void fileSaved(const QString& filePath);
+  void modifiedChanged(bool modified);
+
+private:
+  void setupUI();
+  void setupToolbar();
+  void connectSignals();
+  void updateWindowTitle();
+  void markModified();
+
+  // Layout: Hierarchy tree on left, 3D viewport center, properties on right
+  URDFHierarchyTree* hierarchyTree_;
+  URDF3DViewport* viewport_;
+  URDFPropertiesWidget* propertiesWidget_;
+
+  URDFParser parser_;
+  URDFParser::URDFModel currentModel_;
+  QString currentFilePath_;
+  bool isModified_ = false;
+
+  // Toolbar actions
+  QAction* openAction_;
+  QAction* saveAction_;
+  QAction* saveAsAction_;
+  QAction* undoAction_;
+  QAction* redoAction_;
+  QAction* snapToggleAction_;
+};
+```
+
+#### Integration with Main Window
+
+```cpp
+// In MainWindow, add menu entry and dock widget support
+void MainWindow::setupURDFEditor() {
+  // Add to Tools menu
+  QAction* urdfEditorAction = toolsMenu_->addAction("URDF Editor");
+  connect(urdfEditorAction, &QAction::triggered, this, [this]() {
+    if (!urdfEditorDock_) {
+      urdfEditorDock_ = new QDockWidget("URDF Editor", this);
+      urdfEditorPanel_ = new URDFEditorPanel(this);
+      urdfEditorDock_->setWidget(urdfEditorPanel_);
+      addDockWidget(Qt::RightDockWidgetArea, urdfEditorDock_);
+    }
+    urdfEditorDock_->show();
+    urdfEditorDock_->raise();
+  });
+}
+```
+
+#### Dependencies
+
+- **Qt3D**: For 3D rendering and mesh loading
+- **urdfdom**: For URDF parsing (already common in ROS2)
+- **xacro**: Command-line tool for xacro processing (ROS2 package)
+
+#### CMakeLists.txt Additions
+
+```cmake
+find_package(Qt6 REQUIRED COMPONENTS 3DCore 3DRender 3DInput 3DExtras)
+find_package(urdfdom REQUIRED)
+
+target_link_libraries(ros_weaver
+  Qt6::3DCore
+  Qt6::3DRender
+  Qt6::3DInput
+  Qt6::3DExtras
+  ${urdfdom_LIBRARIES}
+)
+```
 
 ---
 

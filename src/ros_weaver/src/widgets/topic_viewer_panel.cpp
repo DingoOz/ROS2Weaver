@@ -1,5 +1,7 @@
 #include "ros_weaver/widgets/topic_viewer_panel.hpp"
 #include "ros_weaver/widgets/topic_list_model.hpp"
+#include "ros_weaver/widgets/rolling_digit_label.hpp"
+#include "ros_weaver/widgets/rolling_digit_delegate.hpp"
 #include "ros_weaver/widgets/lineage_dialog.hpp"
 #include "ros_weaver/core/lineage_provider.hpp"
 #include "ros_weaver/canvas/weaver_canvas.hpp"
@@ -31,6 +33,7 @@ TopicViewerPanel::TopicViewerPanel(QWidget* parent)
   , topicTreeView_(nullptr)
   , topicModel_(nullptr)
   , proxyModel_(nullptr)
+  , rateDelegate_(nullptr)
   , detailsPanel_(nullptr)
   , topicNameLabel_(nullptr)
   , topicTypeLabel_(nullptr)
@@ -189,6 +192,28 @@ void TopicViewerPanel::setupTopicList() {
   topicTreeView_->setSelectionMode(QAbstractItemView::SingleSelection);
   topicTreeView_->setContextMenuPolicy(Qt::CustomContextMenu);
 
+  // Set up rolling digit delegate for the Rate column
+  rateDelegate_ = new RollingDigitDelegate(this);
+  topicTreeView_->setItemDelegateForColumn(2, rateDelegate_);  // Column 2 = Rate
+
+  // Connect model rate changes to trigger delegate animation
+  connect(topicModel_, &TopicListModel::rateChanged,
+          rateDelegate_, &RollingDigitDelegate::notifyRateChanged);
+
+  // Connect delegate repaint requests to update the view
+  connect(rateDelegate_, &RollingDigitDelegate::needsRepaint, this, [this](int row) {
+    // Map source row to proxy row and update
+    QModelIndex sourceIndex = topicModel_->index(row, 2);  // Rate column
+    QModelIndex proxyIndex = proxyModel_->mapFromSource(sourceIndex);
+    if (proxyIndex.isValid()) {
+      topicTreeView_->update(proxyIndex);
+    }
+  });
+
+  // Clear animations when model is reset
+  connect(topicModel_, &QAbstractItemModel::modelAboutToBeReset,
+          rateDelegate_, &RollingDigitDelegate::clearAnimations);
+
   // Configure header
   QHeaderView* header = topicTreeView_->header();
   header->setStretchLastSection(false);
@@ -220,6 +245,21 @@ void TopicViewerPanel::setupDetailsPanel() {
   topicStatsLabel_ = new QLabel();
   topicStatsLabel_->setStyleSheet("font-size: 10px;");
   layout->addWidget(topicStatsLabel_);
+
+  // Rate display with rolling digit animation
+  QHBoxLayout* rateLayout = new QHBoxLayout();
+  rateLayout->setContentsMargins(0, 2, 0, 2);
+  QLabel* rateTextLabel = new QLabel(tr("Rate: "));
+  rateTextLabel->setStyleSheet("font-size: 10px;");
+  rateLayout->addWidget(rateTextLabel);
+
+  topicRateLabel_ = new RollingDigitLabel(this);
+  topicRateLabel_->setTextColor(QColor("#64C864"));
+  topicRateLabel_->setFont(QFont(font().family(), 10, QFont::Bold));
+  topicRateLabel_->setValue("-");
+  rateLayout->addWidget(topicRateLabel_);
+  rateLayout->addStretch();
+  layout->addLayout(rateLayout);
 
   // Message preview
   QLabel* previewLabel = new QLabel(tr("Message Preview:"));
@@ -356,9 +396,15 @@ void TopicViewerPanel::refreshTopics() {
 
   statusLabel_->setText(tr("Discovering topics..."));
 
-  // Wait for any previous discovery thread to complete
-  if (discoveryThread_ && discoveryThread_->joinable()) {
-    discoveryThread_->join();
+  // Join the previous discovery thread before starting a new one.
+  // The discovery call (get_topic_names_and_types) is bounded, so this
+  // won't block the GUI for long — typically it completes well within
+  // the 2-second auto-refresh interval.
+  if (discoveryThread_) {
+    if (discoveryThread_->joinable()) {
+      discoveryThread_->join();
+    }
+    discoveryThread_.reset();
   }
 
   // Perform discovery in background thread (tracked to avoid use-after-free)
@@ -497,10 +543,22 @@ void TopicViewerPanel::updateTopicDetails(const QString& topicName) {
   topicTypeLabel_->setText(topic.type);
 
   QString stats = tr("Publishers: %1 | Subscribers: %2").arg(topic.publisherCount).arg(topic.subscriberCount);
-  if (topic.publishRate > 0) {
-    stats += tr(" | Rate: %1 Hz").arg(topic.publishRate, 0, 'f', 1);
-  }
   topicStatsLabel_->setText(stats);
+
+  // Update rate with rolling digit animation
+  if (topic.publishRate > 0) {
+    QString rateStr;
+    if (topic.publishRate >= 1000) {
+      rateStr = QString("%1 kHz").arg(topic.publishRate / 1000.0, 0, 'f', 2);
+    } else if (topic.publishRate >= 1) {
+      rateStr = QString("%1 Hz").arg(topic.publishRate, 0, 'f', 1);
+    } else {
+      rateStr = QString("%1 Hz").arg(topic.publishRate, 0, 'f', 3);
+    }
+    topicRateLabel_->setValue(rateStr);
+  } else {
+    topicRateLabel_->setValue("-");
+  }
 
   if (!topic.lastMessagePreview.isEmpty()) {
     messagePreviewEdit_->setPlainText(topic.lastMessagePreview);
@@ -617,12 +675,15 @@ void TopicViewerPanel::toggleMonitoring() {
 }
 
 void TopicViewerPanel::monitorTopic(const QString& topicName) {
-  if (!rosNode_ || !monitoring_.load()) {
-    // Enable monitoring if not already
-    if (!monitoring_.load()) {
-      startMonitoring();
-      monitorButton_->setChecked(true);
-    }
+  // Enable monitoring if not already
+  if (!monitoring_.load()) {
+    startMonitoring();
+    monitorButton_->setChecked(true);
+  }
+
+  // Ensure we have a valid ROS node
+  if (!rosNode_) {
+    return;
   }
 
   std::string topic = topicName.toStdString();

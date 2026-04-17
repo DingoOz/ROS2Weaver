@@ -154,6 +154,13 @@ namespace ui {
   constexpr int BUTTON_HEIGHT = 32;
   constexpr int SMALL_BUTTON_HEIGHT = 24;
   constexpr int ICON_BUTTON_SIZE = 32;
+
+  // Dock panel title bar buttons
+  constexpr int DOCK_BUTTON_BASE_SIZE = 16;
+  constexpr double DOCK_BUTTON_DEFAULT_SCALE = 1.5;
+  constexpr double DOCK_BUTTON_MIN_SCALE = 1.0;
+  constexpr double DOCK_BUTTON_MAX_SCALE = 3.0;
+  constexpr double DOCK_BUTTON_SCALE_STEP = 0.25;
 }
 
 // =============================================================================
@@ -169,6 +176,42 @@ namespace shortcuts {
   inline QString generateCode() { return "Ctrl+G"; }
   inline QString buildWorkspace() { return "Ctrl+B"; }
   inline QString openSettings() { return "Ctrl+,"; }
+}
+
+// =============================================================================
+// Plot Panel Constants
+// =============================================================================
+
+namespace plot {
+  // Buffer and timing
+  constexpr int MAX_BUFFER_SIZE = 10000;
+  constexpr int UPDATE_INTERVAL_MS = 50;
+
+  // Line thickness
+  constexpr int DEFAULT_LINE_THICKNESS = 2;
+  constexpr int MIN_LINE_THICKNESS = 1;
+  constexpr int MAX_LINE_THICKNESS = 10;
+
+  // Sample rate decimation
+  constexpr double MIN_SAMPLE_RATE_HZ = 0.1;
+  constexpr double MAX_SAMPLE_RATE_HZ = 1000.0;
+  constexpr double DEFAULT_SAMPLE_RATE_HZ = 0.0;  // 0 = unlimited
+
+  // Threshold defaults
+  constexpr double DEFAULT_THRESHOLD_UPPER = 1.0;
+  constexpr double DEFAULT_THRESHOLD_LOWER = -1.0;
+  inline QColor defaultThresholdAlarmColor() { return QColor(220, 50, 50); }
+
+  // Gradient defaults
+  constexpr int MIN_GRADIENT_BUCKETS = 2;
+  constexpr int MAX_GRADIENT_BUCKETS = 32;
+  constexpr int DEFAULT_GRADIENT_BUCKETS = 8;
+  inline QColor defaultGradientLowColor() { return QColor(0, 100, 255); }
+  inline QColor defaultGradientHighColor() { return QColor(255, 50, 50); }
+
+  // Segment series pool
+  constexpr int INITIAL_POOL_SIZE = 4;
+  constexpr int MAX_POOL_SIZE = 256;
 }
 
 // =============================================================================

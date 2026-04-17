@@ -3,6 +3,7 @@
 
 #include <QColor>
 #include <QFont>
+#include <QtGlobal>
 
 namespace ros_weaver {
 
@@ -216,7 +217,14 @@ bool TopicListModel::isTopicMonitored(const QString& topicName) const {
 void TopicListModel::updateTopicRate(const QString& topicName, double rate) {
   int row = findTopicRow(topicName);
   if (row >= 0) {
+    double oldRate = topics_[row].publishRate;
     topics_[row].publishRate = rate;
+
+    // Emit rate changed for rolling digit animation
+    if (!qFuzzyCompare(1.0 + oldRate, 1.0 + rate)) {
+      emit rateChanged(row, oldRate, rate);
+    }
+
     emit dataChanged(index(row, static_cast<int>(TopicColumn::Rate)),
                      index(row, static_cast<int>(TopicColumn::Rate)));
   }

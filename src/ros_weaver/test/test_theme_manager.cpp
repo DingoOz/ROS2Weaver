@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include "ros_weaver/core/theme_manager.hpp"
+#include "ros_weaver/core/constants.hpp"
 #include <QApplication>
 
 using namespace ros_weaver;
@@ -10,16 +11,19 @@ using namespace ros_weaver;
 class ThemeManagerTest : public ::testing::Test {
 protected:
   void SetUp() override {
-    // Store the initial theme to restore after tests
+    // Store the initial state to restore after tests
     initialTheme_ = ThemeManager::instance().currentTheme();
+    initialDockButtonScale_ = ThemeManager::instance().dockButtonScale();
   }
 
   void TearDown() override {
-    // Restore initial theme
+    // Restore initial state
     ThemeManager::instance().setTheme(initialTheme_);
+    ThemeManager::instance().setDockButtonScale(initialDockButtonScale_);
   }
 
   Theme initialTheme_;
+  double initialDockButtonScale_;
 };
 
 // ============================================================================
@@ -217,6 +221,43 @@ TEST(ThemeEnumTest, DarkEnumValue) {
 
 TEST(ThemeEnumTest, LightEnumValue) {
   EXPECT_EQ(static_cast<int>(Theme::Light), 1);
+}
+
+// ============================================================================
+// Dock Button Scale Tests
+// ============================================================================
+
+TEST_F(ThemeManagerTest, DockButtonScale_DefaultValue) {
+  // Fresh default should be 1.5
+  EXPECT_DOUBLE_EQ(constants::ui::DOCK_BUTTON_DEFAULT_SCALE, 1.5);
+}
+
+TEST_F(ThemeManagerTest, DockButtonScale_SetValue) {
+  ThemeManager::instance().setDockButtonScale(2.0);
+  EXPECT_DOUBLE_EQ(ThemeManager::instance().dockButtonScale(), 2.0);
+}
+
+TEST_F(ThemeManagerTest, DockButtonScale_ClampMin) {
+  ThemeManager::instance().setDockButtonScale(0.5);
+  EXPECT_DOUBLE_EQ(ThemeManager::instance().dockButtonScale(),
+                   constants::ui::DOCK_BUTTON_MIN_SCALE);
+}
+
+TEST_F(ThemeManagerTest, DockButtonScale_ClampMax) {
+  ThemeManager::instance().setDockButtonScale(5.0);
+  EXPECT_DOUBLE_EQ(ThemeManager::instance().dockButtonScale(),
+                   constants::ui::DOCK_BUTTON_MAX_SCALE);
+}
+
+TEST_F(ThemeManagerTest, DockButtonScale_StylesheetContainsDockRules) {
+  ThemeManager::instance().setDockButtonScale(2.0);
+  QString stylesheet = ThemeManager::instance().currentStyleSheet();
+
+  // 2.0 * 16 = 32px
+  EXPECT_TRUE(stylesheet.contains("QDockWidget"));
+  EXPECT_TRUE(stylesheet.contains("32px"));
+  EXPECT_TRUE(stylesheet.contains("QDockWidget::close-button"));
+  EXPECT_TRUE(stylesheet.contains("QDockWidget::float-button"));
 }
 
 int main(int argc, char** argv) {

@@ -76,6 +76,7 @@ qrc_*.cpp
 !CHANGELOG.md
 !ROADMAP.md
 !Architecture.md
+!ERRORS.md
 !ROS Weaver Development Plan.md
 !tests/README.md
 !.claude/commands/*.md

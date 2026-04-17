@@ -42,6 +42,10 @@ find_package(Qt5 REQUIRED COMPONENTS
   Test
   PrintSupport
   Xml
+  3DCore
+  3DRender
+  3DInput
+  3DExtras
 )
 
 # Include directories
@@ -108,6 +112,7 @@ set(SOURCES
   src/widgets/topic_list_model.cpp
   src/widgets/tf_tree_panel.cpp
   src/widgets/plot_panel.cpp
+  src/widgets/plot_series_config_dialog.cpp
   src/widgets/guided_tour.cpp
   src/widgets/topic_echo_dialog.cpp
   src/widgets/rosbag_workbench_panel.cpp
@@ -195,6 +200,25 @@ set(SOURCES
   src/widgets/mission_map_view.cpp
   src/widgets/waypoint_editor_widget.cpp
   src/widgets/mission_planner_panel.cpp
+  src/core/ekf_simulation_engine.cpp
+  src/core/ekf_metrics_analyzer.cpp
+  src/core/ekf_parameter_sweep.cpp
+  src/widgets/ekf_config_editor.cpp
+  src/widgets/ekf_path_visualizer.cpp
+  src/widgets/ekf_results_panel.cpp
+  src/widgets/ekf_tuner_panel.cpp
+  src/widgets/rolling_digit_label.cpp
+  src/widgets/rolling_digit_delegate.cpp
+  src/core/urdf_model.cpp
+  src/core/urdf_parser.cpp
+  src/core/undo/urdf_undo_commands.cpp
+  src/widgets/urdf_editor_panel.cpp
+  src/widgets/urdf_hierarchy_tree.cpp
+  src/widgets/urdf_viewport_3d.cpp
+  src/widgets/urdf_gizmo.cpp
+  src/widgets/urdf_properties_panel.cpp
+  src/widgets/link_properties_widget.cpp
+  src/widgets/joint_properties_widget.cpp
 )
 
 # Header files (for MOC)
@@ -242,6 +266,7 @@ set(HEADERS
   include/ros_weaver/widgets/topic_list_model.hpp
   include/ros_weaver/widgets/tf_tree_panel.hpp
   include/ros_weaver/widgets/plot_panel.hpp
+  include/ros_weaver/widgets/plot_series_config_dialog.hpp
   include/ros_weaver/widgets/guided_tour.hpp
   include/ros_weaver/widgets/topic_echo_dialog.hpp
   include/ros_weaver/widgets/rosbag_workbench_panel.hpp
@@ -331,6 +356,26 @@ set(HEADERS
   include/ros_weaver/widgets/mission_map_view.hpp
   include/ros_weaver/widgets/waypoint_editor_widget.hpp
   include/ros_weaver/widgets/mission_planner_panel.hpp
+  include/ros_weaver/core/ekf_config.hpp
+  include/ros_weaver/core/ekf_simulation_engine.hpp
+  include/ros_weaver/core/ekf_metrics_analyzer.hpp
+  include/ros_weaver/core/ekf_parameter_sweep.hpp
+  include/ros_weaver/widgets/ekf_config_editor.hpp
+  include/ros_weaver/widgets/ekf_path_visualizer.hpp
+  include/ros_weaver/widgets/ekf_results_panel.hpp
+  include/ros_weaver/widgets/ekf_tuner_panel.hpp
+  include/ros_weaver/widgets/rolling_digit_label.hpp
+  include/ros_weaver/widgets/rolling_digit_delegate.hpp
+  include/ros_weaver/core/urdf_model.hpp
+  include/ros_weaver/core/urdf_parser.hpp
+  include/ros_weaver/core/undo/urdf_undo_commands.hpp
+  include/ros_weaver/widgets/urdf_editor_panel.hpp
+  include/ros_weaver/widgets/urdf_hierarchy_tree.hpp
+  include/ros_weaver/widgets/urdf_viewport_3d.hpp
+  include/ros_weaver/widgets/urdf_gizmo.hpp
+  include/ros_weaver/widgets/urdf_properties_panel.hpp
+  include/ros_weaver/widgets/link_properties_widget.hpp
+  include/ros_weaver/widgets/joint_properties_widget.hpp
 )
 
 # Create executable
@@ -348,6 +393,10 @@ target_link_libraries(${PROJECT_NAME}
   Qt5::Charts
   Qt5::PrintSupport
   Qt5::Xml
+  Qt5::3DCore
+  Qt5::3DRender
+  Qt5::3DInput
+  Qt5::3DExtras
   yaml-cpp
 )
 
@@ -368,8 +417,54 @@ ament_target_dependencies(${PROJECT_NAME}
   lifecycle_msgs
 )
 
+# EKF Analyzer CLI executable (headless)
+# Core sources needed for CLI (shared with main GUI)
+set(EKF_CORE_SOURCES
+  src/core/bag_manager.cpp
+  src/core/ekf_simulation_engine.cpp
+  src/core/ekf_metrics_analyzer.cpp
+  src/core/ekf_parameter_sweep.cpp
+)
+
+set(EKF_CLI_SOURCES
+  src/cli/ekf_analyzer_main.cpp
+  src/cli/ekf_analyzer_cli.cpp
+)
+
+set(EKF_CLI_HEADERS
+  include/ros_weaver/cli/ekf_analyzer_cli.hpp
+  include/ros_weaver/core/ekf_config.hpp
+  include/ros_weaver/core/ekf_simulation_engine.hpp
+  include/ros_weaver/core/ekf_metrics_analyzer.hpp
+  include/ros_weaver/core/ekf_parameter_sweep.hpp
+  include/ros_weaver/core/bag_manager.hpp
+)
+
+add_executable(ekf_analyzer
+  ${EKF_CLI_SOURCES}
+  ${EKF_CORE_SOURCES}
+  ${EKF_CLI_HEADERS}
+)
+
+target_link_libraries(ekf_analyzer
+  Qt5::Core
+  Qt5::Gui
+  yaml-cpp
+)
+
+ament_target_dependencies(ekf_analyzer
+  rclcpp
+  rosbag2_cpp
+  rosbag2_storage
+  nav_msgs
+  geometry_msgs
+  sensor_msgs
+  tf2
+  tf2_ros
+)
+
 # Install targets
-install(TARGETS ${PROJECT_NAME}
+install(TARGETS ${PROJECT_NAME} ekf_analyzer
   DESTINATION lib/${PROJECT_NAME}
 )
 

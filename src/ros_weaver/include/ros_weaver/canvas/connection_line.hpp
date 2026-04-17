@@ -47,6 +47,8 @@ class ConnectionLine : public QGraphicsObject {
   Q_PROPERTY(qreal pulsePhase READ pulsePhase WRITE setPulsePhase)
   Q_PROPERTY(qreal dataFlowPhase READ dataFlowPhase WRITE setDataFlowPhase)
   Q_PROPERTY(qreal activityGlow READ activityGlow WRITE setActivityGlow)
+  Q_PROPERTY(qreal rateAnimProgress READ rateAnimProgress WRITE setRateAnimProgress)
+  Q_PROPERTY(qreal bandwidthAnimProgress READ bandwidthAnimProgress WRITE setBandwidthAnimProgress)
 
 public:
   ConnectionLine(PackageBlock* sourceBlock, int sourcePin,
@@ -118,6 +120,14 @@ public:
   // Trigger activity pulse (called when message received)
   void pulseActivity();
 
+  // Rate label animation property
+  qreal rateAnimProgress() const { return rateAnimProgress_; }
+  void setRateAnimProgress(qreal progress);
+
+  // Bandwidth label animation property
+  qreal bandwidthAnimProgress() const { return bandwidthAnimProgress_; }
+  void setBandwidthAnimProgress(qreal progress);
+
   // Connection statistics for detailed monitoring
   void setConnectionStats(const ConnectionStats& stats);
   ConnectionStats connectionStats() const { return stats_; }
@@ -168,8 +178,13 @@ private:
   void stopPulseAnimation();
   void startDataFlowAnimation();
   void stopDataFlowAnimation();
+  void startRateAnimation();
+  void startBandwidthAnimation();
   void drawRateLabel(QPainter* painter);
   void drawBandwidthLabel(QPainter* painter);
+  void drawRollingDigits(QPainter* painter, const QString& oldValue, const QString& newValue,
+                         qreal progress, const QPointF& position, const QFont& font,
+                         const QColor& textColor, const QColor& bgColor);
   void drawActivityIndicator(QPainter* painter);
   void drawHealthIndicator(QPainter* painter);
   void drawLatencyHeatmap(QPainter* painter);
@@ -177,6 +192,8 @@ private:
   QColor getActivityColor() const;
   QColor getLatencyColor() const;
   QString formatBandwidth(double bytesPerSec) const;
+  QString formatRate(double rateHz) const;
+  int digitScrollDistance(int fromDigit, int toDigit) const;
   QPainterPath calculatePath() const;
   void updateHealthState();
 
@@ -196,9 +213,19 @@ private:
   QPropertyAnimation* pulseAnimation_;
   QPropertyAnimation* dataFlowAnimation_;
   QPropertyAnimation* activityGlowAnimation_;
+  QPropertyAnimation* rateAnimation_;
+  QPropertyAnimation* bandwidthAnimation_;
   qreal pulsePhase_;
   qreal dataFlowPhase_;
   qreal activityGlow_;
+  qreal rateAnimProgress_;
+  qreal bandwidthAnimProgress_;
+
+  // Previous values for rolling digit animation
+  double previousRate_;
+  double previousBandwidth_;
+  QString previousRateStr_;
+  QString previousBandwidthStr_;
 
   // Live topic monitoring
   QString topicName_;
